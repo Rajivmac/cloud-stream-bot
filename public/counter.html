@@ -5,7 +5,7 @@
     <title>Death Counter</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Orbitron:wght@700&family=Press+Start+2P&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Black+Ops+One&family=Chakra+Petch:wght@600;700&family=Orbitron:wght@700&family=Press+Start+2P&family=Russo+One&family=Share+Tech+Mono&family=Teko:wght@600;700&display=swap" rel="stylesheet">
     <style>
         body {
             background-color: transparent;
@@ -13,18 +13,20 @@
             overflow: hidden;
             display: flex;
             align-items: center;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
         }
         #counter-card {
-            background: rgba(12, 14, 20, 0.92);
+            background: rgba(10, 13, 20, 0.94);
             border: 2px solid var(--theme-color, #ff4757);
             border-left: 6px solid var(--theme-color, #ff4757);
             padding: 8px 24px;
             border-radius: 10px;
             display: inline-flex;
             align-items: center;
-            gap: 15px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6), 0 0 15px var(--theme-color, rgba(255, 71, 87, 0.3));
-            font-family: var(--active-font, 'Teko'), sans-serif;
+            gap: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px var(--theme-color, rgba(255, 71, 87, 0.3));
+            font-family: var(--counter-font, 'Teko'), sans-serif;
             letter-spacing: 1.5px;
             transition: all 0.25s ease;
         }
@@ -34,12 +36,12 @@
         }
         .label {
             color: #dcdde1;
-            font-size: 30px;
+            font-size: 32px;
             text-transform: uppercase;
         }
         #death-count {
             color: var(--theme-color, #ff4757);
-            font-size: 46px;
+            font-size: 48px;
             font-weight: 700;
             transition: all 0.2s ease-in-out;
             display: inline-block;
@@ -64,7 +66,6 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const card = document.getElementById('counter-card');
         const iconSpan = document.getElementById('skull-icon');
         const deathSpan = document.getElementById('death-count');
         let currentCount = 0;
@@ -78,11 +79,10 @@
             deathSpan.innerText = data.count;
         });
 
-        // Instant Visual Customizer Handler
-        socket.on('update-counter-style', (settings) => {
-            if (settings.icon) iconSpan.innerText = settings.icon;
-            if (settings.font) document.documentElement.style.setProperty('--active-font', `'${settings.font}'`);
-            if (settings.color) document.documentElement.style.setProperty('--theme-color', settings.color);
+        socket.on('update-styles', (data) => {
+            if (data.counterIcon) iconSpan.innerText = data.counterIcon;
+            if (data.counterFont) document.documentElement.style.setProperty('--counter-font', `'${data.counterFont}'`);
+            if (data.themeColor) document.documentElement.style.setProperty('--theme-color', data.themeColor);
         });
     </script>
 </body>
