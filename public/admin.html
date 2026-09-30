@@ -3,33 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Master Dashboard</title>
+    <title>Stream Master Deck</title>
     <style>
         :root {
             --bg-color: #0d0f17;
             --card-bg: #161926;
+            --active-tab: #24293d;
             --green: #2ecc71;
             --orange: #f39c12;
             --red: #ff4757;
             --blue: #3498db;
+            --purple: #9b59b6;
         }
         body {
             background-color: var(--bg-color);
             color: #ffffff;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
-            padding: 15px;
+            padding: 12px;
             user-select: none;
             display: flex;
             flex-direction: column;
             align-items: center;
         }
-        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 14px; }
-        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; }
-        .section-title { font-size: 13px; color: #8c93a8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: 700; }
-        .status-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); }
+        .container { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 12px; }
+        
+        /* Status Bar */
+        .status-card {
+            background: var(--card-bg);
+            padding: 10px 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .status-info { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); }
+
+        /* Navigation Tabs */
+        .tab-bar {
+            display: flex;
+            gap: 8px;
+            background: #11141f;
+            padding: 6px;
+            border-radius: 12px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px 6px;
+            font-size: 13px;
+            font-weight: 700;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: #8c93a8;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .tab-btn.active {
+            background: var(--active-tab);
+            color: #ffffff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+
+        /* Views / Sections */
+        .tab-content { display: none; flex-direction: column; gap: 12px; }
+        .tab-content.active { display: flex; }
+
+        .card { background: var(--card-bg); padding: 14px; border-radius: 12px; }
+        .section-title { font-size: 12px; color: #8c93a8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: 700; }
+        
+        /* Buttons & Grid */
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .grid-dynamic { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+        .grid-dynamic { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); 
+            gap: 10px; 
+            max-height: 55vh;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
         
         button {
             padding: 14px 10px;
@@ -43,79 +96,93 @@
         }
         button:active { transform: scale(0.96); }
 
-        .btn-death-add { background: var(--red); font-size: 20px; grid-column: span 2; padding: 18px; }
+        .btn-death-add { background: var(--red); font-size: 22px; grid-column: span 2; padding: 18px; }
         .btn-death-sub { background: #4a5568; }
         .btn-death-reset { background: #2d3748; }
 
-        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); }
-        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); min-height: 65px; }
+        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); min-height: 65px; }
 
-        .counter-number { font-size: 42px; font-weight: 800; color: var(--red); text-align: center; margin: 4px 0 10px 0; }
+        .counter-number { font-size: 46px; font-weight: 800; color: var(--red); text-align: center; margin: 4px 0 10px 0; }
         
-        /* Tool Inputs */
+        /* Inputs */
         select, input {
             width: 100%;
-            padding: 10px;
+            padding: 11px;
             background: #24293d;
             border: 1px solid #373e5a;
             color: white;
             border-radius: 8px;
             box-sizing: border-box;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
             font-size: 14px;
         }
-        .btn-tool { background: var(--blue); width: 100%; padding: 12px; }
+        .btn-submit { background: var(--blue); width: 100%; padding: 13px; font-size: 15px; }
     </style>
 </head>
 <body>
     <div class="container">
-        <!-- 1. STATUS -->
-        <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:12px 18px;">
-            <div style="display:flex; align-items:center; gap:10px; font-weight:600;">
+        
+        <!-- Status Bar -->
+        <div class="status-card">
+            <div class="status-info">
                 <div id="status-indicator" class="status-dot"></div>
                 <span id="status-text">Connecting...</span>
             </div>
-            <span style="font-size:12px; color:#8c93a8;">Cloud Bot</span>
+            <span style="font-size:12px; color:#8c93a8;">Render Live</span>
         </div>
 
-        <!-- 2. DEATH COUNTER -->
-        <div class="card">
-            <div class="section-title">💀 Counter Controls</div>
-            <div class="counter-number" id="death-display">0</div>
-            <div class="grid-2">
-                <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
-                <button class="btn-death-sub" onclick="socket.emit('admin-death-sub')">- 1 Death</button>
-                <button class="btn-death-reset" onclick="socket.emit('admin-death-reset')">Reset (0)</button>
+        <!-- Tab Navigation Bar -->
+        <div class="tab-bar">
+            <button class="tab-btn active" onclick="switchTab('deck')">🎮 Live Deck</button>
+            <button class="tab-btn" onclick="switchTab('customizer')">🎨 Customizer</button>
+            <button class="tab-btn" onclick="switchTab('add')">➕ Add Trigger</button>
+        </div>
+
+        <!-- ================= TAB 1: LIVE DECK (FRONT VIEW) ================= -->
+        <div id="tab-deck" class="tab-content active">
+            <!-- Counter Controls -->
+            <div class="card">
+                <div class="section-title">💀 Counter Controls</div>
+                <div class="counter-number" id="death-display">0</div>
+                <div class="grid-2">
+                    <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
+                    <button class="btn-death-sub" onclick="socket.emit('admin-death-sub')">- 1 Death</button>
+                    <button class="btn-death-reset" onclick="socket.emit('admin-death-reset')">Reset (0)</button>
+                </div>
+            </div>
+
+            <!-- Dynamic Triggers Grid -->
+            <div class="card">
+                <div class="section-title">⚡ Sound & Video Deck</div>
+                <div class="grid-dynamic" id="triggers-container"></div>
             </div>
         </div>
 
-        <!-- 3. LIVE CUSTOMIZER TOOL -->
-        <div class="card">
-            <div class="section-title">🎨 Live Overlay Customizer</div>
-            <div class="grid-2">
-                <div>
-                    <label style="font-size:12px; color:#8c93a8;">Icon</label>
-                    <select id="cust-icon" onchange="applyStyles()">
-                        <option value="💀">💀 Skull</option>
-                        <option value="🔥">🔥 Fire / Flame</option>
-                        <option value="☠️">☠️ Crossbones</option>
-                        <option value="🥊">🥊 Boxing Glove</option>
-                        <option value="🩸">🩸 Blood Drop</option>
-                        <option value="👑">👑 Crown</option>
-                    </select>
-                </div>
-                <div>
-                    <label style="font-size:12px; color:#8c93a8;">Font Style</label>
-                    <select id="cust-font" onchange="applyStyles()">
-                        <option value="Teko">Teko (Aggressive)</option>
-                        <option value="Orbitron">Orbitron (Sci-Fi)</option>
-                        <option value="Bangers">Bangers (Comic)</option>
-                        <option value="Press Start 2P">Retro 8-Bit</option>
-                    </select>
-                </div>
-            </div>
-            <div>
-                <label style="font-size:12px; color:#8c93a8;">Accent Color</label>
+        <!-- ================= TAB 2: OVERLAY CUSTOMIZER ================= -->
+        <div id="tab-customizer" class="tab-content">
+            <div class="card">
+                <div class="section-title">🎨 Counter Visual Style</div>
+                
+                <label style="font-size:12px; color:#8c93a8;">Counter Icon</label>
+                <select id="cust-icon" onchange="applyStyles()">
+                    <option value="💀">💀 Skull</option>
+                    <option value="🔥">🔥 Fire / Flame</option>
+                    <option value="☠️️">☠️ Crossbones</option>
+                    <option value="🥊">🥊 Boxing Glove</option>
+                    <option value="🩸">🩸 Blood Drop</option>
+                    <option value="👑">👑 Crown</option>
+                </select>
+
+                <label style="font-size:12px; color:#8c93a8;">Font Family</label>
+                <select id="cust-font" onchange="applyStyles()">
+                    <option value="Teko">Teko (Aggressive)</option>
+                    <option value="Orbitron">Orbitron (Sci-Fi)</option>
+                    <option value="Bangers">Bangers (Comic)</option>
+                    <option value="Press Start 2P">Retro 8-Bit</option>
+                </select>
+
+                <label style="font-size:12px; color:#8c93a8;">Theme Accent Color</label>
                 <select id="cust-color" onchange="applyStyles()">
                     <option value="#ff4757">Blood Red</option>
                     <option value="#00d2d3">Cyan / Neon Blue</option>
@@ -126,24 +193,21 @@
             </div>
         </div>
 
-        <!-- 4. DYNAMIC TRIGGERS -->
-        <div class="card">
-            <div class="section-title">⚡ Sound & Video Triggers</div>
-            <div class="grid-dynamic" id="triggers-container"></div>
+        <!-- ================= TAB 3: ADD NEW TRIGGER ================= -->
+        <div id="tab-add" class="tab-content">
+            <div class="card">
+                <div class="section-title">➕ Create New Trigger</div>
+                <input type="text" id="trig-name" placeholder="Display Name (e.g. KO Punch)">
+                <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !ko)">
+                <select id="trig-type">
+                    <option value="video">Video Meme (Cloudinary URL)</option>
+                    <option value="sfx">Sound Effect (Audio MP3 URL)</option>
+                </select>
+                <input type="text" id="trig-url" placeholder="Direct Media URL (.mp4 / .mp3)">
+                <button class="btn-submit" onclick="addNewTrigger()">Create Trigger Button</button>
+            </div>
         </div>
 
-        <!-- 5. ADD NEW TRIGGER -->
-        <div class="card">
-            <div class="section-title">➕ Quick Add Trigger</div>
-            <input type="text" id="trig-name" placeholder="Name (e.g. KO Punch)">
-            <input type="text" id="trig-cmd" placeholder="Command (e.g. !ko)">
-            <select id="trig-type">
-                <option value="video">Video Meme (Cloudinary URL)</option>
-                <option value="sfx">Sound Effect (Audio MP3 URL)</option>
-            </select>
-            <input type="text" id="trig-url" placeholder="Direct Media URL">
-            <button class="btn-tool" onclick="addNewTrigger()">Create Trigger Button</button>
-        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -154,6 +218,24 @@
         const deathDisplay = document.getElementById('death-display');
         const triggersContainer = document.getElementById('triggers-container');
 
+        // Tab Switching Logic
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            if (tabName === 'deck') {
+                document.querySelectorAll('.tab-btn')[0].classList.add('active');
+                document.getElementById('tab-deck').classList.add('active');
+            } else if (tabName === 'customizer') {
+                document.querySelectorAll('.tab-btn')[1].classList.add('active');
+                document.getElementById('tab-customizer').classList.add('active');
+            } else if (tabName === 'add') {
+                document.querySelectorAll('.tab-btn')[2].classList.add('active');
+                document.getElementById('tab-add').classList.add('active');
+            }
+        }
+
+        // Live Status
         socket.on('stream-status', (data) => {
             if (data.status === 'online') {
                 indicator.style.background = 'var(--green)';
@@ -170,6 +252,7 @@
             }
         });
 
+        // Counter & Customizer Listeners
         socket.on('update-counter', (data) => deathDisplay.innerText = data.count);
 
         socket.on('update-counter-style', (settings) => {
@@ -185,6 +268,7 @@
             socket.emit('admin-change-style', { icon, font, color });
         }
 
+        // Load Dynamic Buttons into Deck
         socket.on('load-triggers', (triggers) => {
             triggersContainer.innerHTML = '';
             triggers.forEach(t => {
@@ -199,6 +283,7 @@
             });
         });
 
+        // Add Trigger & Auto Switch to Deck
         function addNewTrigger() {
             const name = document.getElementById('trig-name').value.trim();
             const cmd = document.getElementById('trig-cmd').value.trim().toLowerCase();
@@ -206,10 +291,15 @@
             const url = document.getElementById('trig-url').value.trim();
 
             if (!name || !cmd || !url) return alert('Saari fields bharna zaroori hai!');
+            
             socket.emit('admin-add-trigger', { name, cmd, type, url });
+            
             document.getElementById('trig-name').value = '';
             document.getElementById('trig-cmd').value = '';
             document.getElementById('trig-url').value = '';
+
+            // Naya button banne ke baad automatic Deck tab par le jayega
+            switchTab('deck');
         }
     </script>
 </body>
