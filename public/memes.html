@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Meme Overlay</title>
+    <title>Meme & SFX Overlay</title>
     <style>
         body {
             background-color: transparent;
@@ -16,8 +16,8 @@
             transform: translate(-50%, -50%);
         }
         video {
-            max-width: 600px;
-            max-height: 600px;
+            max-width: 650px;
+            max-height: 650px;
             border-radius: 12px;
             display: none;
         }
@@ -27,12 +27,15 @@
     <div id="media-container">
         <video id="meme-video"></video>
     </div>
+    <audio id="sfx-audio"></audio>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const videoElement = document.getElementById('meme-video');
+        const audioElement = document.getElementById('sfx-audio');
 
+        // Video Meme Listener
         socket.on('play-meme', (data) => {
             videoElement.src = data.mediaUrl;
             videoElement.style.display = 'block';
@@ -42,6 +45,13 @@
                 videoElement.style.display = 'none';
                 videoElement.src = '';
             };
+        });
+
+        // Sound Effects (SFX) Listener
+        socket.on('play-sfx', (data) => {
+            audioElement.src = data.sfxUrl;
+            audioElement.currentTime = 0;
+            audioElement.play();
         });
     </script>
 </body>
