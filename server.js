@@ -20,15 +20,16 @@ const liveChat = new LiveChat(chatConfig);
 let deathCount = 0;
 let currentStatus = 'retrying';
 
-// Default Customization Settings
 let counterSettings = {
     icon: '💀',
     font: 'Teko',
     color: '#ff4757'
 };
 
-// Dynamic Triggers
+// Triggers with Scenes, Memes, and SFX
 let triggers = [
+    { name: "Gameplay", type: "scene", sceneName: "Gameplay" },
+    { name: "BRB Screen", type: "scene", sceneName: "BRB" },
     { name: "Wavedash", cmd: "!combo", type: "video", url: "https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4" },
     { name: "Vine Boom", cmd: "!boom", type: "sfx", url: "https://www.myinstants.com/media/sounds/vine-boom.mp3" },
     { name: "Bonk", cmd: "!bonk", type: "sfx", url: "https://www.myinstants.com/media/sounds/bonk.mp3" }
@@ -89,27 +90,25 @@ liveChat.on("chat", (chatItem) => {
     }
 });
 
-// --- ADMIN CONTROLS ---
+// --- ADMIN & OVERLAY SOCKETS ---
 io.on('connection', (socket) => {
     socket.emit('update-counter', { count: deathCount });
     socket.emit('stream-status', { status: currentStatus });
     socket.emit('load-triggers', triggers);
     socket.emit('update-counter-style', counterSettings);
 
-    // Counter Actions
     socket.on('admin-death-add', () => { deathCount++; broadcastDeathCount(); });
     socket.on('admin-death-sub', () => { if (deathCount > 0) deathCount--; broadcastDeathCount(); });
     socket.on('admin-death-reset', () => { deathCount = 0; broadcastDeathCount(); });
 
-    // Live Customization Handler
     socket.on('admin-change-style', (newSettings) => {
         counterSettings = { ...counterSettings, ...newSettings };
         broadcastSettings();
     });
 
-    // Add Dynamic Trigger
     socket.on('admin-add-trigger', (newTrigger) => {
         triggers.push(newTrigger);
+        console.log(`✨ Added new ${newTrigger.type}: ${newTrigger.name}`);
         io.emit('load-triggers', triggers);
     });
 
