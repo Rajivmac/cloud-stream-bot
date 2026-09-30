@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Game Playtime Overlay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Black+Ops+One&family=Chakra+Petch:wght@600;700&family=Orbitron:wght@700&family=Press+Start+2P&family=Russo+One&family=Share+Tech+Mono&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: transparent;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+        #timer-card {
+            display: inline-flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(10, 13, 20, 0.94);
+            border: 2px solid var(--theme-color, #ff4757);
+            border-left: 6px solid var(--theme-color, #ff4757);
+            border-radius: 8px;
+            padding: 10px 24px;
+            color: #ffffff;
+            font-family: var(--timer-font, 'Orbitron'), sans-serif;
+            font-size: 26px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5);
+            transition: all 0.25s ease;
+        }
+        .timer-status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #2ecc71;
+            box-shadow: 0 0 10px #2ecc71;
+        }
+        .timer-paused {
+            background-color: #e74c3c !important;
+            box-shadow: 0 0 10px #e74c3c !important;
+        }
+        .label {
+            color: #a4b0be;
+            font-size: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+        .time-display {
+            color: var(--theme-color, #ff4757);
+            font-weight: 800;
+            letter-spacing: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="timer-card">
+        <div id="dot" class="timer-status-dot"></div>
+        <span class="label">PLAYTIME:</span>
+        <span id="time-text" class="time-display">00h 00m 00s</span>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const timeText = document.getElementById('time-text');
+        const dot = document.getElementById('dot');
+
+        function formatTime(totalSeconds) {
+            const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+            const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+            const s = (totalSeconds % 60).toString().padStart(2, '0');
+            return `${h}h ${m}m ${s}s`;
+        }
+
+        socket.on('timer-tick', (data) => {
+            timeText.innerText = formatTime(data.seconds);
+            if (data.running) {
+                dot.classList.remove('timer-paused');
+            } else {
+                dot.classList.add('timer-paused');
+            }
+        });
+
+        socket.on('update-styles', (data) => {
+            if (data.timerFont) document.documentElement.style.setProperty('--timer-font', `'${data.timerFont}'`);
+            if (data.themeColor) document.documentElement.style.setProperty('--theme-color', data.themeColor);
+        });
+    </script>
+</body>
+</html>
