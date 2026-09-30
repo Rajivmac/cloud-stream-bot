@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Master Control Deck</title>
+    <title>Stream Control Deck</title>
     <style>
         :root {
-            --bg-color: #0f1117;
-            --card-bg: #1a1d26;
+            --bg-color: #0d0f17;
+            --card-bg: #161926;
             --text-color: #ffffff;
             --green: #2ecc71;
             --orange: #f39c12;
-            --red: #e74c3c;
+            --red: #ff4757;
             --blue: #3498db;
             --purple: #9b59b6;
         }
@@ -33,55 +33,43 @@
             flex-direction: column;
             gap: 15px;
         }
-        /* Status Card */
         .status-card {
             background: var(--card-bg);
-            padding: 14px 20px;
+            padding: 12px 18px;
             border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
         .status-info {
             display: flex;
             align-items: center;
-            gap: 12px;
-            font-size: 16px;
+            gap: 10px;
             font-weight: 600;
         }
         .status-dot {
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
             border-radius: 50%;
             background-color: var(--orange);
             box-shadow: 0 0 10px var(--orange);
-            transition: all 0.3s ease;
-        }
-        /* Grid Sections */
-        .section-title {
-            font-size: 14px;
-            color: #8c93a8;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 8px;
-            font-weight: 700;
         }
         .card {
             background: var(--card-bg);
             padding: 15px;
             border-radius: 12px;
         }
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
+        .section-title {
+            font-size: 13px;
+            color: #8c93a8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            font-weight: 700;
         }
-        .grid-3 {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 10px;
-        }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid-dynamic { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+        
         button {
             padding: 14px 10px;
             font-size: 15px;
@@ -90,22 +78,15 @@
             border-radius: 10px;
             cursor: pointer;
             color: white;
-            transition: transform 0.1s, opacity 0.2s;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
+            transition: transform 0.1s;
         }
-        button:active {
-            transform: scale(0.95);
-            opacity: 0.85;
-        }
-        /* Buttons Color Coding */
-        .btn-death-add { background: var(--red); font-size: 18px; grid-column: span 2; padding: 18px; }
+        button:active { transform: scale(0.96); }
+
+        .btn-death-add { background: var(--red); font-size: 20px; grid-column: span 2; padding: 18px; }
         .btn-death-sub { background: #4a5568; }
         .btn-death-reset { background: #2d3748; }
-        .btn-meme { background: linear-gradient(135deg, #e67e22, #d35400); }
+
+        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); }
         .btn-sfx { background: linear-gradient(135deg, var(--purple), #8e44ad); }
 
         .counter-number {
@@ -113,20 +94,38 @@
             font-weight: 800;
             color: var(--red);
             text-align: center;
-            margin: 5px 0 15px 0;
+            margin: 5px 0 12px 0;
+        }
+
+        /* Add Trigger Form */
+        input, select {
+            width: 100%;
+            padding: 10px;
+            background: #24293d;
+            border: 1px solid #373e5a;
+            color: white;
+            border-radius: 8px;
+            box-sizing: border-box;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .btn-submit {
+            background: #27ae60;
+            width: 100%;
+            padding: 12px;
+            margin-top: 5px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        
-        <!-- 1. LIVE STREAM STATUS BAR -->
+        <!-- 1. STATUS -->
         <div class="status-card">
             <div class="status-info">
                 <div id="status-indicator" class="status-dot"></div>
                 <span id="status-text">Connecting...</span>
             </div>
-            <span style="font-size: 12px; color: #8c93a8;">Cloud Bot</span>
+            <span style="font-size: 12px; color: #8c93a8;">Render Cloud</span>
         </div>
 
         <!-- 2. DEATH COUNTER -->
@@ -140,29 +139,26 @@
             </div>
         </div>
 
-        <!-- 3. MEME VIDEO TRIGGERS -->
+        <!-- 3. DYNAMIC TRIGGERS (Auto Generated Buttons) -->
         <div class="card">
-            <div class="section-title">🎬 Video Memes</div>
-            <div class="grid-2">
-                <button class="btn-meme" onclick="playMeme('https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4')">
-                    ⚡ Wavedash
-                </button>
-                <button class="btn-meme" style="opacity: 0.6;">
-                    🔒 Slot 2 (Empty)
-                </button>
+            <div class="section-title">⚡ Interactive Triggers</div>
+            <div class="grid-dynamic" id="triggers-container">
+                <!-- Buttons will appear here automatically -->
             </div>
         </div>
 
-        <!-- 4. FUNNY SOUND EFFECTS (SFX) -->
+        <!-- 4. ADD NEW TRIGGER FORM -->
         <div class="card">
-            <div class="section-title">🔊 Sound Effects</div>
-            <div class="grid-3">
-                <button class="btn-sfx" onclick="playSFX('https://www.myinstants.com/media/sounds/vine-boom.mp3')">💥 Boom</button>
-                <button class="btn-sfx" onclick="playSFX('https://www.myinstants.com/media/sounds/bonk.mp3')">🔨 Bonk</button>
-                <button class="btn-sfx" onclick="playSFX('https://www.myinstants.com/media/sounds/bruh.mp3')">🗿 Bruh</button>
-            </div>
+            <div class="section-title">➕ Add New Trigger</div>
+            <input type="text" id="trig-name" placeholder="Display Name (e.g. K.O Punch)">
+            <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !ko)">
+            <select id="trig-type">
+                <option value="video">Video Meme (Cloudinary)</option>
+                <option value="sfx">Sound Effect (Audio URL)</option>
+            </select>
+            <input type="text" id="trig-url" placeholder="Direct Media URL (.mp4 / .mp3)">
+            <button class="btn-submit" onclick="addNewTrigger()">Save & Create Button</button>
         </div>
-
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -171,17 +167,17 @@
         const indicator = document.getElementById('status-indicator');
         const statusText = document.getElementById('status-text');
         const deathDisplay = document.getElementById('death-display');
+        const triggersContainer = document.getElementById('triggers-container');
 
-        // Status Handler (Green, Orange, Red)
         socket.on('stream-status', (data) => {
             if (data.status === 'online') {
                 indicator.style.backgroundColor = 'var(--green)';
                 indicator.style.boxShadow = '0 0 12px var(--green)';
-                statusText.innerText = 'Stream Online (Active)';
+                statusText.innerText = 'Stream Online';
             } else if (data.status === 'retrying') {
                 indicator.style.backgroundColor = 'var(--orange)';
                 indicator.style.boxShadow = '0 0 12px var(--orange)';
-                statusText.innerText = 'Checking / Searching Stream...';
+                statusText.innerText = 'Searching Stream...';
             } else {
                 indicator.style.backgroundColor = 'var(--red)';
                 indicator.style.boxShadow = '0 0 12px var(--red)';
@@ -189,17 +185,42 @@
             }
         });
 
-        // Counter updates
         socket.on('update-counter', (data) => {
             deathDisplay.innerText = data.count;
         });
 
-        function playMeme(url) {
-            socket.emit('admin-play-meme', { mediaUrl: url });
-        }
+        // Dynamic Buttons Render
+        socket.on('load-triggers', (triggers) => {
+            triggersContainer.innerHTML = '';
+            triggers.forEach(t => {
+                const btn = document.createElement('button');
+                btn.className = t.type === 'video' ? 'btn-video' : 'btn-sfx';
+                btn.innerHTML = `${t.type === 'video' ? '🎬' : '🔊'} ${t.name}<br><small style="font-size:11px; opacity:0.8;">${t.cmd}</small>`;
+                btn.onclick = () => {
+                    if (t.type === 'video') socket.emit('admin-play-meme', { mediaUrl: t.url });
+                    if (t.type === 'sfx') socket.emit('admin-play-sfx', { sfxUrl: t.url });
+                };
+                triggersContainer.appendChild(btn);
+            });
+        });
 
-        function playSFX(url) {
-            socket.emit('admin-play-sfx', { sfxUrl: url });
+        function addNewTrigger() {
+            const name = document.getElementById('trig-name').value.trim();
+            const cmd = document.getElementById('trig-cmd').value.trim().toLowerCase();
+            const type = document.getElementById('trig-type').value;
+            const url = document.getElementById('trig-url').value.trim();
+
+            if (!name || !cmd || !url) {
+                alert('Bhai saari fields bharna zaroori hai!');
+                return;
+            }
+
+            socket.emit('admin-add-trigger', { name, cmd, type, url });
+
+            // Clear Inputs
+            document.getElementById('trig-name').value = '';
+            document.getElementById('trig-cmd').value = '';
+            document.getElementById('trig-url').value = '';
         }
     </script>
 </body>
