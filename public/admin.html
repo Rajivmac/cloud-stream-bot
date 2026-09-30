@@ -4,16 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stream Master Deck</title>
+    <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.5/dist/obs-ws.min.js"></script>
     <style>
         :root {
-            --bg-color: #0d0f17;
-            --card-bg: #161926;
-            --active-tab: #24293d;
+            --bg-color: #0b0d14;
+            --card-bg: #141724;
+            --active-tab: #22283d;
             --green: #2ecc71;
             --orange: #f39c12;
             --red: #ff4757;
             --blue: #3498db;
             --purple: #9b59b6;
+            --scene-btn: #34495e;
         }
         body {
             background-color: var(--bg-color);
@@ -37,21 +39,21 @@
             align-items: center;
             justify-content: space-between;
         }
-        .status-info { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 14px; }
+        .status-info { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 13px; }
         .status-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); }
 
         /* Navigation Tabs */
         .tab-bar {
             display: flex;
-            gap: 8px;
-            background: #11141f;
+            gap: 6px;
+            background: #11131c;
             padding: 6px;
             border-radius: 12px;
         }
         .tab-btn {
             flex: 1;
-            padding: 10px 6px;
-            font-size: 13px;
+            padding: 10px 4px;
+            font-size: 12px;
             font-weight: 700;
             border: none;
             border-radius: 8px;
@@ -66,23 +68,14 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }
 
-        /* Views / Sections */
         .tab-content { display: none; flex-direction: column; gap: 12px; }
         .tab-content.active { display: flex; }
 
         .card { background: var(--card-bg); padding: 14px; border-radius: 12px; }
         .section-title { font-size: 12px; color: #8c93a8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: 700; }
         
-        /* Buttons & Grid */
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .grid-dynamic { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); 
-            gap: 10px; 
-            max-height: 55vh;
-            overflow-y: auto;
-            padding-right: 2px;
-        }
+        .grid-dynamic { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
         
         button {
             padding: 14px 10px;
@@ -96,21 +89,47 @@
         }
         button:active { transform: scale(0.96); }
 
-        .btn-death-add { background: var(--red); font-size: 22px; grid-column: span 2; padding: 18px; }
+        /* Mic Button */
+        .btn-mic {
+            width: 100%;
+            padding: 18px;
+            font-size: 18px;
+            border-radius: 10px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: background 0.3s ease;
+        }
+        .mic-unmuted { background: var(--green); box-shadow: 0 0 15px rgba(46, 204, 113, 0.4); }
+        .mic-muted { background: var(--red); box-shadow: 0 0 15px rgba(255, 71, 87, 0.5); }
+
+        /* Scene & Trigger Buttons */
+        .btn-scene { background: var(--scene-btn); border-left: 4px solid var(--blue); min-height: 55px; }
+        .btn-scene.active-scene { border-left-color: var(--green); background: #2c3e50; }
+        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); min-height: 60px; }
+        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); min-height: 60px; }
+
+        /* Counter Tab Styling */
+        .counter-big-display {
+            font-size: 72px;
+            font-weight: 900;
+            color: var(--red);
+            text-align: center;
+            margin: 10px 0 20px 0;
+            text-shadow: 0 0 20px rgba(255, 71, 87, 0.3);
+        }
+        .btn-death-add { background: var(--red); font-size: 24px; padding: 22px; width: 100%; margin-bottom: 12px; }
         .btn-death-sub { background: #4a5568; }
         .btn-death-reset { background: #2d3748; }
 
-        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); min-height: 65px; }
-        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); min-height: 65px; }
-
-        .counter-number { font-size: 46px; font-weight: 800; color: var(--red); text-align: center; margin: 4px 0 10px 0; }
-        
-        /* Inputs */
+        /* Form Inputs */
         select, input {
             width: 100%;
             padding: 11px;
-            background: #24293d;
-            border: 1px solid #373e5a;
+            background: #202538;
+            border: 1px solid #353c58;
             color: white;
             border-radius: 8px;
             box-sizing: border-box;
@@ -127,50 +146,76 @@
         <div class="status-card">
             <div class="status-info">
                 <div id="status-indicator" class="status-dot"></div>
-                <span id="status-text">Connecting...</span>
+                <span id="status-text">Cloud Connecting...</span>
             </div>
-            <span style="font-size:12px; color:#8c93a8;">Render Live</span>
+            <div class="status-info">
+                <span id="obs-status-text" style="color: #8c93a8;">OBS: Offline</span>
+            </div>
         </div>
 
-        <!-- Tab Navigation Bar -->
+        <!-- 4 Navigation Tabs -->
         <div class="tab-bar">
             <button class="tab-btn active" onclick="switchTab('deck')">🎮 Live Deck</button>
-            <button class="tab-btn" onclick="switchTab('customizer')">🎨 Customizer</button>
+            <button class="tab-btn" onclick="switchTab('counter')">💀 Deaths</button>
+            <button class="tab-btn" onclick="switchTab('customizer')">🎨 Settings</button>
             <button class="tab-btn" onclick="switchTab('add')">➕ Add Trigger</button>
         </div>
 
-        <!-- ================= TAB 1: LIVE DECK (FRONT VIEW) ================= -->
+        <!-- ================= TAB 1: LIVE DECK (OBS + TRIGGERS) ================= -->
         <div id="tab-deck" class="tab-content active">
-            <!-- Counter Controls -->
+            <!-- 1. MIC MUTE / UNMUTE BUTTON -->
             <div class="card">
-                <div class="section-title">💀 Counter Controls</div>
-                <div class="counter-number" id="death-display">0</div>
-                <div class="grid-2">
-                    <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
-                    <button class="btn-death-sub" onclick="socket.emit('admin-death-sub')">- 1 Death</button>
-                    <button class="btn-death-reset" onclick="socket.emit('admin-death-reset')">Reset (0)</button>
-                </div>
+                <div class="section-title">🎙️ Audio Controls</div>
+                <button id="mic-btn" class="btn-mic mic-unmuted" onclick="toggleMic()">
+                    🎙️ MIC IS LIVE
+                </button>
             </div>
 
-            <!-- Dynamic Triggers Grid -->
+            <!-- 2. SCENES GRID -->
             <div class="card">
-                <div class="section-title">⚡ Sound & Video Deck</div>
+                <div class="section-title">🎬 OBS Scenes</div>
+                <div class="grid-dynamic" id="scenes-container"></div>
+            </div>
+
+            <!-- 3. SOUND & VIDEO TRIGGERS -->
+            <div class="card">
+                <div class="section-title">⚡ Meme & Sound Deck</div>
                 <div class="grid-dynamic" id="triggers-container"></div>
             </div>
         </div>
 
-        <!-- ================= TAB 2: OVERLAY CUSTOMIZER ================= -->
+        <!-- ================= TAB 2: DEATH COUNTER (DEDICATED) ================= -->
+        <div id="tab-counter" class="tab-content">
+            <div class="card">
+                <div class="section-title" style="text-align:center;">💀 Match Death Count</div>
+                <div class="counter-big-display" id="death-display">0</div>
+                <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
+                <div class="grid-2">
+                    <button class="btn-death-sub" onclick="socket.emit('admin-death-sub')">- 1 Death</button>
+                    <button class="btn-death-reset" onclick="socket.emit('admin-death-reset')">Reset (0)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= TAB 3: CUSTOMIZER & OBS SETTINGS ================= -->
         <div id="tab-customizer" class="tab-content">
             <div class="card">
+                <div class="section-title">🔌 OBS WebSocket Connection</div>
+                <input type="text" id="obs-ip" placeholder="OBS IP (Default: 127.0.0.1)" value="127.0.0.1">
+                <input type="text" id="obs-port" placeholder="Port (Default: 4455)" value="4455">
+                <input type="password" id="obs-pass" placeholder="Password (Khali chhod dein if none)">
+                <input type="text" id="obs-mic-name" placeholder="Mic Name in OBS" value="Mic/Aux">
+                <button class="btn-submit" onclick="connectOBS()">Connect to OBS</button>
+            </div>
+
+            <div class="card">
                 <div class="section-title">🎨 Counter Visual Style</div>
-                
-                <label style="font-size:12px; color:#8c93a8;">Counter Icon</label>
+                <label style="font-size:12px; color:#8c93a8;">Icon</label>
                 <select id="cust-icon" onchange="applyStyles()">
                     <option value="💀">💀 Skull</option>
                     <option value="🔥">🔥 Fire / Flame</option>
-                    <option value="☠️️">☠️ Crossbones</option>
+                    <option value="☠️">☠️ Crossbones</option>
                     <option value="🥊">🥊 Boxing Glove</option>
-                    <option value="🩸">🩸 Blood Drop</option>
                     <option value="👑">👑 Crown</option>
                 </select>
 
@@ -182,29 +227,34 @@
                     <option value="Press Start 2P">Retro 8-Bit</option>
                 </select>
 
-                <label style="font-size:12px; color:#8c93a8;">Theme Accent Color</label>
+                <label style="font-size:12px; color:#8c93a8;">Theme Color</label>
                 <select id="cust-color" onchange="applyStyles()">
                     <option value="#ff4757">Blood Red</option>
                     <option value="#00d2d3">Cyan / Neon Blue</option>
-                    <option value="#ffa502">Flame Gold / Orange</option>
+                    <option value="#ffa502">Flame Gold</option>
                     <option value="#2ed573">Acid Green</option>
-                    <option value="#a55eea">Cyber Purple</option>
                 </select>
             </div>
         </div>
 
-        <!-- ================= TAB 3: ADD NEW TRIGGER ================= -->
+        <!-- ================= TAB 4: ADD TRIGGER / SCENE ================= -->
         <div id="tab-add" class="tab-content">
             <div class="card">
-                <div class="section-title">➕ Create New Trigger</div>
-                <input type="text" id="trig-name" placeholder="Display Name (e.g. KO Punch)">
-                <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !ko)">
-                <select id="trig-type">
-                    <option value="video">Video Meme (Cloudinary URL)</option>
-                    <option value="sfx">Sound Effect (Audio MP3 URL)</option>
+                <div class="section-title">➕ Add New Item</div>
+                
+                <label style="font-size:12px; color:#8c93a8;">Choose Item Type</label>
+                <select id="trig-type" onchange="toggleFormFields()">
+                    <option value="scene">🎬 OBS Scene Switcher</option>
+                    <option value="video">🎥 Video Meme (Cloudinary URL)</option>
+                    <option value="sfx">🔊 Sound Effect (Audio MP3 URL)</option>
                 </select>
-                <input type="text" id="trig-url" placeholder="Direct Media URL (.mp4 / .mp3)">
-                <button class="btn-submit" onclick="addNewTrigger()">Create Trigger Button</button>
+
+                <input type="text" id="trig-name" placeholder="Display Name (e.g. Gameplay / KO)">
+                <input type="text" id="trig-scene-name" placeholder="Exact Scene Name in OBS (e.g. Ingame)">
+                <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !ko)" style="display:none;">
+                <input type="text" id="trig-url" placeholder="Direct Media URL (.mp4 / .mp3)" style="display:none;">
+                
+                <button class="btn-submit" onclick="addNewTrigger()">Add to Live Deck</button>
             </div>
         </div>
 
@@ -213,29 +263,118 @@
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
+        const obs = new OBSWebSocket();
+
         const indicator = document.getElementById('status-indicator');
         const statusText = document.getElementById('status-text');
+        const obsStatusText = document.getElementById('obs-status-text');
         const deathDisplay = document.getElementById('death-display');
+        const scenesContainer = document.getElementById('scenes-container');
         const triggersContainer = document.getElementById('triggers-container');
+        const micBtn = document.getElementById('mic-btn');
 
-        // Tab Switching Logic
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+        let isMicMuted = false;
 
-            if (tabName === 'deck') {
-                document.querySelectorAll('.tab-btn')[0].classList.add('active');
-                document.getElementById('tab-deck').classList.add('active');
-            } else if (tabName === 'customizer') {
-                document.querySelectorAll('.tab-btn')[1].classList.add('active');
-                document.getElementById('tab-customizer').classList.add('active');
-            } else if (tabName === 'add') {
-                document.querySelectorAll('.tab-btn')[2].classList.add('active');
-                document.getElementById('tab-add').classList.add('active');
+        // --- OBS WEBSOCKET CONNECTION ---
+        async function connectOBS() {
+            const ip = document.getElementById('obs-ip').value.trim() || '127.0.0.1';
+            const port = document.getElementById('obs-port').value.trim() || '4455';
+            const password = document.getElementById('obs-pass').value.trim();
+
+            try {
+                obsStatusText.innerText = 'OBS: Connecting...';
+                await obs.connect(`ws://${ip}:${port}`, password || undefined);
+                obsStatusText.innerText = 'OBS: Connected ✅';
+                obsStatusText.style.color = 'var(--green)';
+
+                // Fetch initial mic state
+                updateMicState();
+            } catch (err) {
+                obsStatusText.innerText = 'OBS: Failed ❌';
+                obsStatusText.style.color = 'var(--red)';
+                console.error('OBS Connect Error:', err);
             }
         }
 
-        // Live Status
+        async function updateMicState() {
+            try {
+                const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
+                const { inputMuted } = await obs.call('GetInputMute', { inputName: micName });
+                setMicButtonUI(inputMuted);
+            } catch (e) {
+                console.warn('Could not read mic mute state', e);
+            }
+        }
+
+        function setMicButtonUI(muted) {
+            isMicMuted = muted;
+            if (muted) {
+                micBtn.className = 'btn-mic mic-muted';
+                micBtn.innerHTML = '🔇 MIC MUTED';
+            } else {
+                micBtn.className = 'btn-mic mic-unmuted';
+                micBtn.innerHTML = '🎙️ MIC IS LIVE';
+            }
+        }
+
+        async function toggleMic() {
+            const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
+            try {
+                const res = await obs.call('ToggleInputMute', { inputName: micName });
+                setMicButtonUI(res.inputMuted);
+            } catch (err) {
+                alert('OBS se connect nahi hai ya Mic/Aux name galat hai!');
+            }
+        }
+
+        // Listen for OBS mic mute events from OBS directly
+        obs.on('InputMuteStateChanged', (data) => {
+            const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
+            if (data.inputName === micName) {
+                setMicButtonUI(data.inputMuted);
+            }
+        });
+
+        async function switchScene(sceneName) {
+            try {
+                await obs.call('SetCurrentProgramScene', { sceneName: sceneName });
+            } catch (err) {
+                alert(`Scene '${sceneName}' nahi mila OBS mein!`);
+            }
+        }
+
+        // Auto-connect to OBS if running on local browser / OBS Custom Dock
+        connectOBS();
+
+        // --- TAB SWITCHER ---
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            const tabMap = { 'deck': 0, 'counter': 1, 'customizer': 2, 'add': 3 };
+            document.querySelectorAll('.tab-btn')[tabMap[tabName]].classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // Toggle Form Inputs based on selection
+        function toggleFormFields() {
+            const type = document.getElementById('trig-type').value;
+            const sceneInput = document.getElementById('trig-scene-name');
+            const cmdInput = document.getElementById('trig-cmd');
+            const urlInput = document.getElementById('trig-url');
+
+            if (type === 'scene') {
+                sceneInput.style.display = 'block';
+                cmdInput.style.display = 'none';
+                urlInput.style.display = 'none';
+            } else {
+                sceneInput.style.display = 'none';
+                cmdInput.style.display = 'block';
+                urlInput.style.display = 'block';
+            }
+        }
+
+        // --- CLOUD SERVER EVENTS ---
         socket.on('stream-status', (data) => {
             if (data.status === 'online') {
                 indicator.style.background = 'var(--green)';
@@ -252,7 +391,6 @@
             }
         });
 
-        // Counter & Customizer Listeners
         socket.on('update-counter', (data) => deathDisplay.innerText = data.count);
 
         socket.on('update-counter-style', (settings) => {
@@ -268,37 +406,51 @@
             socket.emit('admin-change-style', { icon, font, color });
         }
 
-        // Load Dynamic Buttons into Deck
+        // Render Dynamic Scenes and Triggers
         socket.on('load-triggers', (triggers) => {
+            scenesContainer.innerHTML = '';
             triggersContainer.innerHTML = '';
+
             triggers.forEach(t => {
-                const btn = document.createElement('button');
-                btn.className = t.type === 'video' ? 'btn-video' : 'btn-sfx';
-                btn.innerHTML = `${t.type === 'video' ? '🎬' : '🔊'} ${t.name}<br><small style="font-size:11px; opacity:0.8;">${t.cmd}</small>`;
-                btn.onclick = () => {
-                    if (t.type === 'video') socket.emit('admin-play-meme', { mediaUrl: t.url });
-                    if (t.type === 'sfx') socket.emit('admin-play-sfx', { sfxUrl: t.url });
-                };
-                triggersContainer.appendChild(btn);
+                if (t.type === 'scene') {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn-scene';
+                    btn.innerHTML = `🖥️ ${t.name}<br><small style="font-size:10px; opacity:0.7;">[${t.sceneName}]</small>`;
+                    btn.onclick = () => switchScene(t.sceneName);
+                    scenesContainer.appendChild(btn);
+                } else {
+                    const btn = document.createElement('button');
+                    btn.className = t.type === 'video' ? 'btn-video' : 'btn-sfx';
+                    btn.innerHTML = `${t.type === 'video' ? '🎬' : '🔊'} ${t.name}<br><small style="font-size:10px; opacity:0.8;">${t.cmd}</small>`;
+                    btn.onclick = () => {
+                        if (t.type === 'video') socket.emit('admin-play-meme', { mediaUrl: t.url });
+                        if (t.type === 'sfx') socket.emit('admin-play-sfx', { sfxUrl: t.url });
+                    };
+                    triggersContainer.appendChild(btn);
+                }
             });
         });
 
-        // Add Trigger & Auto Switch to Deck
+        // Add Trigger or Scene
         function addNewTrigger() {
-            const name = document.getElementById('trig-name').value.trim();
-            const cmd = document.getElementById('trig-cmd').value.trim().toLowerCase();
             const type = document.getElementById('trig-type').value;
-            const url = document.getElementById('trig-url').value.trim();
+            const name = document.getElementById('trig-name').value.trim();
 
-            if (!name || !cmd || !url) return alert('Saari fields bharna zaroori hai!');
-            
-            socket.emit('admin-add-trigger', { name, cmd, type, url });
-            
+            if (type === 'scene') {
+                const sceneName = document.getElementById('trig-scene-name').value.trim();
+                if (!name || !sceneName) return alert('Name aur Scene Name dono likhein!');
+                socket.emit('admin-add-trigger', { name, type, sceneName });
+            } else {
+                const cmd = document.getElementById('trig-cmd').value.trim().toLowerCase();
+                const url = document.getElementById('trig-url').value.trim();
+                if (!name || !cmd || !url) return alert('Saari fields bharna zaroori hai!');
+                socket.emit('admin-add-trigger', { name, type, cmd, url });
+            }
+
             document.getElementById('trig-name').value = '';
+            document.getElementById('trig-scene-name').value = '';
             document.getElementById('trig-cmd').value = '';
             document.getElementById('trig-url').value = '';
-
-            // Naya button banne ke baad automatic Deck tab par le jayega
             switchTab('deck');
         }
     </script>
