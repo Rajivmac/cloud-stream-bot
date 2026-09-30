@@ -15,7 +15,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 const DATA_FILE = path.join(__dirname, 'stream_data.json');
 
-// --- DEFAULT SETTINGS & STATE ---
+// --- DEFAULT STATE & SETTINGS ---
 let streamData = {
     deathCount: 0,
     gameTimeSeconds: 0,
@@ -32,10 +32,16 @@ let streamData = {
     aiCommand: '!goku',
     characterName: 'Son Goku',
     characterImage: 'https://images2.alphacoders.com/131/1312384.png',
-    characterPersona: 'You are Son Goku from Dragon Ball. Cheerful, energetic, food-loving, excited about tough Tekken fights. Keep answers short (1-2 sentences) in the user language.',
+    characterPersona: 'You are Son Goku from Dragon Ball. Cheerful, super energetic, loves food and challenges. Talk about Tekken fights like martial arts tournaments. Reply in 1-2 punchy sentences in the user language.',
     welcomeNewChatters: true,
-    discordLink: '',
-    reminderMinutes: 15
+    reminderMinutes: 15,
+
+    // CUSTOM CHAT COMMANDS LIST
+    customCommands: [
+        { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", tts: false },
+        { cmd: "!rank", reply: "Tekken 8 Main: Kazuya Mishima (Tekken King Rank)!", tts: true },
+        { cmd: "!discord", reply: "Discord community join karein: https://discord.gg/yourlink", tts: false }
+    ]
 };
 
 if (fs.existsSync(DATA_FILE)) {
@@ -67,18 +73,21 @@ setInterval(() => {
     }
 }, 1000);
 
+// Auto Reminders
 setInterval(() => {
-    if (currentStatus === 'online' && streamData.discordLink) {
+    if (currentStatus === 'online') {
+        const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
+        const reminderText = discordCmd ? discordCmd.reply : "Stream pasand aa rahi ho toh like aur subscribe zaroor karein!";
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `Stream pasand aa rahi ho toh like thok dena aur Discord join karlo: ${streamData.discordLink}`,
+            text: reminderText,
             enableTTS: false
         });
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// --- GEMINI API CALL ---
+// Gemini AI Call
 async function askGemini(userPrompt, username) {
     if (!streamData.geminiApiKey) {
         return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
@@ -168,18 +177,19 @@ liveChat.on("chat", async (chatItem) => {
         });
     }
 
-    // 2. DISCORD COMMAND
-    if (message === '!discord') {
+    // 2. CHECK DYNAMIC CUSTOM CHAT COMMANDS (!specs, !rank, etc.)
+    const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
+    if (matchedCustom) {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `@${username} Discord community link: ${streamData.discordLink}`,
-            enableTTS: false
+            text: `@${username} ${matchedCustom.reply}`,
+            enableTTS: matchedCustom.tts && streamData.enableTTS
         });
         return;
     }
 
-    // 3. TTS COMMAND
+    // 3. TTS MANUAL COMMAND (!tts <text>)
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -191,8 +201,8 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 4. DYNAMIC AI COMMAND (e.g. !goku, !kazuya, !ai)
-    const activeCommand = (streamData.aiCommand || '!ai').toLowerCase();
+    // 4. AI PERSONA QUESTIONS (!goku <question>)
+    const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Tell us something cool!';
         const aiAnswer = await askGemini(question, username);
@@ -244,6 +254,19 @@ io.on('connection', (socket) => {
 
     socket.on('admin-change-styles', (newSettings) => {
         streamData = { ...streamData, ...newSettings };
+        broadcastState();
+    });
+
+    // Custom Commands Add / Delete
+    socket.on('admin-add-custom-cmd', (newCmd) => {
+        // Replace if already exists, else add
+        streamData.customCommands = streamData.customCommands.filter(c => c.cmd.toLowerCase() !== newCmd.cmd.toLowerCase());
+        streamData.customCommands.push(newCmd);
+        broadcastState();
+    });
+
+    socket.on('admin-del-custom-cmd', (cmdToDelete) => {
+        streamData.customCommands = streamData.customCommands.filter(c => c.cmd.toLowerCase() !== cmdToDelete.toLowerCase());
         broadcastState();
     });
 
