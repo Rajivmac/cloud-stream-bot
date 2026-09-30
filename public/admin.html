@@ -3,21 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Control Deck</title>
+    <title>Stream Master Dashboard</title>
     <style>
         :root {
             --bg-color: #0d0f17;
             --card-bg: #161926;
-            --text-color: #ffffff;
             --green: #2ecc71;
             --orange: #f39c12;
             --red: #ff4757;
             --blue: #3498db;
-            --purple: #9b59b6;
         }
         body {
             background-color: var(--bg-color);
-            color: var(--text-color);
+            color: #ffffff;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
             padding: 15px;
@@ -26,47 +24,10 @@
             flex-direction: column;
             align-items: center;
         }
-        .container {
-            width: 100%;
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
-        .status-card {
-            background: var(--card-bg);
-            padding: 12px 18px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .status-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 600;
-        }
-        .status-dot {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background-color: var(--orange);
-            box-shadow: 0 0 10px var(--orange);
-        }
-        .card {
-            background: var(--card-bg);
-            padding: 15px;
-            border-radius: 12px;
-        }
-        .section-title {
-            font-size: 13px;
-            color: #8c93a8;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 14px; }
+        .card { background: var(--card-bg); padding: 15px; border-radius: 12px; }
+        .section-title { font-size: 13px; color: #8c93a8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: 700; }
+        .status-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .grid-dynamic { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
         
@@ -87,18 +48,12 @@
         .btn-death-reset { background: #2d3748; }
 
         .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); }
-        .btn-sfx { background: linear-gradient(135deg, var(--purple), #8e44ad); }
+        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
 
-        .counter-number {
-            font-size: 42px;
-            font-weight: 800;
-            color: var(--red);
-            text-align: center;
-            margin: 5px 0 12px 0;
-        }
-
-        /* Add Trigger Form */
-        input, select {
+        .counter-number { font-size: 42px; font-weight: 800; color: var(--red); text-align: center; margin: 4px 0 10px 0; }
+        
+        /* Tool Inputs */
+        select, input {
             width: 100%;
             padding: 10px;
             background: #24293d;
@@ -109,28 +64,23 @@
             margin-bottom: 8px;
             font-size: 14px;
         }
-        .btn-submit {
-            background: #27ae60;
-            width: 100%;
-            padding: 12px;
-            margin-top: 5px;
-        }
+        .btn-tool { background: var(--blue); width: 100%; padding: 12px; }
     </style>
 </head>
 <body>
     <div class="container">
         <!-- 1. STATUS -->
-        <div class="status-card">
-            <div class="status-info">
+        <div class="card" style="display:flex; justify-content:space-between; align-items:center; padding:12px 18px;">
+            <div style="display:flex; align-items:center; gap:10px; font-weight:600;">
                 <div id="status-indicator" class="status-dot"></div>
                 <span id="status-text">Connecting...</span>
             </div>
-            <span style="font-size: 12px; color: #8c93a8;">Render Cloud</span>
+            <span style="font-size:12px; color:#8c93a8;">Cloud Bot</span>
         </div>
 
         <!-- 2. DEATH COUNTER -->
         <div class="card">
-            <div class="section-title">💀 Death Counter</div>
+            <div class="section-title">💀 Counter Controls</div>
             <div class="counter-number" id="death-display">0</div>
             <div class="grid-2">
                 <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
@@ -139,25 +89,60 @@
             </div>
         </div>
 
-        <!-- 3. DYNAMIC TRIGGERS (Auto Generated Buttons) -->
+        <!-- 3. LIVE CUSTOMIZER TOOL -->
         <div class="card">
-            <div class="section-title">⚡ Interactive Triggers</div>
-            <div class="grid-dynamic" id="triggers-container">
-                <!-- Buttons will appear here automatically -->
+            <div class="section-title">🎨 Live Overlay Customizer</div>
+            <div class="grid-2">
+                <div>
+                    <label style="font-size:12px; color:#8c93a8;">Icon</label>
+                    <select id="cust-icon" onchange="applyStyles()">
+                        <option value="💀">💀 Skull</option>
+                        <option value="🔥">🔥 Fire / Flame</option>
+                        <option value="☠️">☠️ Crossbones</option>
+                        <option value="🥊">🥊 Boxing Glove</option>
+                        <option value="🩸">🩸 Blood Drop</option>
+                        <option value="👑">👑 Crown</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:12px; color:#8c93a8;">Font Style</label>
+                    <select id="cust-font" onchange="applyStyles()">
+                        <option value="Teko">Teko (Aggressive)</option>
+                        <option value="Orbitron">Orbitron (Sci-Fi)</option>
+                        <option value="Bangers">Bangers (Comic)</option>
+                        <option value="Press Start 2P">Retro 8-Bit</option>
+                    </select>
+                </div>
+            </div>
+            <div>
+                <label style="font-size:12px; color:#8c93a8;">Accent Color</label>
+                <select id="cust-color" onchange="applyStyles()">
+                    <option value="#ff4757">Blood Red</option>
+                    <option value="#00d2d3">Cyan / Neon Blue</option>
+                    <option value="#ffa502">Flame Gold / Orange</option>
+                    <option value="#2ed573">Acid Green</option>
+                    <option value="#a55eea">Cyber Purple</option>
+                </select>
             </div>
         </div>
 
-        <!-- 4. ADD NEW TRIGGER FORM -->
+        <!-- 4. DYNAMIC TRIGGERS -->
         <div class="card">
-            <div class="section-title">➕ Add New Trigger</div>
-            <input type="text" id="trig-name" placeholder="Display Name (e.g. K.O Punch)">
-            <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !ko)">
+            <div class="section-title">⚡ Sound & Video Triggers</div>
+            <div class="grid-dynamic" id="triggers-container"></div>
+        </div>
+
+        <!-- 5. ADD NEW TRIGGER -->
+        <div class="card">
+            <div class="section-title">➕ Quick Add Trigger</div>
+            <input type="text" id="trig-name" placeholder="Name (e.g. KO Punch)">
+            <input type="text" id="trig-cmd" placeholder="Command (e.g. !ko)">
             <select id="trig-type">
-                <option value="video">Video Meme (Cloudinary)</option>
-                <option value="sfx">Sound Effect (Audio URL)</option>
+                <option value="video">Video Meme (Cloudinary URL)</option>
+                <option value="sfx">Sound Effect (Audio MP3 URL)</option>
             </select>
-            <input type="text" id="trig-url" placeholder="Direct Media URL (.mp4 / .mp3)">
-            <button class="btn-submit" onclick="addNewTrigger()">Save & Create Button</button>
+            <input type="text" id="trig-url" placeholder="Direct Media URL">
+            <button class="btn-tool" onclick="addNewTrigger()">Create Trigger Button</button>
         </div>
     </div>
 
@@ -171,25 +156,35 @@
 
         socket.on('stream-status', (data) => {
             if (data.status === 'online') {
-                indicator.style.backgroundColor = 'var(--green)';
-                indicator.style.boxShadow = '0 0 12px var(--green)';
+                indicator.style.background = 'var(--green)';
+                indicator.style.boxShadow = '0 0 10px var(--green)';
                 statusText.innerText = 'Stream Online';
             } else if (data.status === 'retrying') {
-                indicator.style.backgroundColor = 'var(--orange)';
-                indicator.style.boxShadow = '0 0 12px var(--orange)';
+                indicator.style.background = 'var(--orange)';
+                indicator.style.boxShadow = '0 0 10px var(--orange)';
                 statusText.innerText = 'Searching Stream...';
             } else {
-                indicator.style.backgroundColor = 'var(--red)';
-                indicator.style.boxShadow = '0 0 12px var(--red)';
+                indicator.style.background = 'var(--red)';
+                indicator.style.boxShadow = '0 0 10px var(--red)';
                 statusText.innerText = 'Stream Offline';
             }
         });
 
-        socket.on('update-counter', (data) => {
-            deathDisplay.innerText = data.count;
+        socket.on('update-counter', (data) => deathDisplay.innerText = data.count);
+
+        socket.on('update-counter-style', (settings) => {
+            if (settings.icon) document.getElementById('cust-icon').value = settings.icon;
+            if (settings.font) document.getElementById('cust-font').value = settings.font;
+            if (settings.color) document.getElementById('cust-color').value = settings.color;
         });
 
-        // Dynamic Buttons Render
+        function applyStyles() {
+            const icon = document.getElementById('cust-icon').value;
+            const font = document.getElementById('cust-font').value;
+            const color = document.getElementById('cust-color').value;
+            socket.emit('admin-change-style', { icon, font, color });
+        }
+
         socket.on('load-triggers', (triggers) => {
             triggersContainer.innerHTML = '';
             triggers.forEach(t => {
@@ -210,14 +205,8 @@
             const type = document.getElementById('trig-type').value;
             const url = document.getElementById('trig-url').value.trim();
 
-            if (!name || !cmd || !url) {
-                alert('Bhai saari fields bharna zaroori hai!');
-                return;
-            }
-
+            if (!name || !cmd || !url) return alert('Saari fields bharna zaroori hai!');
             socket.emit('admin-add-trigger', { name, cmd, type, url });
-
-            // Clear Inputs
             document.getElementById('trig-name').value = '';
             document.getElementById('trig-cmd').value = '';
             document.getElementById('trig-url').value = '';
