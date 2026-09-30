@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Stream Assistant Overlay</title>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background-color: transparent;
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Chakra Petch', sans-serif;
+        }
+        #ai-bubble {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            max-width: 500px;
+            background: rgba(13, 16, 26, 0.95);
+            border: 2px solid var(--theme-color, #00d2d3);
+            border-left: 6px solid var(--theme-color, #00d2d3);
+            border-radius: 12px;
+            padding: 14px 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.8), 0 0 20px rgba(0, 210, 211, 0.3);
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+            opacity: 0;
+            transform: translateY(25px);
+            transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        #ai-bubble.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .avatar-box {
+            font-size: 38px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 50%;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .content-box {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .sender-name {
+            font-size: 13px;
+            color: var(--theme-color, #00d2d3);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 700;
+        }
+        .ai-text {
+            color: #ffffff;
+            font-size: 18px;
+            line-height: 1.35;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div id="ai-bubble">
+        <div class="avatar-box" id="ai-avatar">🤖</div>
+        <div class="content-box">
+            <span class="sender-name" id="ai-character-name">AI ASSISTANT</span>
+            <span class="ai-text" id="ai-message">Hello stream!</span>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const bubble = document.getElementById('ai-bubble');
+        const avatarEl = document.getElementById('ai-avatar');
+        const charNameEl = document.getElementById('ai-character-name');
+        const textEl = document.getElementById('ai-message');
+
+        let hideTimeout;
+
+        // TTS Speech Synthesis Engine
+        function speakText(text, voiceSpeed = 1.0) {
+            if (!('speechSynthesis' in window)) return;
+            window.speechSynthesis.cancel(); // Stop previous speech
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = voiceSpeed;
+            utterance.pitch = 1.1; // Anime energetic tone
+            
+            // Prefer Hindi/English natural voice if available
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN') || v.name.includes('Google'));
+            if (preferredVoice) utterance.voice = preferredVoice;
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        socket.on('ai-speak', (data) => {
+            avatarEl.innerText = data.avatar || '🤖';
+            charNameEl.innerText = data.characterName || 'AI BOT';
+            textEl.innerText = data.text;
+
+            // Show Speech Bubble
+            bubble.classList.add('active');
+
+            // Play TTS Voice
+            if (data.enableTTS) {
+                speakText(data.text);
+            }
+
+            // Hide bubble after 9 seconds
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => {
+                bubble.classList.remove('active');
+            }, 9000);
+        });
+
+        // Preload browser voices
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+        }
+    </script>
+</body>
+</html>
