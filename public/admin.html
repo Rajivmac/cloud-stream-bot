@@ -127,6 +127,23 @@
             font-size: 13px;
         }
         .row-toggle input[type="checkbox"] { width: 20px; height: 20px; margin: 0; }
+
+        .avatar-preview-box {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background: #1a1e2e;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .avatar-preview-img {
+            width: 55px;
+            height: 55px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--cyan);
+        }
     </style>
 </head>
 <body>
@@ -146,7 +163,7 @@
             <button class="tab-btn active" onclick="switchTab('deck')">🎮 Deck</button>
             <button class="tab-btn" onclick="switchTab('counter')">💀 Deaths</button>
             <button class="tab-btn" onclick="switchTab('timer')">⏱️ Playtime</button>
-            <button class="tab-btn" onclick="switchTab('ai')">🤖 AI Bot</button>
+            <button class="tab-btn" onclick="switchTab('ai')">🤖 AI Persona</button>
             <button class="tab-btn" onclick="switchTab('customizer')">🎨 Styles</button>
             <button class="tab-btn" onclick="switchTab('add')">➕ Add</button>
         </div>
@@ -196,10 +213,10 @@
         <!-- TAB 4: AI BOT SETTINGS -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
-                <div class="section-title">🤖 AI Assistant Settings</div>
+                <div class="section-title">🤖 AI Character & Voice Setup</div>
                 
                 <div class="row-toggle">
-                    <span>Enable AI Chatbot</span>
+                    <span>Enable AI Character</span>
                     <input type="checkbox" id="ai-enabled" checked>
                 </div>
                 <div class="row-toggle">
@@ -207,50 +224,63 @@
                     <input type="checkbox" id="ai-tts" checked>
                 </div>
                 <div class="row-toggle">
-                    <span>Auto-Welcome New Chatters</span>
+                    <span>Auto-Welcome New Viewers</span>
                     <input type="checkbox" id="ai-welcome" checked>
                 </div>
 
                 <label style="font-size:11px; color:#8c93a8;">Google Gemini API Key</label>
                 <input type="password" id="ai-key" placeholder="AI Studio Free API Key">
 
-                <label style="font-size:11px; color:#8c93a8;">Preset Character Persona</label>
+                <label style="font-size:11px; color:#8c93a8;">Choose Character Preset (Auto-Loads Image & Command)</label>
                 <select id="persona-presets" onchange="applyPresetPersona()">
-                    <option value="gojo">🕶️ Gojo Satoru (Confident & Funny)</option>
-                    <option value="kazuya">⚡ Kazuya Mishima (Aggressive & Arrogant)</option>
-                    <option value="sukuna">👑 Ryomen Sukuna (Ruthless & Proud)</option>
-                    <option value="custom">✏️ Custom Persona (Apna prompt likhein)</option>
+                    <option value="goku">🔥 Son Goku (Dragon Ball)</option>
+                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen)</option>
+                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8)</option>
+                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses)</option>
+                    <option value="custom">✏️ Custom Character (Apna manpasand)</option>
                 </select>
+
+                <!-- Live Character Image Preview -->
+                <div class="avatar-preview-box">
+                    <img id="avatar-preview" class="avatar-preview-img" src="https://images2.alphacoders.com/131/1312384.png" alt="Preview">
+                    <div>
+                        <span style="font-size: 13px; font-weight: 700;" id="preview-name">Son Goku</span><br>
+                        <small style="font-size: 11px; color: #8c93a8;">Active Portrait Overlay</small>
+                    </div>
+                </div>
+
+                <label style="font-size:11px; color:#8c93a8;">Character Static Image URL (PNG/JPG Link)</label>
+                <input type="text" id="ai-image-url" placeholder="Direct Image URL" oninput="updateImagePreview()">
 
                 <div class="grid-2">
                     <div>
                         <label style="font-size:11px; color:#8c93a8;">Character Name</label>
-                        <input type="text" id="ai-name" value="Gojo Satoru">
+                        <input type="text" id="ai-name" value="Son Goku" oninput="document.getElementById('preview-name').innerText=this.value">
                     </div>
                     <div>
-                        <label style="font-size:11px; color:#8c93a8;">Emoji/Avatar</label>
-                        <input type="text" id="ai-avatar" value="🕶️">
+                        <label style="font-size:11px; color:#8c93a8;">Chat Command (e.g. !goku)</label>
+                        <input type="text" id="ai-cmd" value="!goku">
                     </div>
                 </div>
 
-                <label style="font-size:11px; color:#8c93a8;">System Prompt (Character Ki Personality)</label>
+                <label style="font-size:11px; color:#8c93a8;">Personality / Behavior Prompt</label>
                 <textarea id="ai-persona" rows="3"></textarea>
 
                 <div class="grid-2">
                     <div>
-                        <label style="font-size:11px; color:#8c93a8;">Chat Command</label>
-                        <input type="text" id="ai-cmd" value="!ai">
+                        <label style="font-size:11px; color:#8c93a8;">Reminder Interval</label>
+                        <input type="number" id="ai-reminder-time" value="15">
                     </div>
                     <div>
-                        <label style="font-size:11px; color:#8c93a8;">Reminder (Minutes)</label>
-                        <input type="number" id="ai-reminder-time" value="15">
+                        <label style="font-size:11px; color:#8c93a8;">Discord Invite Link</label>
+                        <input type="text" id="ai-discord" placeholder="https://discord.gg/...">
                     </div>
                 </div>
 
-                <label style="font-size:11px; color:#8c93a8;">Discord Invite Link</label>
-                <input type="text" id="ai-discord" placeholder="https://discord.gg/...">
-
-                <button class="btn-ai-save" onclick="saveAISettings()">💾 Save AI Settings</button>
+                <div class="grid-2" style="margin-top: 5px;">
+                    <button class="btn-ai-save" onclick="saveAISettings()">💾 Save Character</button>
+                    <button style="background: #e67e22;" onclick="socket.emit('admin-test-ai')">🧪 Test Bubble</button>
+                </div>
             </div>
         </div>
 
@@ -317,31 +347,48 @@
         const triggersContainer = document.getElementById('triggers-container');
         const micBtn = document.getElementById('mic-btn');
 
-        // Presets
+        // Character Presets with Images & Commands
         const presets = {
+            goku: {
+                name: "Son Goku",
+                cmd: "!goku",
+                image: "https://images2.alphacoders.com/131/1312384.png",
+                prompt: "You are Son Goku from Dragon Ball. Cheerful, super energetic, loves food and challenges. Talk about Tekken fights like martial arts tournaments. Reply in 1-2 punchy sentences in the user's language."
+            },
             gojo: {
                 name: "Gojo Satoru",
-                avatar: "🕶️",
-                prompt: "You are Gojo Satoru from Jujutsu Kaisen. You are supremely confident, witty, playful, and an invincible TEKKEN fighter. Reply in 1-2 punchy sentences in the same language the user talks in."
+                cmd: "!gojo",
+                image: "https://images8.alphacoders.com/134/1344405.jpeg",
+                prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and untouchable. Reply in 1-2 punchy sentences in the user's language."
             },
             kazuya: {
                 name: "Kazuya Mishima",
-                avatar: "⚡",
-                prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, power-hungry, and arrogant. Dorya! Reply in 1-2 sharp, menacing sentences in the user's language."
+                cmd: "!kazuya",
+                image: "https://images3.alphacoders.com/134/1347311.jpeg",
+                prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp, menacing sentences in the user's language."
             },
             sukuna: {
                 name: "Ryomen Sukuna",
-                avatar: "👑",
-                prompt: "You are the King of Curses, Sukuna. Proud, condescending, and extremely powerful. Treat viewers like mere brats. Reply in 1-2 majestic sentences."
+                cmd: "!sukuna",
+                image: "https://images3.alphacoders.com/134/1344406.jpeg",
+                prompt: "You are the King of Curses, Sukuna. Proud, condescending, and merciless. Treat viewers like mere insects. Reply in 1-2 royal sentences."
             }
         };
+
+        function updateImagePreview() {
+            const url = document.getElementById('ai-image-url').value.trim();
+            if (url) document.getElementById('avatar-preview').src = url;
+        }
 
         function applyPresetPersona() {
             const val = document.getElementById('persona-presets').value;
             if (presets[val]) {
                 document.getElementById('ai-name').value = presets[val].name;
-                document.getElementById('ai-avatar').value = presets[val].avatar;
+                document.getElementById('ai-cmd').value = presets[val].cmd;
+                document.getElementById('ai-image-url').value = presets[val].image;
                 document.getElementById('ai-persona').value = presets[val].prompt;
+                document.getElementById('avatar-preview').src = presets[val].image;
+                document.getElementById('preview-name').innerText = presets[val].name;
             }
         }
 
@@ -352,19 +399,25 @@
                 welcomeNewChatters: document.getElementById('ai-welcome').checked,
                 geminiApiKey: document.getElementById('ai-key').value.trim(),
                 characterName: document.getElementById('ai-name').value.trim(),
-                characterAvatar: document.getElementById('ai-avatar').value.trim(),
+                characterImage: document.getElementById('ai-image-url').value.trim(),
                 characterPersona: document.getElementById('ai-persona').value.trim(),
                 aiCommand: document.getElementById('ai-cmd').value.trim(),
                 reminderMinutes: parseInt(document.getElementById('ai-reminder-time').value) || 15,
                 discordLink: document.getElementById('ai-discord').value.trim()
             });
-            alert('AI Settings successfully updated!');
+            alert('Character details & command successfully saved!');
         }
 
         socket.on('update-styles', (data) => {
             if (data.geminiApiKey !== undefined) document.getElementById('ai-key').value = data.geminiApiKey;
-            if (data.characterName) document.getElementById('ai-name').value = data.characterName;
-            if (data.characterAvatar) document.getElementById('ai-avatar').value = data.characterAvatar;
+            if (data.characterName) {
+                document.getElementById('ai-name').value = data.characterName;
+                document.getElementById('preview-name').innerText = data.characterName;
+            }
+            if (data.characterImage) {
+                document.getElementById('ai-image-url').value = data.characterImage;
+                document.getElementById('avatar-preview').src = data.characterImage;
+            }
             if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
             if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
             if (data.discordLink) document.getElementById('ai-discord').value = data.discordLink;
