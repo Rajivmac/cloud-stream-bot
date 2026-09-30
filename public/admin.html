@@ -145,7 +145,7 @@
                 <span id="status-text">Cloud Connecting...</span>
             </div>
             <div class="status-info">
-                <span id="obs-status-text" style="color: #8c93a8;">OBS: Offline</span>
+                <span id="obs-status-text" style="color: var(--orange);">OBS: Auto-Searching...</span>
             </div>
         </div>
 
@@ -196,9 +196,6 @@
                     <button style="background:var(--orange);" onclick="socket.emit('admin-timer-pause')">⏸ Pause</button>
                     <button class="btn-reset" onclick="socket.emit('admin-timer-reset')">🔄 Reset</button>
                 </div>
-                <small style="color:#8c93a8; display:block; margin-top:12px; text-align:center;">
-                    *Stream live hote hi timer auto-start ho jata hai aur stream band hone par auto-pause.
-                </small>
             </div>
         </div>
 
@@ -263,12 +260,12 @@
             </div>
 
             <div class="card">
-                <div class="section-title">🔌 OBS WebSocket Connection</div>
+                <div class="section-title">🔌 OBS WebSocket Connection (Auto-Saved)</div>
                 <input type="text" id="obs-ip" placeholder="OBS IP (Default: 127.0.0.1)" value="127.0.0.1">
                 <input type="text" id="obs-port" placeholder="Port (Default: 4455)" value="4455">
                 <input type="password" id="obs-pass" placeholder="Password (Empty if none)">
                 <input type="text" id="obs-mic-name" placeholder="Mic Name in OBS" value="Mic/Aux">
-                <button class="btn-submit" onclick="connectOBS()">Connect to OBS</button>
+                <button class="btn-submit" onclick="manualSaveAndConnect()">Save & Force Reconnect</button>
             </div>
         </div>
 
@@ -307,23 +304,78 @@
         const triggersContainer = document.getElementById('triggers-container');
         const micBtn = document.getElementById('mic-btn');
 
-        async function connectOBS() {
+        // ================= AUTO-OBS CONNECTION ENGINE =================
+        let isObsConnected = false;
+        let isObsConnecting = false;
+
+        function loadObsConfig() {
+            if (localStorage.getItem('obs_ip')) document.getElementById('obs-ip').value = localStorage.getItem('obs_ip');
+            if (localStorage.getItem('obs_port')) document.getElementById('obs-port').value = localStorage.getItem('obs_port');
+            if (localStorage.getItem('obs_pass')) document.getElementById('obs-pass').value = localStorage.getItem('obs_pass');
+            if (localStorage.getItem('obs_mic')) document.getElementById('obs-mic-name').value = localStorage.getItem('obs_mic');
+        }
+
+        function saveObsConfig() {
+            localStorage.setItem('obs_ip', document.getElementById('obs-ip').value.trim());
+            localStorage.setItem('obs_port', document.getElementById('obs-port').value.trim());
+            localStorage.setItem('obs_pass', document.getElementById('obs-pass').value.trim());
+            localStorage.setItem('obs_mic', document.getElementById('obs-mic-name').value.trim());
+        }
+
+        async function connectToOBS() {
+            if (isObsConnected || isObsConnecting) return;
+            isObsConnecting = true;
+
             const ip = document.getElementById('obs-ip').value.trim() || '127.0.0.1';
             const port = document.getElementById('obs-port').value.trim() || '4455';
             const password = document.getElementById('obs-pass').value.trim();
 
+            obsStatusText.innerText = 'OBS: Connecting...';
+            obsStatusText.style.color = 'var(--orange)';
+
             try {
-                obsStatusText.innerText = 'OBS: Connecting...';
                 await obs.connect(`ws://${ip}:${port}`, password || undefined);
+                isObsConnected = true;
+                isObsConnecting = false;
                 obsStatusText.innerText = 'OBS: Connected ✅';
                 obsStatusText.style.color = 'var(--green)';
+                saveObsConfig();
                 updateMicState();
             } catch (err) {
-                obsStatusText.innerText = 'OBS: Offline ❌';
-                obsStatusText.style.color = 'var(--red)';
+                isObsConnected = false;
+                isObsConnecting = false;
+                obsStatusText.innerText = 'OBS: Searching... ⏳';
+                obsStatusText.style.color = 'var(--orange)';
             }
         }
 
+        // On OBS disconnect or crash, automatically flag and retry
+        obs.on('ConnectionClosed', () => {
+            isObsConnected = false;
+            isObsConnecting = false;
+            obsStatusText.innerText = 'OBS: Offline (Auto-reconnecting...)';
+            obsStatusText.style.color = 'var(--red)';
+        });
+
+        // 3-Second Infinite Heartbeat Reconnect
+        setInterval(() => {
+            if (!isObsConnected && !isObsConnecting) {
+                connectToOBS();
+            }
+        }, 3000);
+
+        function manualSaveAndConnect() {
+            saveObsConfig();
+            isObsConnected = false;
+            isObsConnecting = false;
+            connectToOBS();
+        }
+
+        // Initial setup on load
+        loadObsConfig();
+        connectToOBS();
+
+        // Audio Handler
         async function updateMicState() {
             try {
                 const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
@@ -348,7 +400,7 @@
                 const res = await obs.call('ToggleInputMute', { inputName: micName });
                 setMicButtonUI(res.inputMuted);
             } catch (err) {
-                alert('OBS connect nahi hai!');
+                alert('OBS connect nahi hai ya Mic Name galat hai!');
             }
         }
 
@@ -365,8 +417,7 @@
             }
         }
 
-        connectOBS();
-
+        // Tabs
         function switchTab(tabName) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
