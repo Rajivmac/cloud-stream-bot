@@ -20,32 +20,18 @@ const liveChat = new LiveChat(chatConfig);
 let deathCount = 0;
 let currentStatus = 'retrying';
 
-// DYNAMIC TRIGGERS LIST (Default pre-loaded triggers)
+// Default Customization Settings
+let counterSettings = {
+    icon: '💀',
+    font: 'Teko',
+    color: '#ff4757'
+};
+
+// Dynamic Triggers
 let triggers = [
-    { 
-        name: "Wavedash", 
-        cmd: "!combo", 
-        type: "video", 
-        url: "https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4" 
-    },
-    { 
-        name: "Vine Boom", 
-        cmd: "!boom", 
-        type: "sfx", 
-        url: "https://www.myinstants.com/media/sounds/vine-boom.mp3" 
-    },
-    { 
-        name: "Bonk", 
-        cmd: "!bonk", 
-        type: "sfx", 
-        url: "https://www.myinstants.com/media/sounds/bonk.mp3" 
-    },
-    { 
-        name: "Bruh", 
-        cmd: "!bruh", 
-        type: "sfx", 
-        url: "https://www.myinstants.com/media/sounds/bruh.mp3" 
-    }
+    { name: "Wavedash", cmd: "!combo", type: "video", url: "https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4" },
+    { name: "Vine Boom", cmd: "!boom", type: "sfx", url: "https://www.myinstants.com/media/sounds/vine-boom.mp3" },
+    { name: "Bonk", cmd: "!bonk", type: "sfx", url: "https://www.myinstants.com/media/sounds/bonk.mp3" }
 ];
 
 const broadcastStatus = (status) => {
@@ -57,26 +43,27 @@ const broadcastDeathCount = () => {
     io.emit('update-counter', { count: deathCount });
 };
 
-// --- AUTO-RECONNECT LOGIC ---
+const broadcastSettings = () => {
+    io.emit('update-counter-style', counterSettings);
+};
+
+// --- CHAT ENGINE ---
 const startChat = async () => {
     try {
         console.log(`⏳ Checking YouTube Connection...`);
         broadcastStatus('retrying');
-
         const ok = await liveChat.start();
         if (ok) {
             console.log(`✅ Automatically Connected to YouTube Live Chat!`);
             broadcastStatus('online');
         }
     } catch (error) {
-        console.log(`⚠️ Stream not ready yet (${error.message}). Retrying in 10 seconds...`);
         broadcastStatus('retrying');
         setTimeout(startChat, 10000); 
     }
 };
 
 liveChat.on("error", (err) => {
-    console.log(`❌ Chat disconnected (${err.message}). Retrying...`);
     broadcastStatus('offline');
     liveChat.stop();
     setTimeout(startChat, 10000);
@@ -84,64 +71,51 @@ liveChat.on("error", (err) => {
 
 startChat();
 
-// --- CHAT COMMANDS ---
 liveChat.on("chat", (chatItem) => {
     const message = chatItem.message.map(m => m.text ? m.text : '').join('').trim().toLowerCase();
     const username = chatItem.author.name;
     const isModOrOwner = chatItem.author.isChatOwner || chatItem.author.isChatModerator;
 
-    // 1. Check Dynamic Triggers
     const matchedTrigger = triggers.find(t => t.cmd === message);
     if (matchedTrigger) {
-        console.log(`⚡ ${username} triggered ${matchedTrigger.name} via ${matchedTrigger.cmd}`);
-        if (matchedTrigger.type === 'video') {
-            io.emit('play-meme', { mediaUrl: matchedTrigger.url });
-        } else if (matchedTrigger.type === 'sfx') {
-            io.emit('play-sfx', { sfxUrl: matchedTrigger.url });
-        }
+        if (matchedTrigger.type === 'video') io.emit('play-meme', { mediaUrl: matchedTrigger.url });
+        if (matchedTrigger.type === 'sfx') io.emit('play-sfx', { sfxUrl: matchedTrigger.url });
     }
 
-    // 2. Mod / Owner Only Commands for Death Counter
     if (isModOrOwner) {
-        if (message === '!death+' || message === '!died') {
-            deathCount++;
-            broadcastDeathCount();
-        }
-        if (message === '!death-') {
-            if (deathCount > 0) deathCount--;
-            broadcastDeathCount();
-        }
-        if (message === '!deathreset') {
-            deathCount = 0;
-            broadcastDeathCount();
-        }
+        if (message === '!death+' || message === '!died') { deathCount++; broadcastDeathCount(); }
+        if (message === '!death-') { if (deathCount > 0) deathCount--; broadcastDeathCount(); }
+        if (message === '!deathreset') { deathCount = 0; broadcastDeathCount(); }
     }
 });
 
-// --- ADMIN DECK CONTROLS ---
+// --- ADMIN CONTROLS ---
 io.on('connection', (socket) => {
     socket.emit('update-counter', { count: deathCount });
     socket.emit('stream-status', { status: currentStatus });
-    socket.emit('load-triggers', triggers); // Send dynamic buttons to dashboard
+    socket.emit('load-triggers', triggers);
+    socket.emit('update-counter-style', counterSettings);
 
-    // Death Counter
+    // Counter Actions
     socket.on('admin-death-add', () => { deathCount++; broadcastDeathCount(); });
     socket.on('admin-death-sub', () => { if (deathCount > 0) deathCount--; broadcastDeathCount(); });
     socket.on('admin-death-reset', () => { deathCount = 0; broadcastDeathCount(); });
 
-    // Triggers from Dashboard clicks
-    socket.on('admin-play-meme', (data) => io.emit('play-meme', data));
-    socket.on('admin-play-sfx', (data) => io.emit('play-sfx', data));
+    // Live Customization Handler
+    socket.on('admin-change-style', (newSettings) => {
+        counterSettings = { ...counterSettings, ...newSettings };
+        broadcastSettings();
+    });
 
-    // Add New Trigger from Form (NO CODE NEEDED!)
+    // Add Dynamic Trigger
     socket.on('admin-add-trigger', (newTrigger) => {
         triggers.push(newTrigger);
-        console.log(`✨ New trigger added: ${newTrigger.name} (${newTrigger.cmd})`);
-        io.emit('load-triggers', triggers); // Update dashboard buttons instantly
+        io.emit('load-triggers', triggers);
     });
+
+    socket.on('admin-play-meme', (data) => io.emit('play-meme', data));
+    socket.on('admin-play-sfx', (data) => io.emit('play-sfx', data));
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-    console.log(`🚀 Cloud Stream Server running on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`🚀 Server on port ${PORT}`));
