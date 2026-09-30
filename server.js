@@ -11,24 +11,48 @@ app.use(express.static('public'));
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
-// --- SMART CONFIGURATION ---
-const CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ'; // Public TEKKEN stream
-const TEST_STREAM_ID = ''; // Unlisted test ke liye ID daalein, Public ke liye khali chhod dein
+const CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ';
+const TEST_STREAM_ID = ''; 
 
 const chatConfig = TEST_STREAM_ID ? { liveId: TEST_STREAM_ID } : { channelId: CHANNEL_ID };
 const liveChat = new LiveChat(chatConfig); 
 
-// --- GAME DATA & STATUS STATE ---
 let deathCount = 0;
-let currentStatus = 'retrying'; // Status options: 'online', 'retrying', 'offline'
+let currentStatus = 'retrying';
 
-// Status broadcast helper (Green / Orange / Red icon ke liye)
+// DYNAMIC TRIGGERS LIST (Default pre-loaded triggers)
+let triggers = [
+    { 
+        name: "Wavedash", 
+        cmd: "!combo", 
+        type: "video", 
+        url: "https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4" 
+    },
+    { 
+        name: "Vine Boom", 
+        cmd: "!boom", 
+        type: "sfx", 
+        url: "https://www.myinstants.com/media/sounds/vine-boom.mp3" 
+    },
+    { 
+        name: "Bonk", 
+        cmd: "!bonk", 
+        type: "sfx", 
+        url: "https://www.myinstants.com/media/sounds/bonk.mp3" 
+    },
+    { 
+        name: "Bruh", 
+        cmd: "!bruh", 
+        type: "sfx", 
+        url: "https://www.myinstants.com/media/sounds/bruh.mp3" 
+    }
+];
+
 const broadcastStatus = (status) => {
     currentStatus = status;
     io.emit('stream-status', { status });
 };
 
-// Death counter broadcast helper
 const broadcastDeathCount = () => {
     io.emit('update-counter', { count: deathCount });
 };
@@ -37,23 +61,23 @@ const broadcastDeathCount = () => {
 const startChat = async () => {
     try {
         console.log(`⏳ Checking YouTube Connection...`);
-        broadcastStatus('retrying'); // Orange Indicator
+        broadcastStatus('retrying');
 
         const ok = await liveChat.start();
         if (ok) {
             console.log(`✅ Automatically Connected to YouTube Live Chat!`);
-            broadcastStatus('online'); // Green Indicator
+            broadcastStatus('online');
         }
     } catch (error) {
         console.log(`⚠️ Stream not ready yet (${error.message}). Retrying in 10 seconds...`);
-        broadcastStatus('retrying'); // Orange Indicator
+        broadcastStatus('retrying');
         setTimeout(startChat, 10000); 
     }
 };
 
 liveChat.on("error", (err) => {
     console.log(`❌ Chat disconnected (${err.message}). Retrying...`);
-    broadcastStatus('offline'); // Red Indicator
+    broadcastStatus('offline');
     liveChat.stop();
     setTimeout(startChat, 10000);
 });
@@ -64,81 +88,59 @@ startChat();
 liveChat.on("chat", (chatItem) => {
     const message = chatItem.message.map(m => m.text ? m.text : '').join('').trim().toLowerCase();
     const username = chatItem.author.name;
-
-    // Check if chatter is Mod or Streamer/Owner
     const isModOrOwner = chatItem.author.isChatOwner || chatItem.author.isChatModerator;
 
-    // 1. Meme Trigger (!combo - Anyone can trigger)
-    if (message === '!combo') {
-        console.log(`🔥 ${username} triggered !combo!`);
-        io.emit('play-meme', { 
-            mediaUrl: 'https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4' 
-        });
+    // 1. Check Dynamic Triggers
+    const matchedTrigger = triggers.find(t => t.cmd === message);
+    if (matchedTrigger) {
+        console.log(`⚡ ${username} triggered ${matchedTrigger.name} via ${matchedTrigger.cmd}`);
+        if (matchedTrigger.type === 'video') {
+            io.emit('play-meme', { mediaUrl: matchedTrigger.url });
+        } else if (matchedTrigger.type === 'sfx') {
+            io.emit('play-sfx', { sfxUrl: matchedTrigger.url });
+        }
     }
 
     // 2. Mod / Owner Only Commands for Death Counter
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') {
             deathCount++;
-            console.log(`💀 [MOD/OWNER] ${username} added death! Total: ${deathCount}`);
             broadcastDeathCount();
         }
-
         if (message === '!death-') {
             if (deathCount > 0) deathCount--;
-            console.log(`✨ [MOD/OWNER] ${username} reduced death! Total: ${deathCount}`);
             broadcastDeathCount();
         }
-
         if (message === '!deathreset') {
             deathCount = 0;
-            console.log(`🔄 [MOD/OWNER] Counter reset by ${username}`);
             broadcastDeathCount();
         }
     }
 });
 
-// --- OBS WEBSOCKET & ADMIN DECK CONTROLS ---
+// --- ADMIN DECK CONTROLS ---
 io.on('connection', (socket) => {
-    console.log(`📺 Client Connected: ${socket.id}`);
-    
-    // Naya widget ya phone deck open hote hi current state sync karein
     socket.emit('update-counter', { count: deathCount });
     socket.emit('stream-status', { status: currentStatus });
+    socket.emit('load-triggers', triggers); // Send dynamic buttons to dashboard
 
-    // Admin Deck Se Death Counter Controls
-    socket.on('admin-death-add', () => {
-        deathCount++;
-        console.log(`📱 Admin Deck: +1 Death (Total: ${deathCount})`);
-        broadcastDeathCount();
-    });
+    // Death Counter
+    socket.on('admin-death-add', () => { deathCount++; broadcastDeathCount(); });
+    socket.on('admin-death-sub', () => { if (deathCount > 0) deathCount--; broadcastDeathCount(); });
+    socket.on('admin-death-reset', () => { deathCount = 0; broadcastDeathCount(); });
 
-    socket.on('admin-death-sub', () => {
-        if (deathCount > 0) deathCount--;
-        console.log(`📱 Admin Deck: -1 Death (Total: ${deathCount})`);
-        broadcastDeathCount();
-    });
+    // Triggers from Dashboard clicks
+    socket.on('admin-play-meme', (data) => io.emit('play-meme', data));
+    socket.on('admin-play-sfx', (data) => io.emit('play-sfx', data));
 
-    socket.on('admin-death-reset', () => {
-        deathCount = 0;
-        console.log(`📱 Admin Deck: Reset Death`);
-        broadcastDeathCount();
-    });
-
-    // Admin Deck Se Meme Trigger
-    socket.on('admin-play-meme', (data) => {
-        console.log(`📱 Admin Deck triggered meme`);
-        io.emit('play-meme', data);
-    });
-
-    // Admin Deck Se Sound Effect (SFX) Trigger
-    socket.on('admin-play-sfx', (data) => {
-        console.log(`📱 Admin Deck triggered SFX`);
-        io.emit('play-sfx', data);
+    // Add New Trigger from Form (NO CODE NEEDED!)
+    socket.on('admin-add-trigger', (newTrigger) => {
+        triggers.push(newTrigger);
+        console.log(`✨ New trigger added: ${newTrigger.name} (${newTrigger.cmd})`);
+        io.emit('load-triggers', triggers); // Update dashboard buttons instantly
     });
 });
 
-// Cloud platforms (Render) ke liye dynamic port handling
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🚀 Cloud Stream Server running on port ${PORT}`);
