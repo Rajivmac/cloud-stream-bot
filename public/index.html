@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        body { margin: 0; overflow: hidden; background: transparent; }
+        #overlay-container { 
+            position: absolute; 
+            width: 100vw; 
+            height: 100vh; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+        }
+        video { max-width: 80%; max-height: 80%; display: none; }
+    </style>
+</head>
+<body>
+    <div id="overlay-container">
+        <video id="media-player" autoplay></video>
+    </div>
+
+    <!-- Socket.io library ko server se load kar rahe hain -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); 
+        const videoPlayer = document.getElementById('media-player');
+        
+        // Server se aane wale signals ko sunne ka logic
+        socket.on('stream-event', (data) => {
+            if (data.type === 'video') {
+                videoPlayer.src = data.mediaUrl;
+                videoPlayer.style.display = 'block';
+                videoPlayer.play();
+                
+                // Video khatam hone ke baad wapas gayab kar dena
+                videoPlayer.onended = () => {
+                    videoPlayer.style.display = 'none';
+                    videoPlayer.src = "";
+                };
+            }
+        });
+    </script>
+</body>
+</html>
