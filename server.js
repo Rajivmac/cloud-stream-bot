@@ -29,16 +29,15 @@ let streamData = {
     geminiApiKey: '',
     aiEnabled: true,
     enableTTS: true,
-    aiCommand: '!ai',
-    characterName: 'Gojo Satoru',
-    characterAvatar: '🕶️',
-    characterPersona: 'You are Gojo Satoru from Jujutsu Kaisen. You are supremely confident, playful, humorous, and a TEKKEN god. Reply in 1-2 punchy sentences. Always reply in the language the user speaks (Hinglish/Hindi/English).',
+    aiCommand: '!goku',
+    characterName: 'Son Goku',
+    characterImage: 'https://images2.alphacoders.com/131/1312384.png',
+    characterPersona: 'You are Son Goku from Dragon Ball. Cheerful, energetic, food-loving, excited about tough Tekken fights. Keep answers short (1-2 sentences) in the user language.',
     welcomeNewChatters: true,
-    discordLink: 'https://discord.gg/yourlink',
+    discordLink: '',
     reminderMinutes: 15
 };
 
-// Load saved data
 if (fs.existsSync(DATA_FILE)) {
     try {
         const loaded = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -58,9 +57,8 @@ const saveDataToDisk = () => {
 
 let currentStatus = 'retrying';
 let isTimerRunning = false;
-let seenChatters = new Set(); // Auto-Welcome Tracker
+let seenChatters = new Set();
 
-// Auto-Timer Loop
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -69,22 +67,21 @@ setInterval(() => {
     }
 }, 1000);
 
-// Auto-Reminder Loop (Subscribers / Discord reminders)
 setInterval(() => {
     if (currentStatus === 'online' && streamData.discordLink) {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
-            avatar: streamData.characterAvatar,
-            text: `Bhaiyo stream ko like-share kardo aur community ke liye Discord join karlo: ${streamData.discordLink}`,
-            enableTTS: false // Reminder sirf screen par text dikhega, TTS noise nahi karega
+            characterImage: streamData.characterImage,
+            text: `Stream pasand aa rahi ho toh like thok dena aur Discord join karlo: ${streamData.discordLink}`,
+            enableTTS: false
         });
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// --- GEMINI AI REST API CALL ---
+// --- GEMINI API CALL ---
 async function askGemini(userPrompt, username) {
     if (!streamData.geminiApiKey) {
-        return `Bhai pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
+        return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
     }
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${streamData.geminiApiKey}`;
@@ -105,7 +102,7 @@ async function askGemini(userPrompt, username) {
         if (data.candidates && data.candidates[0].content.parts[0].text) {
             return data.candidates[0].content.parts[0].text.trim();
         }
-        return "Lagta hai Infinity activate ho gaya, samajh nahi aaya!";
+        return "Lagta hai power level bohot high ho gaya, samajh nahi aaya!";
     } catch (err) {
         console.error('Gemini Error:', err);
         return "AI connect nahi ho paaya, try again!";
@@ -147,7 +144,6 @@ liveChat.on("error", () => {
 
 startChat();
 
-// Dynamic Triggers
 let triggers = [
     { name: "Gameplay", type: "scene", sceneName: "Gameplay" },
     { name: "BRB Screen", type: "scene", sceneName: "BRB" },
@@ -161,53 +157,51 @@ liveChat.on("chat", async (chatItem) => {
     const username = chatItem.author.name;
     const isModOrOwner = chatItem.author.isChatOwner || chatItem.author.isChatModerator;
 
-    // 1. AUTO WELCOME FIRST TIME CHATTERS
+    // 1. AUTO WELCOME
     if (streamData.welcomeNewChatters && !seenChatters.has(username)) {
         seenChatters.add(username);
         io.emit('ai-speak', {
             characterName: streamData.characterName,
-            avatar: streamData.characterAvatar,
+            characterImage: streamData.characterImage,
             text: `Yo @${username}, stream par swagat hai!`,
             enableTTS: streamData.enableTTS
         });
     }
 
-    // 2. DISCORD COMMAND (!discord)
+    // 2. DISCORD COMMAND
     if (message === '!discord') {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
-            avatar: '💬',
+            characterImage: streamData.characterImage,
             text: `@${username} Discord community link: ${streamData.discordLink}`,
             enableTTS: false
         });
         return;
     }
 
-    // 3. MANUAL TTS COMMAND (!tts <text>)
+    // 3. TTS COMMAND
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
             characterName: username,
-            avatar: '🔊',
+            characterImage: 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
             text: ttsText,
             enableTTS: true
         });
         return;
     }
 
-    // 4. AI PERSONA QUESTION (!ai <question>)
-    const aiPrefix = streamData.aiCommand.toLowerCase() + ' ';
-    if (streamData.aiEnabled && message.startsWith(aiPrefix)) {
-        const question = rawText.slice(aiPrefix.length).trim();
-        if (question.length > 0) {
-            const aiAnswer = await askGemini(question, username);
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                avatar: streamData.characterAvatar,
-                text: aiAnswer,
-                enableTTS: streamData.enableTTS
-            });
-        }
+    // 4. DYNAMIC AI COMMAND (e.g. !goku, !kazuya, !ai)
+    const activeCommand = (streamData.aiCommand || '!ai').toLowerCase();
+    if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
+        const question = rawText.slice(activeCommand.length).trim() || 'Tell us something cool!';
+        const aiAnswer = await askGemini(question, username);
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: aiAnswer,
+            enableTTS: streamData.enableTTS
+        });
         return;
     }
 
@@ -232,7 +226,7 @@ const broadcastState = () => {
     saveDataToDisk();
 };
 
-// --- ADMIN CONTROLS ---
+// Admin Sockets
 io.on('connection', (socket) => {
     socket.emit('update-counter', { count: streamData.deathCount });
     socket.emit('stream-status', { status: currentStatus });
@@ -251,6 +245,15 @@ io.on('connection', (socket) => {
     socket.on('admin-change-styles', (newSettings) => {
         streamData = { ...streamData, ...newSettings };
         broadcastState();
+    });
+
+    socket.on('admin-test-ai', () => {
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: `Yo! Test bubble bilkul mast kaam kar raha hai!`,
+            enableTTS: streamData.enableTTS
+        });
     });
 
     socket.on('admin-add-trigger', (newTrigger) => {
