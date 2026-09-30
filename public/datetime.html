@@ -2,47 +2,54 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Stream Clock Overlay</title>
+    <title>Stream Clock HUD</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Black+Ops+One&family=Chakra+Petch:wght@600;700&family=Orbitron:wght@700&family=Press+Start+2P&family=Russo+One&family=Share+Tech+Mono&family=Teko:wght@600;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
-
         body {
             background-color: transparent;
             margin: 0;
             overflow: hidden;
-            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            align-items: center;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
         }
         .hud-line {
             display: inline-flex;
             align-items: center;
-            gap: 12px;
-            background: rgba(10, 12, 18, 0.75);
-            border: 1px solid rgba(52, 152, 219, 0.4);
-            border-radius: 6px;
-            padding: 6px 16px;
-            color: #ecf0f1;
-            font-size: 18px;
-            letter-spacing: 1px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            gap: 16px;
+            background: rgba(10, 13, 20, 0.94);
+            border: 2px solid var(--theme-color, #ff4757);
+            border-bottom: 4px solid var(--theme-color, #ff4757);
+            border-radius: 8px;
+            padding: 10px 24px;
+            color: #ffffff;
+            font-family: var(--clock-font, 'Share Tech Mono'), monospace;
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), 0 0 20px rgba(0,0,0,0.5);
+            transition: all 0.25s ease;
         }
         .live-dot {
-            width: 8px;
-            height: 8px;
+            width: 12px;
+            height: 12px;
             background-color: #2ecc71;
             border-radius: 50%;
-            box-shadow: 0 0 8px #2ecc71;
-            animation: blink 1.5s infinite;
+            box-shadow: 0 0 12px #2ecc71;
+            animation: pulse 1.5s infinite;
         }
         .divider {
-            color: #7f8c8d;
+            color: rgba(255, 255, 255, 0.3);
         }
         .time-highlight {
-            color: #00d2d3;
-            font-weight: bold;
+            color: var(--theme-color, #ff4757);
         }
-        @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.2); opacity: 0.4; }
         }
     </style>
 </head>
@@ -54,18 +61,17 @@
         <span id="time-part" class="time-highlight">--:--:--</span>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
+        const socket = io();
+
         function updateClock() {
             const now = new Date();
-            
-            // Format: DD MMM YYYY (e.g. 01 Oct 2026)
             const dateStr = now.toLocaleDateString('en-GB', {
                 day: '2-digit',
                 month: 'short',
                 year: 'numeric'
             });
-
-            // Format: 12-hour with AM/PM (e.g. 02:25:10 AM)
             const timeStr = now.toLocaleTimeString('en-US', {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -76,9 +82,13 @@
             document.getElementById('date-part').innerText = dateStr;
             document.getElementById('time-part').innerText = timeStr;
         }
-
         setInterval(updateClock, 1000);
         updateClock();
+
+        socket.on('update-styles', (data) => {
+            if (data.clockFont) document.documentElement.style.setProperty('--clock-font', `'${data.clockFont}'`);
+            if (data.themeColor) document.documentElement.style.setProperty('--theme-color', data.themeColor);
+        });
     </script>
 </body>
 </html>
