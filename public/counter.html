@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Death Counter</title>
+    <style>
+        body {
+            background-color: transparent;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+        #counter-box {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 20px;
+            border-radius: 8px;
+            display: inline-block;
+            font-size: 28px;
+            font-weight: bold;
+            border: 2px solid #ff4757;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+    </style>
+</head>
+<body>
+    <div id="counter-box">
+        Deaths: <span id="death-count">0</span>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const deathSpan = document.getElementById('death-count');
+
+        socket.on('update-counter', (data) => {
+            deathSpan.innerText = data.count;
+        });
+    </script>
+</body>
+</html>
