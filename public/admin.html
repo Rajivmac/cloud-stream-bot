@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Master Control Deck</title>
+    <style>
+        :root {
+            --bg-color: #0f1117;
+            --card-bg: #1a1d26;
+            --text-color: #ffffff;
+            --green: #2ecc71;
+            --orange: #f39c12;
+            --red: #e74c3c;
+            --blue: #3498db;
+            --purple: #9b59b6;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 15px;
+            user-select: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        /* Status Card */
+        .status-card {
+            background: var(--card-bg);
+            padding: 14px 20px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        .status-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .status-dot {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: var(--orange);
+            box-shadow: 0 0 10px var(--orange);
+            transition: all 0.3s ease;
+        }
+        /* Grid Sections */
+        .section-title {
+            font-size: 14px;
+            color: #8c93a8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+        .card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
+        button {
+            padding: 14px 10px;
+            font-size: 15px;
+            font-weight: 700;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            color: white;
+            transition: transform 0.1s, opacity 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        button:active {
+            transform: scale(0.95);
+            opacity: 0.85;
+        }
+        /* Buttons Color Coding */
+        .btn-death-add { background: var(--red); font-size: 18px; grid-column: span 2; padding: 18px; }
+        .btn-death-sub { background: #4a5568; }
+        .btn-death-reset { background: #2d3748; }
+        .btn-meme { background: linear-gradient(135deg, #e67e22, #d35400); }
+        .btn-sfx { background: linear-gradient(135deg, var(--purple), #8e44ad); }
+
+        .counter-number {
+            font-size: 42px;
+            font-weight: 800;
+            color: var(--red);
+            text-align: center;
+            margin: 5px 0 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <!-- 1. LIVE STREAM STATUS BAR -->
+        <div class="status-card">
+            <div class="status-info">
+                <div id="status-indicator" class="status-dot"></div>
+                <span id="status-text">Connecting...</span>
+            </div>
+            <span style="font-size: 12px; color: #8c93a8;">Cloud Bot</span>
+        </div>
+
+        <!-- 2. DEATH COUNTER -->
+        <div class="card">
+            <div class="section-title">💀 Death Counter</div>
+            <div class="counter-number" id="death-display">0</div>
+            <div class="grid-2">
+                <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
+                <button class="btn-death-sub" onclick="socket.emit('admin-death-sub')">- 1 Death</button>
+                <button class="btn-death-reset" onclick="socket.emit('admin-death-reset')">Reset (0)</button>
+            </div>
+        </div>
+
+        <!-- 3. MEME VIDEO TRIGGERS -->
+        <div class="card">
+            <div class="section-title">🎬 Video Memes</div>
+            <div class="grid-2">
+                <button class="btn-meme" onclick="playMeme('https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4')">
+                    ⚡ Wavedash
+                </button>
+                <button class="btn-meme" style="opacity: 0.6;">
+                    🔒 Slot 2 (Empty)
+                </button>
+            </div>
+        </div>
+
+        <!-- 4. FUNNY SOUND EFFECTS (SFX) -->
+        <div class="card">
+            <div class="section-title">🔊 Sound Effects</div>
+            <div class="grid-3">
+                <button class="btn-sfx" onclick="playSFX('https://www.myinstants.com/media/sounds/vine-boom.mp3')">💥 Boom</button>
+                <button class="btn-sfx" onclick="playSFX('https://www.myinstants.com/media/sounds/bonk.mp3')">🔨 Bonk</button>
+                <button class="btn-sfx" onclick="playSFX('https://www.myinstants.com/media/sounds/bruh.mp3')">🗿 Bruh</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const indicator = document.getElementById('status-indicator');
+        const statusText = document.getElementById('status-text');
+        const deathDisplay = document.getElementById('death-display');
+
+        // Status Handler (Green, Orange, Red)
+        socket.on('stream-status', (data) => {
+            if (data.status === 'online') {
+                indicator.style.backgroundColor = 'var(--green)';
+                indicator.style.boxShadow = '0 0 12px var(--green)';
+                statusText.innerText = 'Stream Online (Active)';
+            } else if (data.status === 'retrying') {
+                indicator.style.backgroundColor = 'var(--orange)';
+                indicator.style.boxShadow = '0 0 12px var(--orange)';
+                statusText.innerText = 'Checking / Searching Stream...';
+            } else {
+                indicator.style.backgroundColor = 'var(--red)';
+                indicator.style.boxShadow = '0 0 12px var(--red)';
+                statusText.innerText = 'Stream Offline';
+            }
+        });
+
+        // Counter updates
+        socket.on('update-counter', (data) => {
+            deathDisplay.innerText = data.count;
+        });
+
+        function playMeme(url) {
+            socket.emit('admin-play-meme', { mediaUrl: url });
+        }
+
+        function playSFX(url) {
+            socket.emit('admin-play-sfx', { sfxUrl: url });
+        }
+    </script>
+</body>
+</html>
