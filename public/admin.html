@@ -15,6 +15,7 @@
             --red: #ff4757;
             --blue: #3498db;
             --purple: #9b59b6;
+            --cyan: #00d2d3;
             --scene-btn: #34495e;
         }
         body {
@@ -43,15 +44,15 @@
 
         .tab-bar {
             display: flex;
-            gap: 6px;
+            gap: 4px;
             background: #11131c;
             padding: 6px;
             border-radius: 12px;
         }
         .tab-btn {
             flex: 1;
-            padding: 10px 4px;
-            font-size: 12px;
+            padding: 9px 2px;
+            font-size: 11px;
             font-weight: 700;
             border: none;
             border-radius: 8px;
@@ -88,13 +89,7 @@
         }
         button:active { transform: scale(0.96); }
 
-        .btn-mic {
-            width: 100%;
-            padding: 16px;
-            font-size: 16px;
-            border-radius: 10px;
-            font-weight: 800;
-        }
+        .btn-mic { width: 100%; padding: 16px; font-size: 16px; border-radius: 10px; font-weight: 800; }
         .mic-unmuted { background: var(--green); box-shadow: 0 0 15px rgba(46, 204, 113, 0.4); }
         .mic-muted { background: var(--red); box-shadow: 0 0 15px rgba(255, 71, 87, 0.5); }
 
@@ -102,38 +97,36 @@
         .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); min-height: 60px; }
         .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); min-height: 60px; }
 
-        .counter-big-display {
-            font-size: 64px;
-            font-weight: 900;
-            color: var(--red);
-            text-align: center;
-            margin: 5px 0 15px 0;
-        }
-        .timer-display {
-            font-size: 38px;
-            font-weight: 900;
-            color: #00d2d3;
-            text-align: center;
-            margin: 5px 0 15px 0;
-            font-family: monospace;
-        }
+        .counter-big-display { font-size: 64px; font-weight: 900; color: var(--red); text-align: center; margin: 5px 0 15px 0; }
+        .timer-display { font-size: 38px; font-weight: 900; color: #00d2d3; text-align: center; margin: 5px 0 15px 0; font-family: monospace; }
 
         .btn-death-add { background: var(--red); font-size: 22px; padding: 18px; width: 100%; margin-bottom: 10px; }
         .btn-sub { background: #4a5568; }
         .btn-reset { background: #2d3748; }
 
-        select, input {
+        select, input, textarea {
             width: 100%;
-            padding: 11px;
+            padding: 10px;
             background: #202538;
             border: 1px solid #353c58;
             color: white;
             border-radius: 8px;
             box-sizing: border-box;
             margin-bottom: 8px;
-            font-size: 14px;
+            font-size: 13px;
+            font-family: inherit;
         }
-        .btn-submit { background: var(--blue); width: 100%; padding: 13px; font-size: 15px; }
+        .btn-submit { background: var(--blue); width: 100%; padding: 12px; font-size: 14px; }
+        .btn-ai-save { background: var(--cyan); color: #000; font-weight: 800; width: 100%; padding: 12px; }
+
+        .row-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+        .row-toggle input[type="checkbox"] { width: 20px; height: 20px; margin: 0; }
     </style>
 </head>
 <body>
@@ -150,10 +143,11 @@
         </div>
 
         <div class="tab-bar">
-            <button class="tab-btn active" onclick="switchTab('deck')">🎮 Live Deck</button>
+            <button class="tab-btn active" onclick="switchTab('deck')">🎮 Deck</button>
             <button class="tab-btn" onclick="switchTab('counter')">💀 Deaths</button>
             <button class="tab-btn" onclick="switchTab('timer')">⏱️ Playtime</button>
-            <button class="tab-btn" onclick="switchTab('customizer')">🎨 Settings</button>
+            <button class="tab-btn" onclick="switchTab('ai')">🤖 AI Bot</button>
+            <button class="tab-btn" onclick="switchTab('customizer')">🎨 Styles</button>
             <button class="tab-btn" onclick="switchTab('add')">➕ Add</button>
         </div>
 
@@ -199,92 +193,111 @@
             </div>
         </div>
 
-        <!-- TAB 4: SETTINGS & FONTS -->
-        <div id="tab-customizer" class="tab-content">
+        <!-- TAB 4: AI BOT SETTINGS -->
+        <div id="tab-ai" class="tab-content">
             <div class="card">
-                <div class="section-title">🎨 Independent Fonts & Styles</div>
+                <div class="section-title">🤖 AI Assistant Settings</div>
                 
-                <label style="font-size:12px; color:#8c93a8;">Death Counter Font</label>
-                <select id="cust-counter-font" onchange="applyStyles()">
-                    <option value="Teko">Teko (Aggressive)</option>
-                    <option value="Orbitron">Orbitron (Sci-Fi)</option>
-                    <option value="Russo One">Russo One (Esports Chunky)</option>
-                    <option value="Black Ops One">Black Ops One (Combat)</option>
-                    <option value="Chakra Petch">Chakra Petch (Modern HUD)</option>
-                    <option value="Bangers">Bangers (Comic Pop)</option>
-                    <option value="Press Start 2P">Retro 8-Bit</option>
-                    <option value="Share Tech Mono">Share Tech Mono (Terminal)</option>
-                </select>
+                <div class="row-toggle">
+                    <span>Enable AI Chatbot</span>
+                    <input type="checkbox" id="ai-enabled" checked>
+                </div>
+                <div class="row-toggle">
+                    <span>TTS Voice (Screen Speech)</span>
+                    <input type="checkbox" id="ai-tts" checked>
+                </div>
+                <div class="row-toggle">
+                    <span>Auto-Welcome New Chatters</span>
+                    <input type="checkbox" id="ai-welcome" checked>
+                </div>
 
-                <label style="font-size:12px; color:#8c93a8;">Date & Time Font</label>
-                <select id="cust-clock-font" onchange="applyStyles()">
-                    <option value="Share Tech Mono">Share Tech Mono (Terminal)</option>
-                    <option value="Chakra Petch">Chakra Petch (Modern HUD)</option>
-                    <option value="Orbitron">Orbitron (Sci-Fi)</option>
-                    <option value="Teko">Teko (Aggressive)</option>
-                    <option value="Russo One">Russo One (Esports Chunky)</option>
-                </select>
+                <label style="font-size:11px; color:#8c93a8;">Google Gemini API Key</label>
+                <input type="password" id="ai-key" placeholder="AI Studio Free API Key">
 
-                <label style="font-size:12px; color:#8c93a8;">Playtime Timer Font</label>
-                <select id="cust-timer-font" onchange="applyStyles()">
-                    <option value="Orbitron">Orbitron (Sci-Fi)</option>
-                    <option value="Chakra Petch">Chakra Petch (Modern HUD)</option>
-                    <option value="Russo One">Russo One (Esports Chunky)</option>
-                    <option value="Share Tech Mono">Share Tech Mono (Terminal)</option>
-                    <option value="Black Ops One">Black Ops One (Combat)</option>
+                <label style="font-size:11px; color:#8c93a8;">Preset Character Persona</label>
+                <select id="persona-presets" onchange="applyPresetPersona()">
+                    <option value="gojo">🕶️ Gojo Satoru (Confident & Funny)</option>
+                    <option value="kazuya">⚡ Kazuya Mishima (Aggressive & Arrogant)</option>
+                    <option value="sukuna">👑 Ryomen Sukuna (Ruthless & Proud)</option>
+                    <option value="custom">✏️ Custom Persona (Apna prompt likhein)</option>
                 </select>
 
                 <div class="grid-2">
                     <div>
-                        <label style="font-size:12px; color:#8c93a8;">Counter Icon</label>
-                        <select id="cust-icon" onchange="applyStyles()">
-                            <option value="💀">💀 Skull</option>
-                            <option value="🔥">🔥 Fire</option>
-                            <option value="☠️">☠️ Crossbones</option>
-                            <option value="🥊">🥊 Boxing</option>
-                            <option value="🩸">🩸 Blood</option>
-                            <option value="👑">👑 Crown</option>
-                        </select>
+                        <label style="font-size:11px; color:#8c93a8;">Character Name</label>
+                        <input type="text" id="ai-name" value="Gojo Satoru">
                     </div>
                     <div>
-                        <label style="font-size:12px; color:#8c93a8;">Theme Color</label>
-                        <select id="cust-color" onchange="applyStyles()">
-                            <option value="#ff4757">Blood Red</option>
-                            <option value="#00d2d3">Cyan / Neon</option>
-                            <option value="#ffa502">Flame Gold</option>
-                            <option value="#2ed573">Acid Green</option>
-                            <option value="#a55eea">Cyber Purple</option>
-                        </select>
+                        <label style="font-size:11px; color:#8c93a8;">Emoji/Avatar</label>
+                        <input type="text" id="ai-avatar" value="🕶️">
                     </div>
                 </div>
-            </div>
 
-            <div class="card">
-                <div class="section-title">🔌 OBS WebSocket Connection (Auto-Saved)</div>
-                <input type="text" id="obs-ip" placeholder="OBS IP (Default: 127.0.0.1)" value="127.0.0.1">
-                <input type="text" id="obs-port" placeholder="Port (Default: 4455)" value="4455">
-                <input type="password" id="obs-pass" placeholder="Password (Empty if none)">
-                <input type="text" id="obs-mic-name" placeholder="Mic Name in OBS" value="Mic/Aux">
-                <button class="btn-submit" onclick="manualSaveAndConnect()">Save & Force Reconnect</button>
+                <label style="font-size:11px; color:#8c93a8;">System Prompt (Character Ki Personality)</label>
+                <textarea id="ai-persona" rows="3"></textarea>
+
+                <div class="grid-2">
+                    <div>
+                        <label style="font-size:11px; color:#8c93a8;">Chat Command</label>
+                        <input type="text" id="ai-cmd" value="!ai">
+                    </div>
+                    <div>
+                        <label style="font-size:11px; color:#8c93a8;">Reminder (Minutes)</label>
+                        <input type="number" id="ai-reminder-time" value="15">
+                    </div>
+                </div>
+
+                <label style="font-size:11px; color:#8c93a8;">Discord Invite Link</label>
+                <input type="text" id="ai-discord" placeholder="https://discord.gg/...">
+
+                <button class="btn-ai-save" onclick="saveAISettings()">💾 Save AI Settings</button>
             </div>
         </div>
 
-        <!-- TAB 5: ADD NEW -->
+        <!-- TAB 5: STYLES & OBS -->
+        <div id="tab-customizer" class="tab-content">
+            <div class="card">
+                <div class="section-title">🎨 Fonts & Styles</div>
+                <label style="font-size:11px; color:#8c93a8;">Counter Font</label>
+                <select id="cust-counter-font" onchange="applyVisualStyles()">
+                    <option value="Teko">Teko</option>
+                    <option value="Orbitron">Orbitron</option>
+                    <option value="Russo One">Russo One</option>
+                    <option value="Share Tech Mono">Share Tech Mono</option>
+                </select>
+
+                <label style="font-size:11px; color:#8c93a8;">Theme Color</label>
+                <select id="cust-color" onchange="applyVisualStyles()">
+                    <option value="#ff4757">Blood Red</option>
+                    <option value="#00d2d3">Cyan / Neon</option>
+                    <option value="#ffa502">Flame Gold</option>
+                    <option value="#2ed573">Acid Green</option>
+                </select>
+            </div>
+            <div class="card">
+                <div class="section-title">🔌 OBS WebSocket Connection</div>
+                <input type="text" id="obs-ip" placeholder="OBS IP" value="127.0.0.1">
+                <input type="text" id="obs-port" placeholder="Port" value="4455">
+                <input type="password" id="obs-pass" placeholder="Password (Empty if none)">
+                <input type="text" id="obs-mic-name" placeholder="Mic Name" value="Mic/Aux">
+                <button class="btn-submit" onclick="manualSaveAndConnect()">Force Connect OBS</button>
+            </div>
+        </div>
+
+        <!-- TAB 6: ADD NEW -->
         <div id="tab-add" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Item</div>
                 <select id="trig-type" onchange="toggleFormFields()">
                     <option value="scene">🎬 OBS Scene Switcher</option>
-                    <option value="video">🎥 Video Meme (Cloudinary URL)</option>
-                    <option value="sfx">🔊 Sound Effect (Audio MP3 URL)</option>
+                    <option value="video">🎥 Video Meme</option>
+                    <option value="sfx">🔊 Sound Effect</option>
                 </select>
-
                 <input type="text" id="trig-name" placeholder="Display Name">
-                <input type="text" id="trig-scene-name" placeholder="Exact Scene Name in OBS">
-                <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !ko)" style="display:none;">
+                <input type="text" id="trig-scene-name" placeholder="Exact Scene Name">
+                <input type="text" id="trig-cmd" placeholder="Chat Command" style="display:none;">
                 <input type="text" id="trig-url" placeholder="Direct Media URL" style="display:none;">
-                
-                <button class="btn-submit" onclick="addNewTrigger()">Add to Live Deck</button>
+                <button class="btn-submit" onclick="addNewTrigger()">Add to Deck</button>
             </div>
         </div>
 
@@ -304,124 +317,120 @@
         const triggersContainer = document.getElementById('triggers-container');
         const micBtn = document.getElementById('mic-btn');
 
-        // ================= AUTO-OBS CONNECTION ENGINE =================
+        // Presets
+        const presets = {
+            gojo: {
+                name: "Gojo Satoru",
+                avatar: "🕶️",
+                prompt: "You are Gojo Satoru from Jujutsu Kaisen. You are supremely confident, witty, playful, and an invincible TEKKEN fighter. Reply in 1-2 punchy sentences in the same language the user talks in."
+            },
+            kazuya: {
+                name: "Kazuya Mishima",
+                avatar: "⚡",
+                prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, power-hungry, and arrogant. Dorya! Reply in 1-2 sharp, menacing sentences in the user's language."
+            },
+            sukuna: {
+                name: "Ryomen Sukuna",
+                avatar: "👑",
+                prompt: "You are the King of Curses, Sukuna. Proud, condescending, and extremely powerful. Treat viewers like mere brats. Reply in 1-2 majestic sentences."
+            }
+        };
+
+        function applyPresetPersona() {
+            const val = document.getElementById('persona-presets').value;
+            if (presets[val]) {
+                document.getElementById('ai-name').value = presets[val].name;
+                document.getElementById('ai-avatar').value = presets[val].avatar;
+                document.getElementById('ai-persona').value = presets[val].prompt;
+            }
+        }
+
+        function saveAISettings() {
+            socket.emit('admin-change-styles', {
+                aiEnabled: document.getElementById('ai-enabled').checked,
+                enableTTS: document.getElementById('ai-tts').checked,
+                welcomeNewChatters: document.getElementById('ai-welcome').checked,
+                geminiApiKey: document.getElementById('ai-key').value.trim(),
+                characterName: document.getElementById('ai-name').value.trim(),
+                characterAvatar: document.getElementById('ai-avatar').value.trim(),
+                characterPersona: document.getElementById('ai-persona').value.trim(),
+                aiCommand: document.getElementById('ai-cmd').value.trim(),
+                reminderMinutes: parseInt(document.getElementById('ai-reminder-time').value) || 15,
+                discordLink: document.getElementById('ai-discord').value.trim()
+            });
+            alert('AI Settings successfully updated!');
+        }
+
+        socket.on('update-styles', (data) => {
+            if (data.geminiApiKey !== undefined) document.getElementById('ai-key').value = data.geminiApiKey;
+            if (data.characterName) document.getElementById('ai-name').value = data.characterName;
+            if (data.characterAvatar) document.getElementById('ai-avatar').value = data.characterAvatar;
+            if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
+            if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
+            if (data.discordLink) document.getElementById('ai-discord').value = data.discordLink;
+            if (data.reminderMinutes) document.getElementById('ai-reminder-time').value = data.reminderMinutes;
+            if (data.aiEnabled !== undefined) document.getElementById('ai-enabled').checked = data.aiEnabled;
+            if (data.enableTTS !== undefined) document.getElementById('ai-tts').checked = data.enableTTS;
+            if (data.welcomeNewChatters !== undefined) document.getElementById('ai-welcome').checked = data.welcomeNewChatters;
+        });
+
+        // OBS Connection
         let isObsConnected = false;
-        let isObsConnecting = false;
-
-        function loadObsConfig() {
-            if (localStorage.getItem('obs_ip')) document.getElementById('obs-ip').value = localStorage.getItem('obs_ip');
-            if (localStorage.getItem('obs_port')) document.getElementById('obs-port').value = localStorage.getItem('obs_port');
-            if (localStorage.getItem('obs_pass')) document.getElementById('obs-pass').value = localStorage.getItem('obs_pass');
-            if (localStorage.getItem('obs_mic')) document.getElementById('obs-mic-name').value = localStorage.getItem('obs_mic');
-        }
-
-        function saveObsConfig() {
-            localStorage.setItem('obs_ip', document.getElementById('obs-ip').value.trim());
-            localStorage.setItem('obs_port', document.getElementById('obs-port').value.trim());
-            localStorage.setItem('obs_pass', document.getElementById('obs-pass').value.trim());
-            localStorage.setItem('obs_mic', document.getElementById('obs-mic-name').value.trim());
-        }
-
         async function connectToOBS() {
-            if (isObsConnected || isObsConnecting) return;
-            isObsConnecting = true;
-
+            if (isObsConnected) return;
             const ip = document.getElementById('obs-ip').value.trim() || '127.0.0.1';
             const port = document.getElementById('obs-port').value.trim() || '4455';
             const password = document.getElementById('obs-pass').value.trim();
 
-            obsStatusText.innerText = 'OBS: Connecting...';
-            obsStatusText.style.color = 'var(--orange)';
-
             try {
                 await obs.connect(`ws://${ip}:${port}`, password || undefined);
                 isObsConnected = true;
-                isObsConnecting = false;
                 obsStatusText.innerText = 'OBS: Connected ✅';
                 obsStatusText.style.color = 'var(--green)';
-                saveObsConfig();
                 updateMicState();
             } catch (err) {
                 isObsConnected = false;
-                isObsConnecting = false;
                 obsStatusText.innerText = 'OBS: Searching... ⏳';
                 obsStatusText.style.color = 'var(--orange)';
             }
         }
 
-        // On OBS disconnect or crash, automatically flag and retry
         obs.on('ConnectionClosed', () => {
             isObsConnected = false;
-            isObsConnecting = false;
-            obsStatusText.innerText = 'OBS: Offline (Auto-reconnecting...)';
+            obsStatusText.innerText = 'OBS: Offline (Reconnecting...)';
             obsStatusText.style.color = 'var(--red)';
         });
 
-        // 3-Second Infinite Heartbeat Reconnect
-        setInterval(() => {
-            if (!isObsConnected && !isObsConnecting) {
-                connectToOBS();
-            }
-        }, 3000);
-
-        function manualSaveAndConnect() {
-            saveObsConfig();
-            isObsConnected = false;
-            isObsConnecting = false;
-            connectToOBS();
-        }
-
-        // Initial setup on load
-        loadObsConfig();
+        setInterval(() => { if (!isObsConnected) connectToOBS(); }, 3000);
         connectToOBS();
 
-        // Audio Handler
         async function updateMicState() {
             try {
                 const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
                 const { inputMuted } = await obs.call('GetInputMute', { inputName: micName });
-                setMicButtonUI(inputMuted);
+                micBtn.className = inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
+                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
             } catch (e) {}
-        }
-
-        function setMicButtonUI(muted) {
-            if (muted) {
-                micBtn.className = 'btn-mic mic-muted';
-                micBtn.innerHTML = '🔇 MIC MUTED';
-            } else {
-                micBtn.className = 'btn-mic mic-unmuted';
-                micBtn.innerHTML = '🎙️ MIC IS LIVE';
-            }
         }
 
         async function toggleMic() {
             const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
             try {
                 const res = await obs.call('ToggleInputMute', { inputName: micName });
-                setMicButtonUI(res.inputMuted);
-            } catch (err) {
-                alert('OBS connect nahi hai ya Mic Name galat hai!');
-            }
+                micBtn.className = res.inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
+                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
+            } catch (err) { alert('OBS connect nahi hai!'); }
         }
-
-        obs.on('InputMuteStateChanged', (data) => {
-            const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
-            if (data.inputName === micName) setMicButtonUI(data.inputMuted);
-        });
 
         async function switchScene(sceneName) {
-            try {
-                await obs.call('SetCurrentProgramScene', { sceneName });
-            } catch (err) {
-                alert(`Scene '${sceneName}' nahi mila!`);
-            }
+            try { await obs.call('SetCurrentProgramScene', { sceneName }); }
+            catch (err) { alert(`Scene '${sceneName}' nahi mila!`); }
         }
 
-        // Tabs
         function switchTab(tabName) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'customizer': 3, 'add': 4 };
+            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'ai': 3, 'customizer': 4, 'add': 5 };
             document.querySelectorAll('.tab-btn')[tabMap[tabName]].classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
@@ -440,50 +449,17 @@
             return `${h}h ${m}m ${s}s`;
         }
 
-        socket.on('timer-tick', (data) => {
-            adminTimerDisplay.innerText = formatTime(data.seconds);
-        });
-
-        socket.on('stream-status', (data) => {
-            if (data.status === 'online') {
-                indicator.style.background = 'var(--green)';
-                indicator.style.boxShadow = '0 0 10px var(--green)';
-                statusText.innerText = 'Stream Online';
-            } else if (data.status === 'retrying') {
-                indicator.style.background = 'var(--orange)';
-                indicator.style.boxShadow = '0 0 10px var(--orange)';
-                statusText.innerText = 'Searching Stream...';
-            } else {
-                indicator.style.background = 'var(--red)';
-                indicator.style.boxShadow = '0 0 10px var(--red)';
-                statusText.innerText = 'Stream Offline';
-            }
-        });
-
+        socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
         socket.on('update-counter', (data) => deathDisplay.innerText = data.count);
 
-        socket.on('update-styles', (data) => {
-            if (data.counterIcon) document.getElementById('cust-icon').value = data.counterIcon;
-            if (data.counterFont) document.getElementById('cust-counter-font').value = data.counterFont;
-            if (data.clockFont) document.getElementById('cust-clock-font').value = data.clockFont;
-            if (data.timerFont) document.getElementById('cust-timer-font').value = data.timerFont;
-            if (data.themeColor) document.getElementById('cust-color').value = data.themeColor;
+        socket.on('stream-status', (data) => {
+            indicator.style.background = data.status === 'online' ? 'var(--green)' : (data.status === 'retrying' ? 'var(--orange)' : 'var(--red)');
+            statusText.innerText = data.status === 'online' ? 'Stream Online' : (data.status === 'retrying' ? 'Searching Stream...' : 'Stream Offline');
         });
-
-        function applyStyles() {
-            socket.emit('admin-change-styles', {
-                counterIcon: document.getElementById('cust-icon').value,
-                counterFont: document.getElementById('cust-counter-font').value,
-                clockFont: document.getElementById('cust-clock-font').value,
-                timerFont: document.getElementById('cust-timer-font').value,
-                themeColor: document.getElementById('cust-color').value
-            });
-        }
 
         socket.on('load-triggers', (triggers) => {
             scenesContainer.innerHTML = '';
             triggersContainer.innerHTML = '';
-
             triggers.forEach(t => {
                 if (t.type === 'scene') {
                     const btn = document.createElement('button');
@@ -507,22 +483,14 @@
         function addNewTrigger() {
             const type = document.getElementById('trig-type').value;
             const name = document.getElementById('trig-name').value.trim();
-
             if (type === 'scene') {
                 const sceneName = document.getElementById('trig-scene-name').value.trim();
-                if (!name || !sceneName) return alert('Name & Scene required');
                 socket.emit('admin-add-trigger', { name, type, sceneName });
             } else {
                 const cmd = document.getElementById('trig-cmd').value.trim().toLowerCase();
                 const url = document.getElementById('trig-url').value.trim();
-                if (!name || !cmd || !url) return alert('All fields required');
                 socket.emit('admin-add-trigger', { name, type, cmd, url });
             }
-
-            document.getElementById('trig-name').value = '';
-            document.getElementById('trig-scene-name').value = '';
-            document.getElementById('trig-cmd').value = '';
-            document.getElementById('trig-url').value = '';
             switchTab('deck');
         }
     </script>
