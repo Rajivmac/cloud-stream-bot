@@ -4,35 +4,79 @@
     <meta charset="UTF-8">
     <title>Death Counter</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Teko:wght@600;700&display=swap');
+
         body {
             background-color: transparent;
             margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            color: white;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
         }
-        #counter-box {
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px 20px;
-            border-radius: 8px;
+        #counter-card {
+            background: linear-gradient(135deg, rgba(20, 20, 25, 0.9) 0%, rgba(10, 10, 15, 0.95) 100%);
+            border: 2px solid rgba(255, 71, 87, 0.6);
+            border-left: 6px solid #ff4757;
+            padding: 8px 24px;
+            border-radius: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6), 0 0 15px rgba(255, 71, 87, 0.2);
+            font-family: 'Teko', sans-serif;
+            letter-spacing: 1.5px;
+        }
+        .skull-icon {
+            font-size: 38px;
+            filter: drop-shadow(0 0 8px rgba(255, 71, 87, 0.7));
+            animation: float 2.5s ease-in-out infinite;
+        }
+        .label {
+            color: #dcdde1;
+            font-size: 32px;
+            text-transform: uppercase;
+        }
+        #death-count {
+            color: #ff4757;
+            font-size: 48px;
+            font-weight: 700;
+            transition: all 0.2s ease-in-out;
             display: inline-block;
-            font-size: 28px;
-            font-weight: bold;
-            border: 2px solid #ff4757;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        /* Death Badhne par Red Flash / Pop Effect */
+        .death-pulse {
+            color: #ff1e27 !important;
+            transform: scale(1.45);
+            text-shadow: 0 0 25px #ff1e27, 0 0 40px #ff4757;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
         }
     </style>
 </head>
 <body>
-    <div id="counter-box">
-        Deaths: <span id="death-count">0</span>
+    <div id="counter-card">
+        <span class="skull-icon">💀</span>
+        <span class="label">DEATHS:</span>
+        <span id="death-count">0</span>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const deathSpan = document.getElementById('death-count');
+        let currentCount = 0;
 
         socket.on('update-counter', (data) => {
+            if (data.count > currentCount) {
+                // Flash and pop animation
+                deathSpan.classList.add('death-pulse');
+                setTimeout(() => {
+                    deathSpan.classList.remove('death-pulse');
+                }, 400);
+            }
+            currentCount = data.count;
             deathSpan.innerText = data.count;
         });
     </script>
