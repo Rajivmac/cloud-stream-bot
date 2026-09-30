@@ -144,6 +144,30 @@
             object-fit: cover;
             border: 2px solid var(--cyan);
         }
+
+        /* Custom Commands Table/List */
+        .cmd-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #1c2236;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border-left: 3px solid var(--cyan);
+        }
+        .cmd-info { font-size: 13px; max-width: 80%; }
+        .cmd-tag { color: var(--cyan); font-weight: 800; }
+        .cmd-reply { color: #a4b0be; font-size: 12px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-del {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -164,6 +188,7 @@
             <button class="tab-btn" onclick="switchTab('counter')">💀 Deaths</button>
             <button class="tab-btn" onclick="switchTab('timer')">⏱️ Playtime</button>
             <button class="tab-btn" onclick="switchTab('ai')">🤖 AI Persona</button>
+            <button class="tab-btn" onclick="switchTab('commands')">💬 Commands</button>
             <button class="tab-btn" onclick="switchTab('customizer')">🎨 Styles</button>
             <button class="tab-btn" onclick="switchTab('add')">➕ Add</button>
         </div>
@@ -231,25 +256,24 @@
                 <label style="font-size:11px; color:#8c93a8;">Google Gemini API Key</label>
                 <input type="password" id="ai-key" placeholder="AI Studio Free API Key">
 
-                <label style="font-size:11px; color:#8c93a8;">Choose Character Preset (Auto-Loads Image & Command)</label>
+                <label style="font-size:11px; color:#8c93a8;">Choose Character Preset</label>
                 <select id="persona-presets" onchange="applyPresetPersona()">
                     <option value="goku">🔥 Son Goku (Dragon Ball)</option>
                     <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen)</option>
                     <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8)</option>
                     <option value="sukuna">👑 Ryomen Sukuna (King of Curses)</option>
-                    <option value="custom">✏️ Custom Character (Apna manpasand)</option>
+                    <option value="custom">✏️ Custom Character</option>
                 </select>
 
-                <!-- Live Character Image Preview -->
                 <div class="avatar-preview-box">
                     <img id="avatar-preview" class="avatar-preview-img" src="https://images2.alphacoders.com/131/1312384.png" alt="Preview">
                     <div>
                         <span style="font-size: 13px; font-weight: 700;" id="preview-name">Son Goku</span><br>
-                        <small style="font-size: 11px; color: #8c93a8;">Active Portrait Overlay</small>
+                        <small style="font-size: 11px; color: #8c93a8;">Active Character Overlay</small>
                     </div>
                 </div>
 
-                <label style="font-size:11px; color:#8c93a8;">Character Static Image URL (PNG/JPG Link)</label>
+                <label style="font-size:11px; color:#8c93a8;">Character Portrait Image URL</label>
                 <input type="text" id="ai-image-url" placeholder="Direct Image URL" oninput="updateImagePreview()">
 
                 <div class="grid-2">
@@ -258,24 +282,13 @@
                         <input type="text" id="ai-name" value="Son Goku" oninput="document.getElementById('preview-name').innerText=this.value">
                     </div>
                     <div>
-                        <label style="font-size:11px; color:#8c93a8;">Chat Command (e.g. !goku)</label>
+                        <label style="font-size:11px; color:#8c93a8;">AI Question Command</label>
                         <input type="text" id="ai-cmd" value="!goku">
                     </div>
                 </div>
 
                 <label style="font-size:11px; color:#8c93a8;">Personality / Behavior Prompt</label>
                 <textarea id="ai-persona" rows="3"></textarea>
-
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:11px; color:#8c93a8;">Reminder Interval</label>
-                        <input type="number" id="ai-reminder-time" value="15">
-                    </div>
-                    <div>
-                        <label style="font-size:11px; color:#8c93a8;">Discord Invite Link</label>
-                        <input type="text" id="ai-discord" placeholder="https://discord.gg/...">
-                    </div>
-                </div>
 
                 <div class="grid-2" style="margin-top: 5px;">
                     <button class="btn-ai-save" onclick="saveAISettings()">💾 Save Character</button>
@@ -284,7 +297,30 @@
             </div>
         </div>
 
-        <!-- TAB 5: STYLES & OBS -->
+        <!-- ================= TAB 5: CUSTOM CHAT COMMANDS MANAGER ================= -->
+        <div id="tab-commands" class="tab-content">
+            <div class="card">
+                <div class="section-title">➕ Add New Chat Command</div>
+                <input type="text" id="new-cmd-name" placeholder="Command trigger (e.g. !specs, !rank, !rules)">
+                <textarea id="new-cmd-reply" placeholder="What should the bot say in chat & screen bubble?" rows="2"></textarea>
+                
+                <div class="row-toggle">
+                    <span style="font-size:12px;">Speak with TTS Voice also?</span>
+                    <input type="checkbox" id="new-cmd-tts">
+                </div>
+
+                <button class="btn-submit" onclick="addCustomCommand()">Save Command</button>
+            </div>
+
+            <div class="card">
+                <div class="section-title">📋 Active Chat Commands</div>
+                <div id="custom-commands-list">
+                    <!-- Dynamic Commands will load here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: STYLES & OBS -->
         <div id="tab-customizer" class="tab-content">
             <div class="card">
                 <div class="section-title">🎨 Fonts & Styles</div>
@@ -314,10 +350,10 @@
             </div>
         </div>
 
-        <!-- TAB 6: ADD NEW -->
+        <!-- TAB 7: ADD TRIGGER / SCENE -->
         <div id="tab-add" class="tab-content">
             <div class="card">
-                <div class="section-title">➕ Add New Item</div>
+                <div class="section-title">➕ Add Video/SFX/Scene</div>
                 <select id="trig-type" onchange="toggleFormFields()">
                     <option value="scene">🎬 OBS Scene Switcher</option>
                     <option value="video">🎥 Video Meme</option>
@@ -345,9 +381,9 @@
         const adminTimerDisplay = document.getElementById('admin-timer-display');
         const scenesContainer = document.getElementById('scenes-container');
         const triggersContainer = document.getElementById('triggers-container');
+        const commandsContainer = document.getElementById('custom-commands-list');
         const micBtn = document.getElementById('mic-btn');
 
-        // Character Presets with Images & Commands
         const presets = {
             goku: {
                 name: "Son Goku",
@@ -401,11 +437,50 @@
                 characterName: document.getElementById('ai-name').value.trim(),
                 characterImage: document.getElementById('ai-image-url').value.trim(),
                 characterPersona: document.getElementById('ai-persona').value.trim(),
-                aiCommand: document.getElementById('ai-cmd').value.trim(),
-                reminderMinutes: parseInt(document.getElementById('ai-reminder-time').value) || 15,
-                discordLink: document.getElementById('ai-discord').value.trim()
+                aiCommand: document.getElementById('ai-cmd').value.trim()
             });
-            alert('Character details & command successfully saved!');
+            alert('Character saved!');
+        }
+
+        // --- CUSTOM COMMANDS HANDLER ---
+        function addCustomCommand() {
+            let cmd = document.getElementById('new-cmd-name').value.trim();
+            const reply = document.getElementById('new-cmd-reply').value.trim();
+            const tts = document.getElementById('new-cmd-tts').checked;
+
+            if (!cmd || !reply) return alert('Command aur Reply dono likhein!');
+            if (!cmd.startsWith('!')) cmd = '!' + cmd;
+
+            socket.emit('admin-add-custom-cmd', { cmd, reply, tts });
+            document.getElementById('new-cmd-name').value = '';
+            document.getElementById('new-cmd-reply').value = '';
+            document.getElementById('new-cmd-tts').checked = false;
+        }
+
+        function deleteCustomCommand(cmd) {
+            if (confirm(`Command "${cmd}" delete karni hai?`)) {
+                socket.emit('admin-del-custom-cmd', cmd);
+            }
+        }
+
+        function renderCustomCommands(commands) {
+            commandsContainer.innerHTML = '';
+            if (!commands || commands.length === 0) {
+                commandsContainer.innerHTML = '<small style="color:#8c93a8;">Koi custom command nahi hai abhi.</small>';
+                return;
+            }
+            commands.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'cmd-item';
+                div.innerHTML = `
+                    <div class="cmd-info">
+                        <span class="cmd-tag">${c.cmd}</span> ${c.tts ? '🔊' : '💬'}
+                        <span class="cmd-reply">${c.reply}</span>
+                    </div>
+                    <button class="btn-del" onclick="deleteCustomCommand('${c.cmd}')">🗑️</button>
+                `;
+                commandsContainer.appendChild(div);
+            });
         }
 
         socket.on('update-styles', (data) => {
@@ -420,14 +495,13 @@
             }
             if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
             if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
-            if (data.discordLink) document.getElementById('ai-discord').value = data.discordLink;
-            if (data.reminderMinutes) document.getElementById('ai-reminder-time').value = data.reminderMinutes;
             if (data.aiEnabled !== undefined) document.getElementById('ai-enabled').checked = data.aiEnabled;
             if (data.enableTTS !== undefined) document.getElementById('ai-tts').checked = data.enableTTS;
             if (data.welcomeNewChatters !== undefined) document.getElementById('ai-welcome').checked = data.welcomeNewChatters;
+            if (data.customCommands) renderCustomCommands(data.customCommands);
         });
 
-        // OBS Connection
+        // OBS Auto-Connect
         let isObsConnected = false;
         async function connectToOBS() {
             if (isObsConnected) return;
@@ -483,7 +557,7 @@
         function switchTab(tabName) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'ai': 3, 'customizer': 4, 'add': 5 };
+            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'ai': 3, 'commands': 4, 'customizer': 5, 'add': 6 };
             document.querySelectorAll('.tab-btn')[tabMap[tabName]].classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
