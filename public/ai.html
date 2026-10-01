@@ -121,37 +121,52 @@
 
             initToneEqualizer();
 
-            const selectedVoice = voice || 'female_hi';
+            const isFemale = (voice || 'female').toLowerCase().includes('female');
+            const selectedVoice = isFemale ? 'female' : 'male';
             const p = parseFloat(pitch) || 1.0;
-            const r = parseFloat(rate) || 1.0;
+            const r = Math.max(0.6, Math.min(1.8, parseFloat(rate) || 1.0));
 
-            // Tone Equalizer (Independent of speed)
+            // TONE EQUALIZER (Independent of Speed)
             if (bassFilter && trebleFilter) {
                 if (p < 1.0) {
-                    // Deep heavy tone (e.g. Sukuna / Kazuya)
-                    bassFilter.gain.value = (1.0 - p) * 30;
-                    trebleFilter.gain.value = -(1.0 - p) * 15;
+                    bassFilter.gain.value = (1.0 - p) * 28;
+                    trebleFilter.gain.value = -(1.0 - p) * 14;
                 } else if (p > 1.0) {
-                    // Sharp clear anime tone
-                    bassFilter.gain.value = -(p - 1.0) * 15;
-                    trebleFilter.gain.value = (p - 1.0) * 22;
+                    bassFilter.gain.value = -(p - 1.0) * 14;
+                    trebleFilter.gain.value = (p - 1.0) * 20;
                 } else {
                     bassFilter.gain.value = 0;
                     trebleFilter.gain.value = 0;
                 }
             }
 
-            // ONLY the Speed slider controls talking speed
             audioPlayer.preservesPitch = true;
-            audioPlayer.playbackRate = Math.max(0.6, Math.min(1.8, r));
-
             audioPlayer.pause();
-            audioPlayer.src = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
+
+            // Set playbackRate after metadata loads (Fixes HTML5 reset bug)
+            audioPlayer.onloadedmetadata = () => {
+                audioPlayer.playbackRate = r;
+            };
+
+            const primaryUrl = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
+            audioPlayer.src = primaryUrl;
             audioPlayer.volume = 1.0;
 
-            audioPlayer.play().catch(err => {
-                console.error("Audio playback error:", err);
-            });
+            const playPromise = audioPlayer.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    audioPlayer.playbackRate = r;
+                }).catch(() => {
+                    // Fail-safe direct client fallback
+                    const fallbackUrl = isFemale 
+                        ? `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=hi&q=${encodeURIComponent(cleanText)}`
+                        : `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(cleanText)}`;
+                    audioPlayer.src = fallbackUrl;
+                    audioPlayer.play().then(() => {
+                        audioPlayer.playbackRate = r;
+                    }).catch(e => console.error("Audio fallback failed:", e));
+                });
+            }
         }
 
         socket.on('ai-speak', (data) => {
