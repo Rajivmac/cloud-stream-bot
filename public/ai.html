@@ -66,8 +66,10 @@
 </head>
 <body>
 
+    <audio id="tts-audio-player" preload="auto"></audio>
+
     <div id="ai-container">
-        <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Bot Avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3233/3233514.png'">
+        <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Bot Avatar">
         <div class="content">
             <span id="bot-name">Son Goku</span>
             <div id="bot-text">Hello Stream!</div>
@@ -81,37 +83,26 @@
         const avatar = document.getElementById('avatar');
         const botName = document.getElementById('bot-name');
         const botText = document.getElementById('bot-text');
+        const player = document.getElementById('tts-audio-player');
 
         let hideTimeout = null;
-        let currentAudio = null;
 
         function speakCloudTTS(text, gender, pitch, rate) {
-            if (currentAudio) {
-                try { currentAudio.pause(); } catch(e) {}
-                currentAudio = null;
-            }
-
-            // Gender Switch: 'Aditi' for Female, 'Brian' for Male
             const voice = (gender === 'female') ? 'Aditi' : 'Brian';
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return;
 
             const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(cleanText.slice(0, 250))}`;
 
-            currentAudio = new Audio(url);
-            currentAudio.crossOrigin = "anonymous";
-
-            // Pitch shift modification: Disabling pitch preservation so playbackRate alters pitch!
-            currentAudio.preservesPitch = false;
-            currentAudio.mozPreservesPitch = false;
-            currentAudio.webkitPreservesPitch = false;
+            player.pause();
+            player.src = url;
 
             const p = parseFloat(pitch) || 1.0;
             const r = parseFloat(rate) || 1.0;
-            currentAudio.playbackRate = Math.max(0.5, Math.min(2.0, p * r));
+            player.playbackRate = Math.max(0.6, Math.min(1.8, p * r));
 
-            currentAudio.play().catch(err => {
-                console.error("OBS Audio Play error:", err);
+            player.play().catch(err => {
+                console.log("Autoplay retry fallback:", err);
             });
         }
 
