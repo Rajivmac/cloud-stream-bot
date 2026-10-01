@@ -573,7 +573,7 @@
             </div>
         </div>
 
-        <!-- TAB 7: 🛡️ AUTO-MOD & STREAM ALERTS SIMULATOR -->
+        <!-- TAB 7: 🛡️ AUTO-MOD & ALERTS SIMULATOR (WITH NEW SUBSCRIBER BUTTON) -->
         <div id="tab-automod" class="tab-content">
             <div class="card">
                 <div class="section-title">🛡️ Auto-Moderation & Chat Shield</div>
@@ -593,12 +593,13 @@
                 <button class="btn-submit" onclick="saveAutoModSettings()">💾 Save Auto-Mod Shield</button>
             </div>
 
-            <!-- LIVE ALERTS TEST CARD -->
+            <!-- LIVE ALERTS TEST CARD (SUPERCHAT, MEMBER, SUBSCRIBER) -->
             <div class="card">
                 <div class="section-title">🎉 Live Alerts Simulator (Test on Screen)</div>
-                <div class="grid-2">
-                    <button style="background:linear-gradient(135deg, #f1c40f, #e67e22); color:#000; font-weight:800;" onclick="socket.emit('admin-test-superchat')">💰 Test ₹500 Super Chat</button>
-                    <button style="background:linear-gradient(135deg, #00d2d3, #2ecc71); color:#000; font-weight:800;" onclick="socket.emit('admin-test-member')">👑 Test New Member</button>
+                <div class="grid-3">
+                    <button style="background:linear-gradient(135deg, #f1c40f, #e67e22); color:#000; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-superchat')">💰 Test ₹500 SuperChat</button>
+                    <button style="background:linear-gradient(135deg, #00d2d3, #2ecc71); color:#000; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-member')">👑 Test New Member</button>
+                    <button style="background:linear-gradient(135deg, #ff4757, #c0392b); color:#fff; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-sub')">🔴 Test New Subscriber</button>
                 </div>
             </div>
         </div>
