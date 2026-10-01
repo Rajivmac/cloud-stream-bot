@@ -67,6 +67,13 @@ let streamData = {
     groqApiKey: process.env.GROQ_API_KEY || '',
     openrouterApiKey: process.env.OPENROUTER_API_KEY || '',
 
+    // YouTube Live Chat API Posting Settings
+    enableYTChatSend: false,
+    ytAccessToken: process.env.YT_ACCESS_TOKEN || '',
+    ytLiveChatId: '',
+    ytMessagesSentToday: 0,
+    ytQuotaExhausted: false,
+
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
@@ -149,10 +156,6 @@ if (fs.existsSync(DATA_FILE)) {
     }
 }
 
-if (process.env.GEMINI_API_KEY && !streamData.geminiApiKey) streamData.geminiApiKey = process.env.GEMINI_API_KEY;
-if (process.env.GROQ_API_KEY && !streamData.groqApiKey) streamData.groqApiKey = process.env.GROQ_API_KEY;
-if (process.env.OPENROUTER_API_KEY && !streamData.openrouterApiKey) streamData.openrouterApiKey = process.env.OPENROUTER_API_KEY;
-
 const saveDataToDisk = () => {
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(streamData, null, 2));
@@ -166,6 +169,7 @@ let isTimerRunning = false;
 let seenChatters = new Set();
 let lastEarnedTime = {};
 
+// Independent Playtime Timer
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -174,56 +178,126 @@ setInterval(() => {
     }
 }, 1000);
 
+// Auto Stream Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
         const reminderText = discordCmd ? discordCmd.reply : `Chat karke ${streamData.coinSettings.currencyName} kamao aur live betting me participate karo!`;
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: reminderText,
-            enableBubble: streamData.enableBubble,
-            enableTTS: false
-        });
+        broadcastResponse(reminderText, false);
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// --- 1. ZERO-KEY FREE PUBLIC AI DRIVER (100% Reliable Fallback) ---
+// --- YOUTUBE LIVE CHAT MESSAGE SENDER WITH QUOTA ANNOUNCEMENT ---
+async function postToYouTubeChat(messageText) {
+    if (!streamData.enableYTChatSend || streamData.ytQuotaExhausted) return;
+    if (!streamData.ytAccessToken || !streamData.ytLiveChatId) return;
+
+    if (streamData.ytMessagesSentToday >= 180) {
+        handleQuotaExceeded("Daily limit reach ho gayi (180 messages)");
+        return;
+    }
+
+    try {
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/liveChatMessages?part=snippet`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${streamData.ytAccessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                snippet: {
+                    liveChatId: streamData.ytLiveChatId,
+                    type: 'textMessageEvent',
+                    textMessageDetails: {
+                        messageText: messageText.slice(0, 195)
+                    }
+                }
+            })
+        });
+
+        const data = await res.json();
+
+        if (res.status === 403 || (data.error && data.error.errors && data.error.errors[0].reason === 'quotaExceeded')) {
+            handleQuotaExceeded(data.error ? data.error.message : "Quota exceeded");
+            return;
+        }
+
+        if (res.ok) {
+            streamData.ytMessagesSentToday++;
+            saveDataToDisk();
+            broadcastState();
+        }
+    } catch (err) {
+        console.error("YouTube chat post error:", err);
+    }
+}
+
+function handleQuotaExceeded(reason) {
+    if (streamData.ytQuotaExhausted) return;
+    streamData.ytQuotaExhausted = true;
+    saveDataToDisk();
+    broadcastState();
+
+    const alertMessage = "Dhyan dein! YouTube chat quota khatam ho gaya hai. Ab se saare replies screen speech bubble aur TTS voice mein aayenge!";
+    io.emit('ai-speak', {
+        characterName: streamData.characterName,
+        characterImage: streamData.characterImage,
+        text: alertMessage,
+        enableBubble: true,
+        enableTTS: true,
+        pitch: streamData.ttsPitch,
+        rate: streamData.ttsRate,
+        gender: streamData.ttsGender
+    });
+}
+
+// Master Response Broadcaster (Screen Bubble + TTS Voice + YouTube Chat Box)
+function broadcastResponse(text, isTTS = true) {
+    // 1. OBS Screen Bubble & TTS Voice (Always unlimited, 0 tokens)
+    io.emit('ai-speak', {
+        characterName: streamData.characterName,
+        characterImage: streamData.characterImage,
+        text: text,
+        enableBubble: streamData.enableBubble,
+        enableTTS: isTTS && streamData.enableTTS,
+        pitch: streamData.ttsPitch,
+        rate: streamData.ttsRate,
+        gender: streamData.ttsGender
+    });
+
+    // 2. Post to YouTube Live Chat Box (if quota active)
+    if (streamData.enableYTChatSend && !streamData.ytQuotaExhausted) {
+        postToYouTubeChat(text);
+    }
+}
+
+// --- MULTI-PROVIDER AI DRIVERS ---
 async function callPublicZeroKeyDriver(systemText, userText) {
     try {
         const fullPrompt = `${systemText}\nUser: ${userText}\nKeep reply punchy in 1-2 short sentences.`;
         const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=openai`);
         if (res.ok) {
             const text = await res.text();
-            if (text && text.trim().length > 0) {
-                return { success: true, text: text.trim(), model: "Public Free AI" };
-            }
+            if (text && text.trim().length > 0) return { success: true, text: text.trim(), model: "Public Free AI" };
         }
     } catch(e) {}
     return { success: false, error: "Public AI unreachable" };
 }
 
-// --- 2. GROQ DRIVER ---
 async function callGroqDriver(key, systemText, userText, history) {
     if (!key || !key.startsWith('gsk_')) return { success: false, error: "Invalid Groq key" };
-
     const messages = [{ role: "system", content: systemText }];
     if (history && history.length) {
-        history.slice(-6).forEach(h => {
-            messages.push({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text });
-        });
+        history.slice(-6).forEach(h => messages.push({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text }));
     }
     messages.push({ role: "user", content: userText });
 
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
     for (const m of models) {
         try {
             const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
                 method: "POST",
-                headers: {
-                    "Authorization": `Bearer ${key}`,
-                    "Content-Type": "application/json"
-                },
+                headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
                 body: JSON.stringify({ model: m, messages: messages, max_tokens: 150 })
             });
             const data = await res.json();
@@ -235,47 +309,31 @@ async function callGroqDriver(key, systemText, userText, history) {
     return { success: false, error: "Groq busy" };
 }
 
-// --- 3. GEMINI DRIVER (Filtered for Valid Text-Only Models) ---
 async function callGeminiDriver(key, systemText, userText, history) {
     if (!key) return { success: false, error: "Missing Gemini key" };
-
     const contents = [];
     if (history && history.length) {
-        history.slice(-6).forEach(entry => {
-            contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] });
-        });
+        history.slice(-6).forEach(entry => contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] }));
     }
     contents.push({ role: "user", parts: [{ text: userText }] });
 
-    // Strictly ignore -tts, -vision or 0-quota models
-    const textOnlyModels = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-2.0-flash"];
-
+    const textOnlyModels = ["gemini-2.5-flash", "gemini-1.5-flash"];
     for (const m of textOnlyModels) {
-        const urls = [
-            `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`,
-            `https://generativelanguage.googleapis.com/v1/models/${m}:generateContent?key=${key}`
-        ];
-        for (const url of urls) {
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        system_instruction: { parts: [{ text: systemText }] },
-                        contents: contents
-                    })
-                });
-                const data = await res.json();
-                if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
-                    return { success: true, text: data.candidates[0].content.parts[0].text.trim(), model: `Gemini (${m})` };
-                }
-            } catch (e) {}
-        }
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ system_instruction: { parts: [{ text: systemText }] }, contents })
+            });
+            const data = await res.json();
+            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
+                return { success: true, text: data.candidates[0].content.parts[0].text.trim(), model: `Gemini (${m})` };
+            }
+        } catch (e) {}
     }
     return { success: false, error: "Gemini quota/demand limit" };
 }
 
-// MASTER CASCADE AI ROUTER
 async function askAI(userPrompt, username, userRole) {
     let roleInstructions = "";
     if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
@@ -285,32 +343,20 @@ async function askAI(userPrompt, username, userRole) {
     const systemInstructionText = `${streamData.characterPersona}\n${roleInstructions}\nKeep answers short (1-2 sentences) for stream speech bubble.`;
     const history = streamData.userHistories[username] || [];
 
-    // 1. Try Groq (if key available)
     const groqKey = streamData.groqApiKey || process.env.GROQ_API_KEY;
     if (groqKey) {
         const res = await callGroqDriver(groqKey, systemInstructionText, userPrompt, history);
-        if (res.success) {
-            recordHistory(username, userPrompt, res.text);
-            return res.text;
-        }
+        if (res.success) { recordHistory(username, userPrompt, res.text); return res.text; }
     }
 
-    // 2. Try Gemini (if key available)
     const geminiKey = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
     if (geminiKey) {
         const res = await callGeminiDriver(geminiKey, systemInstructionText, userPrompt, history);
-        if (res.success) {
-            recordHistory(username, userPrompt, res.text);
-            return res.text;
-        }
+        if (res.success) { recordHistory(username, userPrompt, res.text); return res.text; }
     }
 
-    // 3. Guaranteed Fallback: Public Zero-Key AI (No Keys Needed!)
     const publicRes = await callPublicZeroKeyDriver(systemInstructionText, userPrompt);
-    if (publicRes.success) {
-        recordHistory(username, userPrompt, publicRes.text);
-        return publicRes.text;
-    }
+    if (publicRes.success) { recordHistory(username, userPrompt, publicRes.text); return publicRes.text; }
 
     return "Power level bohot high ho gaya! Kuch der baad dobara poocho.";
 }
@@ -325,7 +371,7 @@ function recordHistory(username, userPrompt, aiReply) {
     saveDataToDisk();
 }
 
-// YouTube Chat Engine
+// YouTube Chat Scraping Engine
 const CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ';
 const TEST_STREAM_ID = ''; 
 
@@ -378,13 +424,7 @@ liveChat.on("chat", async (chatItem) => {
 
     if (message === '!coins' || message === '!balance' || message === '!maccoins') {
         const balance = streamData.userCoins[userKey] || 0;
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: `@${username}, aapke paas 🪙 ${balance} ${cName} hain!`,
-            enableBubble: streamData.enableBubble,
-            enableTTS: false
-        });
+        broadcastResponse(`@${username}, aapke paas 🪙 ${balance} ${cName} hain!`, false);
         return;
     }
 
@@ -399,16 +439,7 @@ liveChat.on("chat", async (chatItem) => {
                 streamData.userCoins[targetUser] += amount;
                 saveDataToDisk();
                 broadcastState();
-                io.emit('ai-speak', {
-                    characterName: streamData.characterName,
-                    characterImage: streamData.characterImage,
-                    text: `Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye!`,
-                    enableBubble: streamData.enableBubble,
-                    enableTTS: streamData.enableTTS,
-                    pitch: streamData.ttsPitch,
-                    rate: streamData.ttsRate,
-                    gender: streamData.ttsGender
-                });
+                broadcastResponse(`Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye!`, true);
                 return;
             }
         }
@@ -427,39 +458,21 @@ liveChat.on("chat", async (chatItem) => {
                     streamData.userCoins[recipient] += amount;
                     saveDataToDisk();
                     broadcastState();
-                    io.emit('ai-speak', {
-                        characterName: streamData.characterName,
-                        characterImage: streamData.characterImage,
-                        text: `💸 @${username} ne @${recipient} ko 🪙 ${amount} ${cName} transfer kiye!`,
-                        enableBubble: streamData.enableBubble,
-                        enableTTS: streamData.enableTTS,
-                        pitch: streamData.ttsPitch,
-                        rate: streamData.ttsRate,
-                        gender: streamData.ttsGender
-                    });
+                    broadcastResponse(`💸 @${username} ne @${recipient} ko 🪙 ${amount} ${cName} transfer kiye!`, true);
                 }
             }
             return;
         }
     }
 
-    // Meme Redeem
+    // Meme Redeem (Streamer = Free, Others = Pay)
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
         const currentBalance = streamData.userCoins[userKey] || 0;
 
         if (cost > 0 && !isOwner && currentBalance < cost) {
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                characterImage: streamData.characterImage,
-                text: `@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`,
-                enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS,
-                pitch: streamData.ttsPitch,
-                rate: streamData.ttsRate,
-                gender: streamData.ttsGender
-            });
+            broadcastResponse(`@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`, true);
             return;
         }
 
@@ -469,12 +482,8 @@ liveChat.on("chat", async (chatItem) => {
             broadcastState();
         }
 
-        if (matchedTrigger.type === 'video') {
-            io.emit('play-meme', { mediaUrl: matchedTrigger.url, name: matchedTrigger.name, redeemedBy: username });
-        }
-        if (matchedTrigger.type === 'sfx') {
-            io.emit('play-sfx', { sfxUrl: matchedTrigger.url, name: matchedTrigger.name, redeemedBy: username });
-        }
+        if (matchedTrigger.type === 'video') io.emit('play-meme', { mediaUrl: matchedTrigger.url, name: matchedTrigger.name, redeemedBy: username });
+        if (matchedTrigger.type === 'sfx') io.emit('play-sfx', { sfxUrl: matchedTrigger.url, name: matchedTrigger.name, redeemedBy: username });
         return;
     }
 
@@ -485,16 +494,7 @@ liveChat.on("chat", async (chatItem) => {
         const currentBalance = streamData.userCoins[userKey] || 0;
 
         if (cost > 0 && !isOwner && currentBalance < cost) {
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                characterImage: streamData.characterImage,
-                text: `@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost} ${cName} chahiye!`,
-                enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS,
-                pitch: streamData.ttsPitch,
-                rate: streamData.ttsRate,
-                gender: streamData.ttsGender
-            });
+            broadcastResponse(`@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost} ${cName} chahiye!`, true);
             return;
         }
 
@@ -504,20 +504,12 @@ liveChat.on("chat", async (chatItem) => {
             broadcastState();
         }
 
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: `${isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`)}, ${matchedCustom.reply}`,
-            enableBubble: matchedCustom.bubble !== false,
-            enableTTS: matchedCustom.tts === true,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate,
-            gender: streamData.ttsGender
-        });
+        const replyPrefix = isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`);
+        broadcastResponse(`${replyPrefix}, ${matchedCustom.reply}`, matchedCustom.tts === true);
         return;
     }
 
-    // Betting
+    // Live Match Betting / Poll
     if (message.startsWith('!bet ') || message.startsWith('!vote ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -531,13 +523,7 @@ liveChat.on("chat", async (chatItem) => {
             if (betAmount > 0) {
                 const userBalance = streamData.userCoins[userKey] || 0;
                 if (userBalance < betAmount) {
-                    io.emit('ai-speak', {
-                        characterName: streamData.characterName,
-                        characterImage: streamData.characterImage,
-                        text: `@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance} ${cName} hain!`,
-                        enableBubble: streamData.enableBubble,
-                        enableTTS: false
-                    });
+                    broadcastResponse(`@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance} ${cName} hain!`, false);
                     return;
                 }
                 streamData.userCoins[userKey] -= betAmount;
@@ -555,14 +541,7 @@ liveChat.on("chat", async (chatItem) => {
 
             saveDataToDisk();
             broadcastState();
-
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                characterImage: streamData.characterImage,
-                text: `🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount}${cName})` : ''}`,
-                enableBubble: streamData.enableBubble,
-                enableTTS: false
-            });
+            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`, false);
             return;
         }
     }
@@ -582,7 +561,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Question (Always works via Multi-Provider + Zero-Key Public AI)
+    // AI Questions
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -590,16 +569,7 @@ liveChat.on("chat", async (chatItem) => {
         const cost = streamData.coinSettings.aiCost;
 
         if (cost > 0 && !isOwner && currentCoins < cost) {
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                characterImage: streamData.characterImage,
-                text: `@${username}, AI se baat karne ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentCoins} hain.`,
-                enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS,
-                pitch: streamData.ttsPitch,
-                rate: streamData.ttsRate,
-                gender: streamData.ttsGender
-            });
+            broadcastResponse(`@${username}, AI se baat karne ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentCoins} hain.`, true);
             return;
         }
 
@@ -610,16 +580,7 @@ liveChat.on("chat", async (chatItem) => {
         }
 
         const aiAnswer = await askAI(question, username, userRole);
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: aiAnswer,
-            enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate,
-            gender: streamData.ttsGender
-        });
+        broadcastResponse(aiAnswer, true);
         return;
     }
 
@@ -652,44 +613,40 @@ io.on('connection', (socket) => {
         if (!streamData.geminiApiKey && localData.geminiApiKey) { streamData.geminiApiKey = localData.geminiApiKey; changed = true; }
         if (!streamData.groqApiKey && localData.groqApiKey) { streamData.groqApiKey = localData.groqApiKey; changed = true; }
         if (!streamData.characterImage && localData.characterImage) { streamData.characterImage = localData.characterImage; changed = true; }
-        if (changed) {
-            saveDataToDisk();
-            broadcastState();
-        }
+        if (changed) { saveDataToDisk(); broadcastState(); }
     });
 
+    // Reset Quota Manually
+    socket.on('admin-reset-yt-quota', () => {
+        streamData.ytQuotaExhausted = false;
+        streamData.ytMessagesSentToday = 0;
+        saveDataToDisk();
+        broadcastState();
+    });
+
+    // Multi-AI Test
     socket.on('admin-verify-ai', async ({ geminiKey, groqKey }) => {
         const results = [];
         let anySuccess = false;
 
-        // Groq check
         if (groqKey && groqKey.trim()) {
             const r = await callGroqDriver(groqKey.trim(), "Say hi.", "hi", []);
-            if (r.success) {
-                results.push(`🟢 Groq: Ready (${r.model})`);
-                anySuccess = true;
-            }
+            if (r.success) { results.push(`🟢 Groq: Ready (${r.model})`); anySuccess = true; }
+            else results.push(`🔴 Groq: ${r.error}`);
         }
 
-        // Gemini check
         if (geminiKey && geminiKey.trim()) {
             const r = await callGeminiDriver(geminiKey.trim(), "Say hi.", "hi", []);
-            if (r.success) {
-                results.push(`🟢 Gemini: Ready (${r.model})`);
-                anySuccess = true;
-            }
+            if (r.success) { results.push(`🟢 Google Gemini: Ready (${r.model})`); anySuccess = true; }
+            else results.push(`🔴 Google Gemini: ${r.error}`);
         }
 
-        // Zero-Key Public AI (Always available)
         const pub = await callPublicZeroKeyDriver("Say hi.", "hi");
-        if (pub.success) {
-            results.push(`🟢 Public Free AI: Ready (Always-on Zero-Key Backup)`);
-            anySuccess = true;
-        }
+        if (pub.success) { results.push(`🟢 Public Free AI: Ready (Always active fallback)`); anySuccess = true; }
 
         socket.emit('admin-ai-verify-result', {
             success: anySuccess,
-            message: `✅ AI Ready To Use!\n\n${results.join('\n')}\n\n(Aapka bot ab kabhi offline nahi hoga!)`
+            message: anySuccess ? `✅ AI Connection Successful!\n\n${results.join('\n')}` : `❌ Failed:\n${results.join('\n')}`
         });
     });
 
@@ -748,26 +705,11 @@ io.on('connection', (socket) => {
             { id: 2, name: "Option 2", pool: 0, votes: 0 }
         ];
 
-        activeBet = {
-            isOpen: true,
-            locked: false,
-            title: title || "Who will win?",
-            options: parsedOptions,
-            bets: {}
-        };
+        activeBet = { isOpen: true, locked: false, title: title || "Who will win?", options: parsedOptions, bets: {} };
         broadcastState();
 
         const optionsText = parsedOptions.map(o => `[${o.id}: ${o.name}]`).join(' vs ');
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: `🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote: !bet <num> <amount> or !vote <num>`,
-            enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate,
-            gender: streamData.ttsGender
-        });
+        broadcastResponse(`🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote: !bet <num> <amount> or !vote <num>`, true);
     });
 
     socket.on('admin-lock-bet', () => {
@@ -782,7 +724,6 @@ io.on('connection', (socket) => {
         if (!winningOption) return;
 
         const winningPool = winningOption.pool || 0;
-
         if (winningPool > 0) {
             for (const [user, bet] of Object.entries(activeBet.bets)) {
                 if (bet.optionId === winningOption.id && bet.amount > 0) {
@@ -793,17 +734,7 @@ io.on('connection', (socket) => {
         }
 
         io.emit('bet-winner', { winnerName: winningOption.name, winnerId: winningOption.id, totalPool });
-
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: `🏆 RESULT: "${winningOption.name}" JEET GAYA! Total 🪙 ${totalPool} Mac-Coins distribute ho gaye!`,
-            enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate,
-            gender: streamData.ttsGender
-        });
+        broadcastResponse(`🏆 RESULT: "${winningOption.name}" JEET GAYA! Total 🪙 ${totalPool} Mac-Coins distribute ho gaye!`, true);
 
         setTimeout(() => {
             activeBet = { isOpen: false, locked: false, title: "", options: [], bets: {} };
@@ -814,9 +745,7 @@ io.on('connection', (socket) => {
 
     socket.on('admin-end-bet', () => {
         for (const [user, bet] of Object.entries(activeBet.bets)) {
-            if (bet.amount > 0) {
-                streamData.userCoins[user] = (streamData.userCoins[user] || 0) + bet.amount;
-            }
+            if (bet.amount > 0) streamData.userCoins[user] = (streamData.userCoins[user] || 0) + bet.amount;
         }
         activeBet = { isOpen: false, locked: false, title: "", options: [], bets: {} };
         saveDataToDisk();
@@ -835,25 +764,11 @@ io.on('connection', (socket) => {
     });
 
     socket.on('admin-test-ai', () => {
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: `Yo! Audio aur Speech bubble test successful!`,
-            enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate,
-            gender: streamData.ttsGender
-        });
+        broadcastResponse(`Yo! Audio, Speech bubble aur Chat test successful!`, true);
     });
 
-    socket.on('admin-play-meme', (data) => {
-        io.emit('play-meme', { mediaUrl: data.mediaUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" });
-    });
-
-    socket.on('admin-play-sfx', (data) => {
-        io.emit('play-sfx', { sfxUrl: data.sfxUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" });
-    });
+    socket.on('admin-play-meme', (data) => io.emit('play-meme', { mediaUrl: data.mediaUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" }));
+    socket.on('admin-play-sfx', (data) => io.emit('play-sfx', { sfxUrl: data.sfxUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" }));
 });
 
 const PORT = process.env.PORT || 3000;
