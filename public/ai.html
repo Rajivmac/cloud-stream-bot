@@ -2,184 +2,126 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AI Character Overlay</title>
-    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
+    <title>OBS AI Speech Overlay</title>
     <style>
         body {
-            background-color: transparent;
             margin: 0;
+            padding: 20px;
+            background: transparent;
             overflow: hidden;
-            font-family: 'Chakra Petch', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
-        #ai-bubble {
-            position: absolute;
-            bottom: 30px;
-            left: 30px;
-            max-width: 550px;
-            background: rgba(11, 14, 22, 0.96);
-            border: 2px solid #00d2d3;
-            border-left: 6px solid #00d2d3;
-            border-radius: 14px;
-            padding: 14px 20px;
-            box-shadow: 0 10px 35px rgba(0,0,0,0.85), 0 0 25px rgba(0, 210, 211, 0.35);
-            display: flex;
+
+        #ai-container {
+            display: none;
+            align-items: flex-start;
             gap: 16px;
-            align-items: center;
-            opacity: 0;
-            transform: translateY(30px) scale(0.95);
-            transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        #ai-bubble.active {
-            opacity: 1;
-            transform: translateY(0) scale(1);
-        }
-        .avatar-frame {
-            width: 70px;
-            height: 70px;
-            min-width: 70px;
-            border-radius: 50%;
+            background: rgba(14, 18, 28, 0.94);
             border: 2px solid #00d2d3;
-            box-shadow: 0 0 15px rgba(0, 210, 211, 0.5);
-            overflow: hidden;
-            background: #1a1e2e;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            border-radius: 16px;
+            padding: 16px 20px;
+            max-width: 550px;
+            box-shadow: 0 8px 30px rgba(0, 210, 211, 0.35);
+            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .avatar-img {
-            width: 100%;
-            height: 100%;
+
+        @keyframes popIn {
+            0% { transform: scale(0.7) translateY(20px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        #avatar {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
             object-fit: cover;
+            border: 3px solid #00d2d3;
+            box-shadow: 0 0 15px rgba(0, 210, 211, 0.6);
+            flex-shrink: 0;
         }
-        .content-box {
+
+        .content {
             display: flex;
             flex-direction: column;
             gap: 4px;
         }
-        .sender-name {
-            font-size: 13px;
+
+        #bot-name {
+            font-size: 15px;
+            font-weight: 800;
             color: #00d2d3;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
-            font-weight: 700;
+            letter-spacing: 1px;
         }
-        .ai-text {
-            color: #ffffff;
-            font-size: 18px;
-            line-height: 1.35;
+
+        #bot-text {
+            font-size: 16px;
             font-weight: 600;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+            color: #ffffff;
+            line-height: 1.4;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
         }
     </style>
 </head>
 <body>
-    <div id="ai-bubble">
-        <div class="avatar-frame">
-            <img id="ai-avatar-img" class="avatar-img" src="" alt="avatar">
-        </div>
-        <div class="content-box">
-            <span class="sender-name" id="ai-character-name">CHARACTER NAME</span>
-            <span class="ai-text" id="ai-message">Message text...</span>
+
+    <div id="ai-container">
+        <img id="avatar" src="" alt="Bot Avatar">
+        <div class="content">
+            <span id="bot-name">Son Goku</span>
+            <div id="bot-text">Hello Stream!</div>
         </div>
     </div>
-
-    <!-- Fallback Audio Tag for guaranteed sound in OBS -->
-    <audio id="tts-audio-fallback"></audio>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const bubble = document.getElementById('ai-bubble');
-        const avatarImg = document.getElementById('ai-avatar-img');
-        const charNameEl = document.getElementById('ai-character-name');
-        const textEl = document.getElementById('ai-message');
-        const audioFallback = document.getElementById('tts-audio-fallback');
+        const container = document.getElementById('ai-container');
+        const avatar = document.getElementById('avatar');
+        const botName = document.getElementById('bot-name');
+        const botText = document.getElementById('bot-text');
 
-        let hideTimeout;
-        let availableVoices = [];
+        let hideTimeout = null;
+        let currentAudio = null;
 
-        function loadVoices() {
-            if ('speechSynthesis' in window) {
-                availableVoices = window.speechSynthesis.getVoices();
+        function speakCloudTTS(text, gender, rate) {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
             }
-        }
-        loadVoices();
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = loadVoices;
-        }
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
 
-        // Dual Engine Voice Synthesizer
-        function speakText(text, pitch = 1.0, rate = 1.0, gender = 'male') {
-            if (!('speechSynthesis' in window)) {
-                playFallbackAudio(text);
-                return;
-            }
+            const voice = (gender === 'female') ? 'Aditi' : 'Brian';
+            const cleanText = text.replace(/[*_#~]/g, '').trim();
+            const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(cleanText.slice(0, 250))}`;
 
-            window.speechSynthesis.cancel();
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.pitch = pitch;
-            utterance.rate = rate;
-
-            if (availableVoices.length === 0) availableVoices = window.speechSynthesis.getVoices();
-
-            // Intelligent Male / Female Filter
-            let selectedVoice = null;
-            if (gender === 'female') {
-                selectedVoice = availableVoices.find(v => 
-                    (v.name.toLowerCase().includes('female') || 
-                     v.name.toLowerCase().includes('zira') || 
-                     v.name.toLowerCase().includes('kalpana') ||
-                     v.name.toLowerCase().includes('natural')) && 
-                    (v.lang.includes('hi') || v.lang.includes('en'))
-                );
-            } else {
-                selectedVoice = availableVoices.find(v => 
-                    (v.name.toLowerCase().includes('male') || 
-                     v.name.toLowerCase().includes('david') || 
-                     v.name.toLowerCase().includes('mark') ||
-                     v.name.toLowerCase().includes('google')) && 
-                    (v.lang.includes('hi') || v.lang.includes('en'))
-                );
-            }
-
-            if (selectedVoice) utterance.voice = selectedVoice;
-
-            utterance.onerror = () => {
-                playFallbackAudio(text);
-            };
-
-            window.speechSynthesis.speak(utterance);
-        }
-
-        function playFallbackAudio(text) {
-            try {
-                const encodedText = encodeURIComponent(text.slice(0, 150));
-                audioFallback.src = `https://translate.google.com/translate_tts?ie=UTF-8&tl=hi&client=tw-ob&q=${encodedText}`;
-                audioFallback.currentTime = 0;
-                audioFallback.play().catch(e => console.log('Audio autoplay prevented:', e));
-            } catch(e) {}
+            currentAudio = new Audio(url);
+            currentAudio.playbackRate = rate || 1.0;
+            currentAudio.play().catch(err => {
+                if ('speechSynthesis' in window) {
+                    const u = new SpeechSynthesisUtterance(cleanText);
+                    u.rate = rate || 1.0;
+                    window.speechSynthesis.speak(u);
+                }
+            });
         }
 
         socket.on('ai-speak', (data) => {
-            avatarImg.src = data.characterImage || 'https://images2.alphacoders.com/131/1312384.png';
-            charNameEl.innerText = data.characterName || 'AI ASSISTANT';
-            textEl.innerText = data.text;
+            if (data.enableBubble) {
+                avatar.src = data.characterImage || 'https://images2.alphacoders.com/131/1312384.png';
+                botName.innerText = data.characterName || 'Son Goku';
+                botText.innerText = data.text;
+                container.style.display = 'flex';
 
-            if (data.enableBubble !== false) {
-                bubble.classList.add('active');
-                clearTimeout(hideTimeout);
+                if (hideTimeout) clearTimeout(hideTimeout);
+                // Bubble remains for 8 seconds
                 hideTimeout = setTimeout(() => {
-                    bubble.classList.remove('active');
-                }, 9000);
+                    container.style.display = 'none';
+                }, 8500);
             }
 
             if (data.enableTTS) {
-                speakText(
-                    data.text,
-                    parseFloat(data.pitch) || 1.0,
-                    parseFloat(data.rate) || 1.0,
-                    data.gender || 'male'
-                );
+                speakCloudTTS(data.text, data.gender, data.rate);
             }
         });
     </script>
