@@ -64,6 +64,7 @@ let streamData = {
     themeColor: '#ff4757',
     
     geminiApiKey: process.env.GEMINI_API_KEY || '',
+    geminiModel: 'gemini-2.5-flash',
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
@@ -163,7 +164,6 @@ let isTimerRunning = false;
 let seenChatters = new Set();
 let lastEarnedTime = {};
 
-// Independent Timer
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -172,7 +172,6 @@ setInterval(() => {
     }
 }, 1000);
 
-// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -187,12 +186,12 @@ setInterval(() => {
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// Updated Gemini 2.5 Flash Endpoint
+// Multi-version Resilient Gemini API Call
 async function askGemini(userPrompt, username, userRole) {
     const key = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
     if (!key) return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
+    const model = streamData.geminiModel || 'gemini-2.5-flash';
 
     let roleInstructions = "";
     if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
@@ -206,21 +205,21 @@ async function askGemini(userPrompt, username, userRole) {
     history.slice(-6).forEach(entry => contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] }));
     contents.push({ role: "user", parts: [{ text: userPrompt }] });
 
-    try {
-        let res = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ system_instruction: { parts: [{ text: systemInstructionText }] }, contents })
-        });
+    const endpoints = [
+        `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`
+    ];
 
-        // Fallback to gemini-2.0-flash if needed
-        if (!res.ok) {
-            const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
-            res = await fetch(fallbackUrl, {
+    try {
+        let res;
+        for (const url of endpoints) {
+            res = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ system_instruction: { parts: [{ text: systemInstructionText }] }, contents })
             });
+            if (res.ok) break;
         }
 
         const data = await res.json();
@@ -277,12 +276,10 @@ liveChat.on("chat", async (chatItem) => {
     const username = chatItem.author.name;
     const isOwner = chatItem.author.isChatOwner;
     const isMod = chatItem.author.isChatModerator;
-    const isModOrOwner = isOwner || isMod;
     const userRole = isOwner ? 'owner' : (isMod ? 'mod' : 'viewer');
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // Passive Coin Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -303,7 +300,6 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Owner Add Coins
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
         if (!isOwner) return;
         const parts = rawText.split(' ');
@@ -330,7 +326,6 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // P2P Transfer
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -360,7 +355,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Meme/SFX Redeem (Streamer = 100% Free, Mods & Viewers = Pay Coins)
+    // Meme Redeem
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
@@ -395,7 +390,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Custom Commands with Coins (Streamer = Free, Others = Pay)
+    // Custom Commands
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const cost = parseInt(matchedCustom.cost) || 0;
@@ -484,7 +479,6 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Manual TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -500,7 +494,6 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Questions
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -541,8 +534,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Deaths
-    if (isModOrOwner) {
+    if (isOwner || isMod) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
         if (message === '!deathreset') { streamData.deathCount = 0; broadcastState(); }
@@ -570,6 +562,10 @@ io.on('connection', (socket) => {
         let changed = false;
         if (!streamData.geminiApiKey && localData.geminiApiKey) {
             streamData.geminiApiKey = localData.geminiApiKey;
+            changed = true;
+        }
+        if (localData.geminiModel) {
+            streamData.geminiModel = localData.geminiModel;
             changed = true;
         }
         if (!streamData.characterImage && localData.characterImage) {
