@@ -8,7 +8,7 @@
         body {
             background-color: transparent;
             margin: 0;
-            padding: 20px;
+            padding: 16px;
             overflow: hidden;
             font-family: 'Chakra Petch', sans-serif;
             user-select: none;
@@ -16,15 +16,15 @@
         }
 
         #poll-container {
-            width: 480px;
-            background: rgba(12, 16, 26, 0.94);
+            width: 490px;
+            background: rgba(12, 16, 26, 0.95);
             border: 2px solid #28334f;
             border-top: 4px solid #00d2d3;
-            border-radius: 14px;
-            padding: 16px 20px;
+            border-radius: 12px;
+            padding: 14px 18px;
             box-shadow: 0 15px 35px rgba(0,0,0,0.8), 0 0 25px rgba(0, 210, 211, 0.2);
             opacity: 0;
-            transform: translateY(-30px) scale(0.96);
+            transform: translateY(-25px) scale(0.96);
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
@@ -37,7 +37,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .badge {
@@ -47,14 +47,11 @@
             letter-spacing: 1.5px;
             padding: 3px 8px;
             border-radius: 5px;
-            background: #f39c12;
+            background: #00d2d3;
             color: #000;
         }
 
-        .badge.locked {
-            background: #ff4757;
-            color: #fff;
-        }
+        .badge.locked { background: #ff4757; color: #fff; }
 
         .pool-badge {
             font-size: 13px;
@@ -65,74 +62,55 @@
 
         .poll-title {
             color: #ffffff;
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 700;
-            margin: 0 0 14px 0;
+            margin: 0 0 12px 0;
             line-height: 1.3;
-            text-shadow: 0 2px 5px rgba(0,0,0,0.6);
         }
 
-        /* Voting Bars */
-        .option-row {
+        .options-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .opt-row {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .opt-meta {
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 700;
-            margin-bottom: 4px;
+            color: #ffffff;
         }
 
         .progress-track {
             width: 100%;
-            height: 28px;
+            height: 22px;
             background: #171c2c;
-            border-radius: 6px;
+            border-radius: 5px;
             overflow: hidden;
             display: flex;
-            margin-bottom: 10px;
             border: 1px solid #232d46;
             position: relative;
         }
 
-        .bar-opt1 {
-            background: linear-gradient(90deg, #00d2d3, #0984e3);
+        .progress-fill {
             height: 100%;
-            width: 50%;
-            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: width 0.5s ease;
             display: flex;
             align-items: center;
-            padding-left: 10px;
-            font-size: 13px;
-            font-weight: 800;
-            color: #000;
-            box-shadow: 0 0 15px rgba(0, 210, 211, 0.5);
-        }
-
-        .bar-opt2 {
-            background: linear-gradient(90deg, #d63031, #ff7675);
-            height: 100%;
-            width: 50%;
-            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            padding-right: 10px;
-            font-size: 13px;
+            padding-left: 8px;
+            font-size: 11px;
             font-weight: 800;
             color: #fff;
-            box-shadow: 0 0 15px rgba(255, 71, 87, 0.5);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
         }
 
-        .footer-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-            color: #7f8b9f;
-            font-weight: 600;
-            margin-top: 2px;
-        }
-
-        /* Winner Screen */
         .winner-banner {
             display: none;
             background: linear-gradient(90deg, #f1c40f, #e67e22);
@@ -144,12 +122,15 @@
             font-size: 15px;
             letter-spacing: 1px;
             margin-top: 10px;
-            animation: pulse-glow 1.5s infinite;
         }
 
-        @keyframes pulse-glow {
-            0%, 100% { box-shadow: 0 0 15px rgba(241, 196, 15, 0.6); }
-            50% { box-shadow: 0 0 25px rgba(241, 196, 15, 0.9); }
+        .footer-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #7f8b9f;
+            margin-top: 8px;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -160,22 +141,13 @@
             <span id="pool-amount" class="pool-badge">🪙 0 MAC-COINS</span>
         </div>
 
-        <div id="poll-title" class="poll-title">Will I win this match?</div>
+        <div id="poll-title" class="poll-title">Prediction</div>
 
-        <div class="option-row">
-            <span style="color:#00d2d3;" id="name-opt1">[1] WIN (<span id="votes-opt1">0</span> votes)</span>
-            <span style="color:#ff4757;" id="name-opt2">(<span id="votes-opt2">0</span> votes) [2] LOSE</span>
-        </div>
-
-        <div class="progress-track">
-            <div id="bar-opt1" class="bar-opt1">50%</div>
-            <div id="bar-opt2" class="bar-opt2">50%</div>
-        </div>
+        <div class="options-list" id="options-list"></div>
 
         <div class="footer-info">
-            <span>Type <b>!bet 1 &lt;amount&gt;</b></span>
-            <span id="total-voters">Total Voters: 0</span>
-            <span>Type <b>!bet 2 &lt;amount&gt;</b></span>
+            <span>Vote: <b>!bet &lt;number&gt; &lt;amount&gt;</b> or <b>!vote &lt;number&gt;</b></span>
+            <span id="total-voters">Votes: 0</span>
         </div>
 
         <div id="winner-banner" class="winner-banner">🏆 WINNER DECLARED!</div>
@@ -188,18 +160,22 @@
         const badge = document.getElementById('poll-badge');
         const poolAmount = document.getElementById('pool-amount');
         const pollTitle = document.getElementById('poll-title');
-        const nameOpt1 = document.getElementById('name-opt1');
-        const nameOpt2 = document.getElementById('name-opt2');
-        const votesOpt1 = document.getElementById('votes-opt1');
-        const votesOpt2 = document.getElementById('votes-opt2');
-        const barOpt1 = document.getElementById('bar-opt1');
-        const barOpt2 = document.getElementById('bar-opt2');
+        const optionsList = document.getElementById('options-list');
         const totalVoters = document.getElementById('total-voters');
         const winnerBanner = document.getElementById('winner-banner');
+
+        const barColors = [
+            'linear-gradient(90deg, #00d2d3, #0984e3)',
+            'linear-gradient(90deg, #ff4757, #ff6b81)',
+            'linear-gradient(90deg, #f1c40f, #e67e22)',
+            'linear-gradient(90deg, #9b59b6, #8e44ad)',
+            'linear-gradient(90deg, #2ecc71, #1abc9c)'
+        ];
 
         socket.on('bet-update', (bet) => {
             if (!bet.isOpen) {
                 container.classList.remove('active');
+                winnerBanner.style.display = 'none';
                 return;
             }
 
@@ -215,19 +191,31 @@
                 badge.classList.remove('locked');
             }
 
-            nameOpt1.innerHTML = `[1] ${bet.option1} (<span id="votes-opt1">${bet.votes1 || 0}</span>)`;
-            nameOpt2.innerHTML = `(<span id="votes-opt2">${bet.votes2 || 0}</span>) [2] ${bet.option2}`;
+            totalVoters.innerText = `Total Votes: ${bet.totalVotes || 0}`;
 
-            const p1 = bet.pct1 !== undefined ? bet.pct1 : 50;
-            const p2 = bet.pct2 !== undefined ? bet.pct2 : 50;
+            optionsList.innerHTML = '';
+            bet.options.forEach((opt, idx) => {
+                const color = barColors[idx % barColors.length];
+                const row = document.createElement('div');
+                row.className = 'opt-row';
+                row.innerHTML = `
+                    <div class="opt-meta">
+                        <span>[${opt.id}] ${opt.name}</span>
+                        <span>${opt.votes} votes (${opt.pct}%)</span>
+                    </div>
+                    <div class="progress-track">
+                        <div class="progress-fill" style="width: ${opt.pct}%; background: ${color};">
+                            ${opt.pct > 12 ? opt.pct + '%' : ''}
+                        </div>
+                    </div>
+                `;
+                optionsList.appendChild(row);
+            });
+        });
 
-            barOpt1.style.width = `${p1}%`;
-            barOpt1.innerText = `${p1}%`;
-
-            barOpt2.style.width = `${p2}%`;
-            barOpt2.innerText = `${p2}%`;
-
-            totalVoters.innerText = `Total Voters: ${bet.totalVotes || 0}`;
+        socket.on('bet-winner', (data) => {
+            winnerBanner.innerText = `🏆 WINNER: ${data.winnerName}! (🪙 ${data.totalPool} Pool Paid)`;
+            winnerBanner.style.display = 'block';
         });
     </script>
 </body>
