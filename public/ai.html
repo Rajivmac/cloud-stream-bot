@@ -86,74 +86,21 @@
         const audioPlayer = document.getElementById('tts-audio');
 
         let hideTimeout = null;
-        let audioCtx = null;
-        let bassFilter = null;
-        let trebleFilter = null;
-        let sourceNode = null;
-
-        function initAudioEqualizer() {
-            try {
-                if (!audioCtx) {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    
-                    bassFilter = audioCtx.createBiquadFilter();
-                    bassFilter.type = "lowshelf";
-                    bassFilter.frequency.value = 240;
-
-                    trebleFilter = audioCtx.createBiquadFilter();
-                    trebleFilter.type = "highshelf";
-                    trebleFilter.frequency.value = 2800;
-
-                    sourceNode = audioCtx.createMediaElementSource(audioPlayer);
-                    sourceNode.connect(bassFilter);
-                    bassFilter.connect(trebleFilter);
-                    trebleFilter.connect(audioCtx.destination);
-                }
-                if (audioCtx.state === 'suspended') {
-                    audioCtx.resume();
-                }
-            } catch(e) {}
-        }
 
         function playIndianVoice(text, voice, pitch, rate) {
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return;
 
-            initAudioEqualizer();
-
             const selectedVoice = voice || 'female_hi';
-            const audioSrc = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
-
-            audioPlayer.pause();
-            audioPlayer.src = audioSrc;
-            audioPlayer.volume = 1.0;
-
             const p = parseFloat(pitch) || 1.0;
             const r = parseFloat(rate) || 1.0;
 
-            // Pitch & Tone Modulation Engine
-            audioPlayer.preservesPitch = false;
-            audioPlayer.mozPreservesPitch = false;
-            audioPlayer.webkitPreservesPitch = false;
+            const audioSrc = `/api/tts?voice=${selectedVoice}&pitch=${p}&rate=${r}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
 
-            if (bassFilter && trebleFilter) {
-                if (p < 1.0) {
-                    // Deep heavy bass resonance
-                    bassFilter.gain.value = (1.0 - p) * 24; 
-                    trebleFilter.gain.value = -(1.0 - p) * 12; 
-                } else if (p > 1.0) {
-                    // Crisp sharp high frequency
-                    bassFilter.gain.value = -(p - 1.0) * 14; 
-                    trebleFilter.gain.value = (p - 1.0) * 18; 
-                } else {
-                    bassFilter.gain.value = 0;
-                    trebleFilter.gain.value = 0;
-                }
-            }
-
-            // Real acoustic scaling combining pitch & speed
-            const finalRate = Math.max(0.55, Math.min(1.85, r * Math.pow(p, 0.45)));
-            audioPlayer.playbackRate = finalRate;
+            audioPlayer.pause();
+            audioPlayer.src = audioSrc;
+            audioPlayer.playbackRate = 1.0;
+            audioPlayer.volume = 1.0;
 
             audioPlayer.play().catch(err => {
                 console.error("Audio playback error:", err);
