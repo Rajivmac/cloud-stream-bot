@@ -450,7 +450,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA WITH GUARANTEED MALE & FEMALE VOICES -->
+        <!-- TAB 6: AI PERSONA WITH 4 INDIAN VOICES -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -530,20 +530,16 @@
                     <input type="checkbox" id="ai-tts" checked>
                 </div>
 
-                <!-- GUARANTEED MALE & FEMALE VOICE SELECTION -->
-                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Select Voice Actor</label>
+                <!-- 4 INDIAN ACCENT VOICES -->
+                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Indian AI Voice Actor</label>
                 <select id="ai-voice-select">
-                    <optgroup label="👨 MALE VOICES (Deep / Streamer / Gaming)">
-                        <option value="Brian" selected>👨 Brian (Classic Deep UK Male - Perfect for Goku/Streamer)</option>
-                        <option value="Matthew">👨 Matthew (US Calm Realistic Male - Smooth Anime Tone)</option>
-                        <option value="Russell">⚡ Russell (Deep Rugged Male - Heavy Kazuya/Sukuna Voice)</option>
-                        <option value="Joey">👨 Joey (Youthful Energetic Gamer Male)</option>
+                    <optgroup label="👩 FEMALE VOICES (Indian)">
+                        <option value="female_hi" selected>👩 Swara (Indian Hindi - Natural Female)</option>
+                        <option value="female_en">👩 Neerja (Indian English/Hinglish - Natural Female)</option>
                     </optgroup>
-                    <optgroup label="👩 FEMALE VOICES (Indian / Soft / Clear)">
-                        <option value="Aditi">👩 Aditi (Indian Natural Hindi/English Female)</option>
-                        <option value="Raveena">👩 Raveena (Indian Soft Polite Female)</option>
-                        <option value="Joanna">👩 Joanna (US Studio Clear Female)</option>
-                        <option value="Amy">👩 Amy (UK Sweet Natural Female)</option>
+                    <optgroup label="👨 MALE VOICES (Indian)">
+                        <option value="male_hi">👨 Madhur (Indian Hindi - Natural Male)</option>
+                        <option value="male_en">👨 Prabhat (Indian English/Hinglish - Natural Male)</option>
                     </optgroup>
                 </select>
 
@@ -551,12 +547,12 @@
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Voice Pitch / Tone (<span id="val-pitch">1.0</span>)</label>
                         <input type="range" id="ai-pitch" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-pitch').innerText=this.value">
-                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Deeper Bass | Sharp Anime →</small>
+                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Heavy Bass | Sharp Voice →</small>
                     </div>
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
                         <input type="range" id="ai-rate" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
-                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow Speech | Fast Talk →</small>
+                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow | Fast →</small>
                     </div>
                 </div>
 
@@ -691,7 +687,7 @@
                 name: "Son Goku",
                 cmd: "!goku",
                 image: "https://cdn-icons-png.flaticon.com/512/3233/3233514.png",
-                voice: "Brian",
+                voice: "male_hi",
                 pitch: 1.15,
                 rate: 1.05,
                 prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the viewer's language."
@@ -700,7 +696,7 @@
                 name: "Gojo Satoru",
                 cmd: "!gojo",
                 image: "https://images8.alphacoders.com/134/1344405.jpeg",
-                voice: "Matthew",
+                voice: "male_en",
                 pitch: 1.0,
                 rate: 1.0,
                 prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
@@ -709,7 +705,7 @@
                 name: "Kazuya Mishima",
                 cmd: "!kazuya",
                 image: "https://images3.alphacoders.com/134/1347311.jpeg",
-                voice: "Russell",
+                voice: "male_hi",
                 pitch: 0.85,
                 rate: 0.95,
                 prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
@@ -718,7 +714,7 @@
                 name: "Ryomen Sukuna",
                 cmd: "!sukuna",
                 image: "https://images3.alphacoders.com/134/1344406.jpeg",
-                voice: "Russell",
+                voice: "male_hi",
                 pitch: 0.8,
                 rate: 0.9,
                 prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
@@ -985,7 +981,6 @@
             if (data.customCommands) renderCustomCommands(data.customCommands);
         });
 
-        // Predictions & Utility
         function addOptionField() {
             const count = customOptionsContainer.children.length + 1;
             const div = document.createElement('div');
@@ -1038,7 +1033,7 @@
                     row.className = 'opt-item-row';
                     row.innerHTML = `
                         <div>
-                            <b>[${opt.id}]${opt.name}</b>
+                            <b>[${opt.id}] ${opt.name}</b>
                             <span style="color:var(--text-dim); margin-left:6px;">${opt.votes} votes • 🪙${opt.pool} (${opt.pct}%)</span>
                         </div>
                         <button style="background:var(--cyan); color:#000; padding:4px 8px; font-size:11px;" onclick="resolveWinnerOption(${opt.id}, '${opt.name}')">🏆 Won</button>
@@ -1207,7 +1202,7 @@
             const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
             const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${h}h ${m}m${s}s`;
+            return `${h}h ${m}m ${s}s`;
         }
 
         socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
