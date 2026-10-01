@@ -86,20 +86,67 @@
         const audioPlayer = document.getElementById('tts-audio');
 
         let hideTimeout = null;
+        let audioCtx = null;
+        let biquadFilter = null;
+        let sourceNode = null;
+
+        function ensureWebAudioGraph() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    biquadFilter = audioCtx.createBiquadFilter();
+                    biquadFilter.type = "peaking";
+                    biquadFilter.frequency.value = 250;
+                    biquadFilter.Q.value = 1.0;
+                    
+                    sourceNode = audioCtx.createMediaElementSource(audioPlayer);
+                    sourceNode.connect(biquadFilter);
+                    biquadFilter.connect(audioCtx.destination);
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch(e) {}
+        }
 
         function playRealStudioTTS(text, voice, pitch, rate) {
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return;
 
-            const selectedVoice = voice || 'Aditi';
+            ensureWebAudioGraph();
+
+            const selectedVoice = voice || 'Brian';
             const audioSrc = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
 
             audioPlayer.pause();
             audioPlayer.src = audioSrc;
             audioPlayer.volume = 1.0;
 
+            const p = parseFloat(pitch) || 1.0;
             const r = parseFloat(rate) || 1.0;
-            audioPlayer.playbackRate = Math.max(0.7, Math.min(1.4, r));
+
+            // Pitch Shifting Engine:
+            // preservesPitch = false allows frequency scaling (lower = deep masculine bass, higher = sharp)
+            audioPlayer.preservesPitch = false;
+            audioPlayer.mozPreservesPitch = false;
+            audioPlayer.webkitPreservesPitch = false;
+
+            // Acoustic Frequency Bass/Treble booster
+            if (biquadFilter) {
+                if (p < 1.0) {
+                    biquadFilter.frequency.value = 180;
+                    biquadFilter.gain.value = (1.0 - p) * 16; // Rich deep vocal boost
+                } else if (p > 1.0) {
+                    biquadFilter.frequency.value = 2800;
+                    biquadFilter.gain.value = (p - 1.0) * 12; // Sharp high tone boost
+                } else {
+                    biquadFilter.gain.value = 0;
+                }
+            }
+
+            // Real acoustic scaling combining pitch & speed
+            const finalRate = Math.max(0.55, Math.min(1.85, p * r));
+            audioPlayer.playbackRate = finalRate;
 
             audioPlayer.play().catch(err => {
                 console.error("Audio playback error:", err);
