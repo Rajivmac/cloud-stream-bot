@@ -263,15 +263,10 @@
             font-size: 12px;
             line-height: 1.5;
         }
-        .opt-input-row {
-            display: flex;
-            gap: 6px;
-            margin-bottom: 6px;
-        }
+        .opt-input-row { display: flex; gap: 6px; margin-bottom: 6px; }
         .opt-input-row input { margin-bottom: 0; }
         .btn-icon-del { background: #e74c3c; width: 36px; min-width: 36px; padding: 0; font-size: 14px; }
 
-        /* Character Avatar Preview Box */
         .avatar-preview-box {
             display: flex;
             align-items: center;
@@ -456,7 +451,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA (WITH AVATAR URL & PRESETS) -->
+        <!-- TAB 6: AI PERSONA (WITH AVATAR & GOOGLE 2.5 FLASH VERIFIER) -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
                 <div class="section-title">
@@ -471,7 +466,6 @@
 
                 <div class="section-title" style="margin-top:10px;">🎭 Character & Voice Setup</div>
 
-                <!-- 1-Click Character Presets Dropdown -->
                 <label style="font-size:10px; color:var(--text-dim);">Load Character Preset</label>
                 <select id="persona-presets" onchange="applyPresetPersona()">
                     <option value="goku">🔥 Son Goku (Dragon Ball - Energetic High Pitch)</option>
@@ -481,7 +475,6 @@
                     <option value="custom">✏️ Custom Character</option>
                 </select>
 
-                <!-- Live Avatar Preview & Image URL -->
                 <div class="avatar-preview-box">
                     <img id="avatar-preview" class="avatar-preview-img" src="https://images2.alphacoders.com/131/1312384.png" alt="Avatar">
                     <div style="flex:1;">
@@ -683,9 +676,7 @@
 
         function updateImagePreview() {
             const url = document.getElementById('ai-image-url').value.trim();
-            if (url) {
-                document.getElementById('avatar-preview').src = url;
-            }
+            if (url) document.getElementById('avatar-preview').src = url;
         }
 
         function applyPresetPersona() {
@@ -713,7 +704,6 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
-        // --- GEMINI KEY VERIFY & PERSISTENCE ---
         function updateKeyStatusBadge() {
             const key = document.getElementById('ai-key').value.trim();
             const badge = document.getElementById('api-key-status');
@@ -726,6 +716,7 @@
             }
         }
 
+        // Updated Gemini 2.5 Flash Verifier
         async function verifyGeminiKey() {
             const key = document.getElementById('ai-key').value.trim();
             const badge = document.getElementById('api-key-status');
@@ -735,11 +726,21 @@
             badge.style.color = 'var(--orange)';
 
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                // Testing gemini-2.5-flash with automatic fallback to gemini-2.0-flash
+                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] })
                 });
+
+                if (!res.ok) {
+                    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] })
+                    });
+                }
+
                 const data = await res.json();
                 if (data.candidates && data.candidates[0].content) {
                     badge.innerText = '🟢 Key Verified & Working!';
@@ -750,7 +751,7 @@
                 } else {
                     badge.innerText = '🔴 Invalid Key';
                     badge.style.color = 'var(--red)';
-                    alert('❌ API Key galat hai ya quota khatam hai: ' + (data.error ? data.error.message : 'Unknown error'));
+                    alert('❌ API Key galat hai ya quota limit hai: ' + (data.error ? data.error.message : 'Unknown error'));
                 }
             } catch(e) {
                 badge.innerText = '🔴 Connection Error';
@@ -759,7 +760,6 @@
             }
         }
 
-        // --- MULTI-OPTION POLL MANAGEMENT ---
         function addOptionField() {
             const count = customOptionsContainer.children.length + 1;
             const div = document.createElement('div');
@@ -985,7 +985,6 @@
             if (data.customCommands) renderCustomCommands(data.customCommands);
         });
 
-        // OBS Connection
         let isObsConnected = false;
         async function connectToOBS() {
             if (isObsConnected) return;
@@ -1056,7 +1055,7 @@
             const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
             const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${h}h ${m}s`;
+            return `${h}h ${m}m ${s}s`;
         }
 
         socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
@@ -1142,15 +1141,11 @@
             switchTab('deck');
         }
 
-        // On Socket Connect: Auto restore key & image from localStorage if server restarted
-        socket.on('connect', () => {
+        window.addEventListener('DOMContentLoaded', () => {
             const localKey = localStorage.getItem('geminiApiKey');
-            const localImg = localStorage.getItem('characterImage');
-            if (localKey || localImg) {
-                socket.emit('admin-sync-local', {
-                    geminiApiKey: localKey || '',
-                    characterImage: localImg || ''
-                });
+            if (localKey && !document.getElementById('ai-key').value) {
+                document.getElementById('ai-key').value = localKey;
+                updateKeyStatusBadge();
             }
         });
     </script>
