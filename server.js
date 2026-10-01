@@ -92,7 +92,7 @@ let activeBet = {
 };
 
 let activeDuels = {};
-let userLastAiTime = {}; // Anti-Spam User Cooldown
+let userLastAiTime = {};
 
 function getCalculatedBetData() {
     let totalPool = 0;
@@ -174,7 +174,6 @@ app.get('/api/tts', async (req, res) => {
 
         const isFemale = voice.includes('female');
 
-        // 1. FEMALE: Natural Indian Voice
         if (isFemale) {
             try {
                 const gUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=hi&q=${encodeURIComponent(text)}`;
@@ -190,10 +189,7 @@ app.get('/api/tts', async (req, res) => {
                     }
                 }
             } catch(e) {}
-        }
-
-        // 2. MALE: Deep Energetic Voice
-        if (!isFemale) {
+        } else {
             try {
                 const ttRes = await fetch('https://tiktok-tts.weilnet.workers.dev/api/generation', {
                     method: 'POST',
@@ -443,7 +439,7 @@ function broadcastResponse(text, isTTS = true) {
 // AI Drivers
 async function callPublicZeroKeyDriver(systemText, userText) {
     try {
-        const fullPrompt = `${systemText}\nUser: ${userText}\nKeep reply punchy in 1-2 short sentences.`;
+        const fullPrompt = `${systemText}\nUser:${userText}\nKeep reply punchy in 1-2 short sentences.`;
         const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=openai`);
         if (res.ok) {
             const text = await res.text();
@@ -577,10 +573,9 @@ liveChat.on("chat", async (chatItem) => {
     const userRole = isOwner ? 'owner' : (isMod ? 'mod' : 'viewer');
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
+    const userAvatar = (chatItem.author && chatItem.author.thumbnailUrl) ? chatItem.author.thumbnailUrl : 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
 
-    // ==========================================
-    // 🛡️ AUTO-MOD & ANTI-SPAM
-    // ==========================================
+    // Auto-Moderation
     if (!isOwner && !isMod) {
         const ms = streamData.modSettings || {};
 
@@ -615,18 +610,26 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // ==========================================
-    // 🎉 REAL SUPER CHAT & MEMBER DETECTOR
-    // ==========================================
+    // ========================================================
+    // 🌟 UNIFIED SUPER CHAT DETECTOR (SINGLE MERGED CARD)
+    // ========================================================
     if (chatItem.superchat || chatItem.purchaseAmount) {
         const amount = chatItem.purchaseAmount || (chatItem.superchat && chatItem.superchat.amount) || "Donation";
+        const spokenText = rawText 
+            ? `${username} ne ${amount} bheje: "${rawText}"` 
+            : `Huge shoutout to ${username} for the${amount} Super Chat!`;
+
         io.emit('stream-alert', {
             type: 'superchat',
             user: username,
             amount: amount,
-            msg: rawText
+            avatar: userAvatar,
+            msg: rawText || 'Thank you for supporting the stream!',
+            ttsText: spokenText,
+            voice: streamData.ttsVoice,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
-        broadcastResponse(`Huge shoutout to @${username} for the ${amount} Super Chat! "${rawText || 'Thank you!'}"`, true);
         return;
     }
 
@@ -639,9 +642,7 @@ liveChat.on("chat", async (chatItem) => {
         saveDataToDisk();
     }
 
-    // ==========================================
-    // 🎰 CHAT MINI-GAMES (!gamble, !slots, !duel)
-    // ==========================================
+    // Mini-Games
     if (message.startsWith('!gamble ') || message.startsWith('!roulette ')) {
         const parts = rawText.split(' ');
         const amount = parseInt(parts[1]);
@@ -649,17 +650,17 @@ liveChat.on("chat", async (chatItem) => {
 
         if (isNaN(amount) || amount <= 0) return;
         if (currentBalance < amount) {
-            broadcastResponse(`@${username}, aapke paas gamble karne ke liye sirf 🪙 ${currentBalance} ${cName} hain!`, false);
+            broadcastResponse(`@${username}, aapke paas gamble karne ke liye sirf 🪙 ${currentBalance}${cName} hain!`, false);
             return;
         }
 
         const isWin = Math.random() < 0.50;
         if (isWin) {
             streamData.userCoins[userKey] += amount;
-            broadcastResponse(`🎲 [WIN!] @${username} ne 🪙 ${amount} gamble kiya aur JEET GAYA! New Balance: 🪙 ${streamData.userCoins[userKey]} ${cName}`, false);
+            broadcastResponse(`🎲 [WIN!] @${username} ne 🪙 ${amount} gamble kiya aur JEET GAYA! New Balance: 🪙 ${streamData.userCoins[userKey]}${cName}`, false);
         } else {
             streamData.userCoins[userKey] -= amount;
-            broadcastResponse(`💀 [LOSS!] @${username} ne 🪙 ${amount} gamble kiya aur HAAR GAYA! New Balance: 🪙 ${streamData.userCoins[userKey]} ${cName}`, false);
+            broadcastResponse(`💀 [LOSS!] @${username} ne 🪙 ${amount} gamble kiya aur HAAR GAYA! New Balance: 🪙 ${streamData.userCoins[userKey]}${cName}`, false);
         }
         saveDataToDisk();
         broadcastState();
@@ -673,7 +674,7 @@ liveChat.on("chat", async (chatItem) => {
 
         if (isNaN(amount) || amount <= 0) return;
         if (currentBalance < amount) {
-            broadcastResponse(`@${username}, aapke paas slots ke liye sirf 🪙 ${currentBalance} ${cName} hain!`, false);
+            broadcastResponse(`@${username}, aapke paas slots ke liye sirf 🪙 ${currentBalance}${cName} hain!`, false);
             return;
         }
 
@@ -685,14 +686,14 @@ liveChat.on("chat", async (chatItem) => {
         if (s1 === s2 && s2 === s3) {
             const win = amount * 5;
             streamData.userCoins[userKey] += (win - amount);
-            broadcastResponse(`🎰 [${s1} | ${s2} | ${s3}] JACKPOT!! @${username} ne 5x jeeta (+🪙 ${win} ${cName})!`, false);
+            broadcastResponse(`🎰 [${s1} \vert{}${s2} | ${s3}] JACKPOT!! @${username} ne 5x jeeta (+🪙 ${win}${cName})!`, false);
         } else if (s1 === s2 || s2 === s3 || s1 === s3) {
             const win = amount * 2;
             streamData.userCoins[userKey] += (win - amount);
-            broadcastResponse(`🎰 [${s1} | ${s2} | ${s3}] 2 MATCH! @${username} ne 2x jeeta (+🪙 ${win} ${cName})!`, false);
+            broadcastResponse(`🎰 [${s1} \vert{}${s2} | ${s3}] 2 MATCH! @${username} ne 2x jeeta (+🪙 ${win}${cName})!`, false);
         } else {
             streamData.userCoins[userKey] -= amount;
-            broadcastResponse(`🎰 [${s1} | ${s2} | ${s3}] No match! @${username} lost 🪙 ${amount} ${cName}.`, false);
+            broadcastResponse(`🎰 [${s1} | ${s2} \vert{}${s3}] No match! @${username} lost 🪙 ${amount}${cName}.`, false);
         }
         saveDataToDisk();
         broadcastState();
@@ -718,7 +719,7 @@ liveChat.on("chat", async (chatItem) => {
                 expires: Date.now() + 60000
             };
 
-            broadcastResponse(`⚔️ DUEL! @${username} ne @${targetUser} ko 🪙 ${amount} ${cName} duel ka challenge diya! Accept: !accept`, false);
+            broadcastResponse(`⚔️ DUEL! @${username} ne @${targetUser} ko 🪙 ${amount}${cName} duel ka challenge diya! Accept: !accept`, false);
             return;
         }
     }
@@ -735,11 +736,11 @@ liveChat.on("chat", async (chatItem) => {
                 if (challengerWins) {
                     streamData.userCoins[challengerKey] += amount;
                     streamData.userCoins[userKey] -= amount;
-                    broadcastResponse(`⚔️ DUEL OVER: @${challengerName} ne @${username} ko hara kar 🪙 ${amount} ${cName} jeet liye!`, true);
+                    broadcastResponse(`⚔️ DUEL OVER: @${challengerName} ne @${username} ko hara kar 🪙 ${amount}${cName} jeet liye!`, true);
                 } else {
                     streamData.userCoins[userKey] += amount;
                     streamData.userCoins[challengerKey] -= amount;
-                    broadcastResponse(`⚔️ DUEL OVER: @${username} ne @${challengerName} ko hara kar 🪙 ${amount} ${cName} jeet liye!`, true);
+                    broadcastResponse(`⚔️ DUEL OVER: @${username} ne @${challengerName} ko hara kar 🪙 ${amount}${cName} jeet liye!`, true);
                 }
                 delete activeDuels[userKey];
                 saveDataToDisk();
@@ -751,7 +752,7 @@ liveChat.on("chat", async (chatItem) => {
 
     if (message === '!coins' || message === '!balance' || message === '!maccoins') {
         const balance = streamData.userCoins[userKey] || 0;
-        broadcastResponse(`@${username}, aapke paas 🪙 ${balance} ${cName} hain!`, false);
+        broadcastResponse(`@${username}, aapke paas 🪙 ${balance}${cName} hain!`, false);
         return;
     }
 
@@ -766,7 +767,7 @@ liveChat.on("chat", async (chatItem) => {
                 streamData.userCoins[targetUser] += amount;
                 saveDataToDisk();
                 broadcastState();
-                broadcastResponse(`Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye!`, true);
+                broadcastResponse(`Streamer Boss ne @${targetUser} ko 🪙 ${amount}${cName} diye!`, true);
                 return;
             }
         }
@@ -785,7 +786,7 @@ liveChat.on("chat", async (chatItem) => {
                     streamData.userCoins[recipient] += amount;
                     saveDataToDisk();
                     broadcastState();
-                    broadcastResponse(`💸 @${username} ne @${recipient} ko 🪙 ${amount} ${cName} transfer kiye!`, true);
+                    broadcastResponse(`💸 @${username} ne @${recipient} ko 🪙 ${amount}${cName} transfer kiye!`, true);
                 }
             }
             return;
@@ -798,7 +799,7 @@ liveChat.on("chat", async (chatItem) => {
         const currentBalance = streamData.userCoins[userKey] || 0;
 
         if (cost > 0 && !isOwner && currentBalance < cost) {
-            broadcastResponse(`@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`, true);
+            broadcastResponse(`@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost}${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`, true);
             return;
         }
 
@@ -819,7 +820,7 @@ liveChat.on("chat", async (chatItem) => {
         const currentBalance = streamData.userCoins[userKey] || 0;
 
         if (cost > 0 && !isOwner && currentBalance < cost) {
-            broadcastResponse(`@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost} ${cName} chahiye!`, true);
+            broadcastResponse(`@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost}${cName} chahiye!`, true);
             return;
         }
 
@@ -830,7 +831,7 @@ liveChat.on("chat", async (chatItem) => {
         }
 
         const replyPrefix = isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`);
-        broadcastResponse(`${replyPrefix}, ${matchedCustom.reply}`, matchedCustom.tts === true);
+        broadcastResponse(`${replyPrefix},${matchedCustom.reply}`, matchedCustom.tts === true);
         return;
     }
 
@@ -847,7 +848,7 @@ liveChat.on("chat", async (chatItem) => {
             if (betAmount > 0) {
                 const userBalance = streamData.userCoins[userKey] || 0;
                 if (userBalance < betAmount) {
-                    broadcastResponse(`@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance} ${cName} hain!`, false);
+                    broadcastResponse(`@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance}${cName} hain!`, false);
                     return;
                 }
                 streamData.userCoins[userKey] -= betAmount;
@@ -865,7 +866,7 @@ liveChat.on("chat", async (chatItem) => {
 
             saveDataToDisk();
             broadcastState();
-            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`, false);
+            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya!${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`, false);
             return;
         }
     }
@@ -885,7 +886,6 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Question with 15s Per-User Anti-Spam Cooldown
     const activeCommand = (streamData.aiCommand || '!ai').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         if (!isOwner && !isMod) {
@@ -902,7 +902,7 @@ liveChat.on("chat", async (chatItem) => {
         const cost = streamData.coinSettings.aiCost;
 
         if (cost > 0 && !isOwner && currentCoins < cost) {
-            broadcastResponse(`@${username}, AI se baat karne ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentCoins} hain.`, true);
+            broadcastResponse(`@${username}, AI se baat karne ke liye 🪙 ${cost}${cName} chahiye! Tere paas sirf ${currentCoins} hain.`, true);
             return;
         }
 
@@ -992,25 +992,33 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 🌟 ALERT SIMULATION HANDLERS
+    // 🌟 UNIFIED TEST HANDLERS (MERGED ALERT + TTS AUDIO)
     socket.on('admin-test-superchat', () => {
         io.emit('stream-alert', {
             type: 'superchat',
             user: 'Rahul Gamer',
             amount: '₹500',
-            msg: 'Bhai gaming level bohot mast hai! Keep grinding!'
+            avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150',
+            msg: 'Bhai gaming level bohot mast hai! Keep grinding boss!',
+            ttsText: 'Rahul Gamer ne ₹500 ka Super Chat bheja: Bhai gaming level bohot mast hai! Keep grinding boss!',
+            voice: streamData.ttsVoice,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
-        broadcastResponse(`Huge shoutout to Rahul Gamer for the ₹500 Super Chat! "Bhai gaming level bohot mast hai!"`, true);
     });
 
     socket.on('admin-test-member', () => {
         io.emit('stream-alert', {
             type: 'member',
             user: 'Amit Sharma',
-            amount: 'Level 1 Member',
-            msg: 'New Member Joined the stream!'
+            amount: 'MEMBER',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+            msg: 'Joined channel membership! Proud Member!',
+            ttsText: 'Welcome Amit Sharma to the stream membership family! GG!',
+            voice: streamData.ttsVoice,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
-        broadcastResponse(`Welcome Amit Sharma to the stream membership family! GG!`, true);
     });
 
     socket.on('admin-test-sub', () => {
@@ -1018,9 +1026,13 @@ io.on('connection', (socket) => {
             type: 'subscriber',
             user: 'Vikram Singh',
             amount: 'NEW SUB',
-            msg: 'Just subscribed to the channel!'
+            avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
+            msg: 'Subscribed to the channel!',
+            ttsText: 'Welcome Vikram Singh to the stream family! Thanks for subscribing!',
+            voice: streamData.ttsVoice,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
-        broadcastResponse(`Welcome Vikram Singh to the stream family! Thanks for subscribing!`, true);
     });
 
     socket.on('admin-save-automod', (modConfig) => {
@@ -1104,7 +1116,7 @@ io.on('connection', (socket) => {
         activeBet = { isOpen: true, locked: false, title: title || "Who will win?", options: parsedOptions, bets: {} };
         broadcastState();
 
-        const optionsText = parsedOptions.map(o => `[${o.id}: ${o.name}]`).join(' vs ');
+        const optionsText = parsedOptions.map(o => `[${o.id}:${o.name}]`).join(' vs ');
         broadcastResponse(`🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote: !bet <num> <amount> or !vote <num>`, true);
     });
 
