@@ -451,7 +451,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA -->
+        <!-- TAB 6: AI PERSONA (ZERO-KEY AUTO CLOUD) -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -489,17 +489,15 @@
                 </div>
             </div>
 
-            <div class="card">
+            <!-- ZERO-KEY ENGINE BADGE -->
+            <div class="card" style="border-left: 4px solid var(--green);">
                 <div class="section-title">
-                    <span>🤖 AI Models & Keys</span>
-                    <span style="font-size:10px; color:var(--green);">🟢 Public AI Active</span>
+                    <span>⚡ AI Engine Status</span>
+                    <span style="font-size:10px; color:var(--green); font-weight:900;">🟢 ZERO-KEY UNLIMITED ACTIVE</span>
                 </div>
-
-                <label style="font-size:10px; color:var(--text-dim);">Google Gemini API Key (Optional)</label>
-                <input type="password" id="ai-key" placeholder="Paste Google AI Studio Key" style="font-size:11px;">
-
-                <label style="font-size:10px; color:var(--text-dim);">Groq API Key (Optional Fast Backup)</label>
-                <input type="password" id="ai-groq-key" placeholder="gsk_... (Optional)" style="font-size:11px;">
+                <div style="font-size:11px; color:#aaa; line-height:1.5;">
+                    Kisi API key ki zaroorat nahi hai. Bot internal high-speed cloud se bina expire hue 24/7 unlimited replies dega!
+                </div>
             </div>
 
             <div class="card">
@@ -553,7 +551,7 @@
                 </div>
 
                 <label style="font-size:10px; color:var(--text-dim);">Behavior Prompt</label>
-                <textarea id="ai-persona" rows="3">You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences.</textarea>
+                <textarea id="ai-persona" rows="3">You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal punchy sentences in the viewer's language.</textarea>
 
                 <div class="grid-2">
                     <button class="btn-gold" onclick="saveAISettings()">💾 Save AI Settings</button>
@@ -596,7 +594,7 @@
             </div>
         </div>
 
-        <!-- TAB 8: COMMANDS & AUTO-UPDATING LIVE DIRECTORY -->
+        <!-- TAB 8: COMMANDS -->
         <div id="tab-commands" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Custom Command</div>
@@ -618,7 +616,7 @@
                 <button class="btn-submit" onclick="addCustomCommand()">Save Command</button>
             </div>
 
-            <!-- 📖 LIVE AUTO-UPDATING DIRECTORY -->
+            <!-- LIVE DIRECTORY -->
             <div class="card">
                 <div class="section-title">
                     <span>📖 Live Auto-Updating Command Catalog</span>
@@ -739,12 +737,6 @@
             if (localStorage.getItem('bot_googleClientSecret')) {
                 document.getElementById('google-client-secret').value = localStorage.getItem('bot_googleClientSecret');
             }
-            if (localStorage.getItem('bot_aiKey')) {
-                document.getElementById('ai-key').value = localStorage.getItem('bot_aiKey');
-            }
-            if (localStorage.getItem('bot_groqKey')) {
-                document.getElementById('ai-groq-key').value = localStorage.getItem('bot_groqKey');
-            }
             if (localStorage.getItem('bot_characterName')) {
                 document.getElementById('ai-name').value = localStorage.getItem('bot_characterName');
             }
@@ -787,8 +779,6 @@
                 ytRefreshToken: localStorage.getItem('bot_ytRefreshToken') || '',
                 ytAccessToken: localStorage.getItem('bot_ytAccessToken') || '',
                 ytAccountName: localStorage.getItem('bot_ytAccountName') || '',
-                geminiApiKey: localStorage.getItem('bot_aiKey') || '',
-                groqApiKey: localStorage.getItem('bot_groqKey') || '',
                 characterName: document.getElementById('ai-name').value.trim(),
                 characterImage: document.getElementById('ai-image-url').value.trim(),
                 ttsVoice: document.getElementById('ai-voice-select').value,
@@ -926,8 +916,6 @@
         }
 
         function saveAISettings(showAlert = true) {
-            const gemKey = document.getElementById('ai-key').value.trim();
-            const groqKey = document.getElementById('ai-groq-key').value.trim();
             const img = document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg';
             const name = document.getElementById('ai-name').value.trim();
             const cmd = document.getElementById('ai-cmd').value.trim();
@@ -936,8 +924,6 @@
             const rate = parseFloat(document.getElementById('ai-rate').value);
             const persona = document.getElementById('ai-persona').value.trim();
 
-            localStorage.setItem('bot_aiKey', gemKey);
-            localStorage.setItem('bot_groqKey', groqKey);
             localStorage.setItem('bot_characterImage', img);
             localStorage.setItem('bot_characterName', name);
             localStorage.setItem('bot_aiCmd', cmd);
@@ -947,8 +933,6 @@
             localStorage.setItem('bot_characterPersona', persona);
 
             socket.emit('admin-change-styles', {
-                geminiApiKey: gemKey,
-                groqApiKey: groqKey,
                 enableBubble: document.getElementById('ai-bubble').checked,
                 enableTTS: document.getElementById('ai-tts').checked,
                 ttsVoice: voice,
@@ -960,7 +944,7 @@
                 aiCommand: cmd
             });
 
-            if (showAlert) alert('✅ Character & Voice Settings Saved!');
+            if (showAlert) alert('✅ Character & Unlimited AI Settings Saved!');
         }
 
         socket.on('update-styles', (data) => {
