@@ -40,8 +40,8 @@
 
         /* Left Sidebar */
         .sidebar {
-            width: 130px;
-            min-width: 130px;
+            width: 140px;
+            min-width: 140px;
             background: var(--sidebar-bg);
             border-right: 1px solid var(--border);
             display: flex;
@@ -80,11 +80,7 @@
             width: 100%;
         }
 
-        .nav-btn:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
-        }
-
+        .nav-btn:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
         .nav-btn.active {
             background: var(--surface);
             color: #ffffff;
@@ -92,29 +88,43 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }
 
-        /* Main Content Viewport */
+        /* Main Viewport */
         .main-viewport {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow-y: auto;
-            padding: 12px 14px;
+            padding: 12px 16px;
             gap: 10px;
             max-width: 580px;
         }
 
+        /* Status Bar with Precise Color Indicators */
         .status-card {
             background: var(--surface);
             border: 1px solid var(--border);
-            padding: 8px 12px;
+            padding: 10px 14px;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: 700;
         }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+        .dot-orange { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
+        .dot-red { background: var(--red); box-shadow: 0 0 8px var(--red); }
 
         .tab-content { display: none; flex-direction: column; gap: 10px; }
         .tab-content.active { display: flex; }
@@ -198,7 +208,6 @@
         }
         .row-toggle input[type="checkbox"] { width: 17px; height: 17px; margin: 0; }
 
-        /* Contained Scrollable List */
         .contained-list {
             max-height: 200px;
             overflow-y: auto;
@@ -217,6 +226,7 @@
         }
         .cmd-info { font-size: 12px; max-width: 82%; }
         .cmd-tag { color: var(--cyan); font-weight: 800; }
+        .cmd-meta { font-size: 10px; color: var(--gold); margin-left: 5px; }
         .cmd-reply { color: var(--text-dim); font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .btn-del { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 5px; cursor: pointer; font-size: 11px; }
 
@@ -258,13 +268,16 @@
     <!-- MAIN VIEWPORT -->
     <div class="main-viewport">
         
-        <!-- Status Bar -->
+        <!-- TOP STATUS BAR WITH RED/GREEN/ORANGE COLOR INDICATORS -->
         <div class="status-card">
-            <div style="display:flex; align-items:center; gap:8px;">
-                <div id="status-indicator" class="status-dot"></div>
-                <span id="status-text">Cloud Connecting...</span>
+            <div class="status-badge">
+                <span id="stream-dot" class="dot dot-red"></span>
+                <span id="stream-status-text">Stream Offline</span>
             </div>
-            <span id="obs-status-text" style="color: var(--orange);">OBS: Searching...</span>
+            <div class="status-badge">
+                <span id="obs-dot" class="dot dot-red"></span>
+                <span id="obs-status-text">OBS: Disconnected</span>
+            </div>
         </div>
 
         <!-- TAB 1: LIVE DECK -->
@@ -296,7 +309,7 @@
             </div>
         </div>
 
-        <!-- TAB 3: PLAYTIME TIMER -->
+        <!-- TAB 3: PLAYTIME TIMER (MANUAL START/PAUSE + CUSTOM TIME SET) -->
         <div id="tab-timer" class="tab-content">
             <div class="card">
                 <div class="section-title" style="text-align:center;">⏱️ Playtime Timer</div>
@@ -306,10 +319,18 @@
                     <button style="background:var(--orange);" onclick="socket.emit('admin-timer-pause')">⏸ Pause</button>
                     <button class="btn-reset" onclick="socket.emit('admin-timer-reset')">🔄 Reset</button>
                 </div>
+
+                <div class="section-title" style="margin-top:16px;">⏱️ Set Custom Playtime</div>
+                <div class="grid-3">
+                    <input type="number" id="set-timer-h" placeholder="Hours (e.g. 2)" min="0">
+                    <input type="number" id="set-timer-m" placeholder="Minutes (e.g. 15)" min="0" max="59">
+                    <input type="number" id="set-timer-s" placeholder="Seconds" min="0" max="59">
+                </div>
+                <button class="btn-submit" onclick="setCustomPlaytime()">Update Timer Value</button>
             </div>
         </div>
 
-        <!-- TAB 4: PREDICTIONS / BETTING -->
+        <!-- TAB 4: PREDICTIONS / BETTING (CUSTOM CHARACTER & PLAYER NAMES) -->
         <div id="tab-bet" class="tab-content">
             <div class="card">
                 <div class="section-title">🎲 Live Match Betting</div>
@@ -330,11 +351,11 @@
                     <button style="background:#2e384e; width:100%; margin-top:5px; padding:6px; font-size:11px;" onclick="socket.emit('admin-cancel-bet')">❌ Cancel & Refund</button>
                 </div>
 
-                <div class="section-title" style="margin-top:10px;">➕ Launch New Prediction</div>
-                <input type="text" id="bet-new-title" placeholder="Prediction Question (e.g. Will I win?)">
+                <div class="section-title" style="margin-top:12px;">➕ Launch Custom Prediction</div>
+                <input type="text" id="bet-new-title" placeholder="Question (e.g. Kaun Jeetega?)">
                 <div class="grid-2">
-                    <input type="text" id="bet-new-opt1" placeholder="Option 1" value="Win">
-                    <input type="text" id="bet-new-opt2" placeholder="Option 2" value="Lose">
+                    <input type="text" id="bet-new-opt1" placeholder="Option 1 Name (e.g. Kazuya / Player 1)" value="Win">
+                    <input type="text" id="bet-new-opt2" placeholder="Option 2 Name (e.g. Jin / Player 2)" value="Lose">
                 </div>
                 <button class="btn-gold" onclick="startNewBet()">🚀 Launch on Stream</button>
             </div>
@@ -352,7 +373,7 @@
             </div>
 
             <div class="card">
-                <div class="section-title">⚙️️ Economy Rates</div>
+                <div class="section-title">⚙ Economy Rates</div>
                 <div class="row-toggle">
                     <span>Free AI for Mods/Streamer</span>
                     <input type="checkbox" id="coin-free-mods" checked>
@@ -417,12 +438,26 @@
             </div>
         </div>
 
-        <!-- TAB 7: CHAT COMMANDS -->
+        <!-- TAB 7: CHAT COMMANDS WITH TOKEN / CHAT / TTS OPTIONS -->
         <div id="tab-commands" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Command</div>
-                <input type="text" id="new-cmd-name" placeholder="Command trigger (e.g. !specs)">
-                <textarea id="new-cmd-reply" placeholder="Bot response text" rows="2"></textarea>
+                <input type="text" id="new-cmd-name" placeholder="Trigger (e.g. !specs, !rank)">
+                <textarea id="new-cmd-reply" placeholder="Bot reply text" rows="2"></textarea>
+                
+                <div class="row-toggle">
+                    <span>Show on Screen Bubble</span>
+                    <input type="checkbox" id="cmd-show-bubble" checked>
+                </div>
+                <div class="row-toggle">
+                    <span>Speak with TTS Voice</span>
+                    <input type="checkbox" id="cmd-show-tts">
+                </div>
+                <div class="row-toggle">
+                    <span style="color:var(--orange);">Send to YouTube Chat (Uses 50 Tokens)</span>
+                    <input type="checkbox" id="cmd-show-chat">
+                </div>
+
                 <button class="btn-submit" onclick="addCustomCommand()">Save Command</button>
             </div>
 
@@ -467,6 +502,9 @@
                 <input type="password" id="obs-pass" placeholder="Password (Empty if none)">
                 <input type="text" id="obs-mic-name" placeholder="Mic Name" value="Mic/Aux">
                 <button class="btn-submit" onclick="manualSaveAndConnect()">Force Connect OBS</button>
+                <small style="color:var(--text-dim); display:block; margin-top:6px; font-size:11px;">
+                    *Tip: Is page ko OBS ke <b>Docks -> Custom Browser Docks</b> mein paste karein taaki zero connection issue ho.
+                </small>
             </div>
         </div>
 
@@ -494,8 +532,9 @@
         const socket = io();
         const obs = new OBSWebSocket();
 
-        const indicator = document.getElementById('status-indicator');
-        const statusText = document.getElementById('status-text');
+        const streamDot = document.getElementById('stream-dot');
+        const streamStatusText = document.getElementById('stream-status-text');
+        const obsDot = document.getElementById('obs-dot');
         const obsStatusText = document.getElementById('obs-status-text');
         const deathDisplay = document.getElementById('death-display');
         const adminTimerDisplay = document.getElementById('admin-timer-display');
@@ -514,11 +553,20 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
+        // Custom Playtime Setter
+        function setCustomPlaytime() {
+            const hours = document.getElementById('set-timer-h').value || 0;
+            const minutes = document.getElementById('set-timer-m').value || 0;
+            const seconds = document.getElementById('set-timer-s').value || 0;
+            socket.emit('admin-timer-set', { hours, minutes, seconds });
+            alert('Playtime updated!');
+        }
+
         function startNewBet() {
             const title = document.getElementById('bet-new-title').value.trim();
-            const option1 = document.getElementById('bet-new-opt1').value.trim() || 'Win';
-            const option2 = document.getElementById('bet-new-opt2').value.trim() || 'Lose';
-            if (!title) return alert('Bet title likhna zaroori hai!');
+            const option1 = document.getElementById('bet-new-opt1').value.trim() || 'Option 1';
+            const option2 = document.getElementById('bet-new-opt2').value.trim() || 'Option 2';
+            if (!title) return alert('Bet question likhna zaroori hai!');
             socket.emit('admin-start-bet', { title, option1, option2 });
             document.getElementById('bet-new-title').value = '';
         }
@@ -589,10 +637,14 @@
         function addCustomCommand() {
             let cmd = document.getElementById('new-cmd-name').value.trim();
             const reply = document.getElementById('new-cmd-reply').value.trim();
+            const bubble = document.getElementById('cmd-show-bubble').checked;
+            const tts = document.getElementById('cmd-show-tts').checked;
+            const useTokens = document.getElementById('cmd-show-chat').checked;
+
             if (!cmd || !reply) return alert('Command aur Reply dono likhein!');
             if (!cmd.startsWith('!')) cmd = '!' + cmd;
 
-            socket.emit('admin-add-custom-cmd', { cmd, reply, tts: false });
+            socket.emit('admin-add-custom-cmd', { cmd, reply, bubble, tts, useTokens });
             document.getElementById('new-cmd-name').value = '';
             document.getElementById('new-cmd-reply').value = '';
         }
@@ -612,9 +664,15 @@
             commands.forEach(c => {
                 const div = document.createElement('div');
                 div.className = 'cmd-item';
+                let tags = [];
+                if (c.bubble !== false) tags.push('💬');
+                if (c.tts) tags.push('🔊');
+                if (c.useTokens) tags.push('🪙YT');
+
                 div.innerHTML = `
                     <div class="cmd-info">
                         <span class="cmd-tag">${c.cmd}</span>
+                        <span class="cmd-meta">[${tags.join(' ')}]</span>
                         <span class="cmd-reply">${c.reply}</span>
                     </div>
                     <button class="btn-del" onclick="deleteCustomCommand('${c.cmd}')">🗑️</button>
@@ -650,7 +708,7 @@
             if (data.customCommands) renderCustomCommands(data.customCommands);
         });
 
-        // OBS Auto-Connect
+        // OBS Connection (Clean Disconnected vs Connected Status)
         let isObsConnected = false;
         async function connectToOBS() {
             if (isObsConnected) return;
@@ -661,23 +719,28 @@
             try {
                 await obs.connect(`ws://${ip}:${port}`, password || undefined);
                 isObsConnected = true;
-                obsStatusText.innerText = 'OBS: Connected ✅';
-                obsStatusText.style.color = 'var(--green)';
+                obsDot.className = 'dot dot-green';
+                obsStatusText.innerText = 'OBS: Connected';
                 updateMicState();
             } catch (err) {
                 isObsConnected = false;
-                obsStatusText.innerText = 'OBS: Searching... ⏳';
-                obsStatusText.style.color = 'var(--orange)';
+                obsDot.className = 'dot dot-red';
+                obsStatusText.innerText = 'OBS: Disconnected';
             }
         }
 
         obs.on('ConnectionClosed', () => {
             isObsConnected = false;
-            obsStatusText.innerText = 'OBS: Offline (Reconnecting...)';
-            obsStatusText.style.color = 'var(--red)';
+            obsDot.className = 'dot dot-red';
+            obsStatusText.innerText = 'OBS: Disconnected';
         });
 
-        setInterval(() => { if (!isObsConnected) connectToOBS(); }, 3000);
+        function manualSaveAndConnect() {
+            isObsConnected = false;
+            connectToOBS();
+        }
+
+        setInterval(() => { if (!isObsConnected) connectToOBS(); }, 5000);
         connectToOBS();
 
         async function updateMicState() {
@@ -695,7 +758,7 @@
                 const res = await obs.call('ToggleInputMute', { inputName: micName });
                 micBtn.className = res.inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
                 micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
-            } catch (err) { alert('OBS connect nahi hai!'); }
+            } catch (err) { alert('OBS connected nahi hai!'); }
         }
 
         async function switchScene(sceneName) {
@@ -720,9 +783,18 @@
         socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
         socket.on('update-counter', (data) => deathDisplay.innerText = data.count);
 
+        // Stream Status: Green (Online), Orange (Reconnecting), Red (Offline)
         socket.on('stream-status', (data) => {
-            indicator.style.background = data.status === 'online' ? 'var(--green)' : (data.status === 'retrying' ? 'var(--orange)' : 'var(--red)');
-            statusText.innerText = data.status === 'online' ? 'Stream Online' : (data.status === 'retrying' ? 'Searching Stream...' : 'Stream Offline');
+            if (data.status === 'online') {
+                streamDot.className = 'dot dot-green';
+                streamStatusText.innerText = 'Stream Online';
+            } else if (data.status === 'retrying') {
+                streamDot.className = 'dot dot-orange';
+                streamStatusText.innerText = 'Stream Searching...';
+            } else {
+                streamDot.className = 'dot dot-red';
+                streamStatusText.innerText = 'Stream Offline';
+            }
         });
 
         socket.on('load-triggers', (triggers) => {
