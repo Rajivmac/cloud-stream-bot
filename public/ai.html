@@ -38,6 +38,7 @@
             border: 3px solid #00d2d3;
             box-shadow: 0 0 15px rgba(0, 210, 211, 0.6);
             flex-shrink: 0;
+            background: #0b0e14;
         }
 
         .content {
@@ -66,7 +67,7 @@
 <body>
 
     <div id="ai-container">
-        <img id="avatar" src="" alt="Bot Avatar">
+        <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Bot Avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3233/3233514.png'">
         <div class="content">
             <span id="bot-name">Son Goku</span>
             <div id="bot-text">Hello Stream!</div>
@@ -84,44 +85,51 @@
         let hideTimeout = null;
         let currentAudio = null;
 
-        function speakCloudTTS(text, gender, rate) {
+        function speakCloudTTS(text, gender, pitch, rate) {
             if (currentAudio) {
-                currentAudio.pause();
+                try { currentAudio.pause(); } catch(e) {}
                 currentAudio = null;
             }
-            if (window.speechSynthesis) window.speechSynthesis.cancel();
 
+            // Gender Switch: 'Aditi' for Female, 'Brian' for Male
             const voice = (gender === 'female') ? 'Aditi' : 'Brian';
-            const cleanText = text.replace(/[*_#~]/g, '').trim();
+            const cleanText = text.replace(/[*_#~`]/g, '').trim();
+            if (!cleanText) return;
+
             const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(cleanText.slice(0, 250))}`;
 
             currentAudio = new Audio(url);
-            currentAudio.playbackRate = rate || 1.0;
+            currentAudio.crossOrigin = "anonymous";
+
+            // Pitch shift modification: Disabling pitch preservation so playbackRate alters pitch!
+            currentAudio.preservesPitch = false;
+            currentAudio.mozPreservesPitch = false;
+            currentAudio.webkitPreservesPitch = false;
+
+            const p = parseFloat(pitch) || 1.0;
+            const r = parseFloat(rate) || 1.0;
+            currentAudio.playbackRate = Math.max(0.5, Math.min(2.0, p * r));
+
             currentAudio.play().catch(err => {
-                if ('speechSynthesis' in window) {
-                    const u = new SpeechSynthesisUtterance(cleanText);
-                    u.rate = rate || 1.0;
-                    window.speechSynthesis.speak(u);
-                }
+                console.error("OBS Audio Play error:", err);
             });
         }
 
         socket.on('ai-speak', (data) => {
             if (data.enableBubble) {
-                avatar.src = data.characterImage || 'https://images2.alphacoders.com/131/1312384.png';
+                avatar.src = data.characterImage || 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png';
                 botName.innerText = data.characterName || 'Son Goku';
                 botText.innerText = data.text;
                 container.style.display = 'flex';
 
                 if (hideTimeout) clearTimeout(hideTimeout);
-                // Bubble remains for 8 seconds
                 hideTimeout = setTimeout(() => {
                     container.style.display = 'none';
                 }, 8500);
             }
 
             if (data.enableTTS) {
-                speakCloudTTS(data.text, data.gender, data.rate);
+                speakCloudTTS(data.text, data.gender, data.pitch, data.rate);
             }
         });
     </script>
