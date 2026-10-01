@@ -445,13 +445,15 @@
                 <button class="btn-submit" onclick="saveCoinRules()">💾 Save Rates</button>
             </div>
 
-            <!-- MINI-GAMES GUIDE -->
+            <!-- MINI-GAMES & DAILY GUIDE -->
             <div class="card">
-                <div class="section-title">🎰 Active Chat Mini-Games</div>
+                <div class="section-title">🎰 Active Chat Commands</div>
                 <div class="guide-box" style="margin-top:0;">
-                    • <code>!gamble 100</code> ➔ 50/50 Coin Flip (Double or Nothing!)<br>
+                    • <code>!daily</code> ➔ Claim free 50 Mac-Coins every 24h<br>
+                    • <code>!topcoins</code> ➔ Show richest viewers leaderboard<br>
+                    • <code>!gamble 100</code> ➔ 50/50 Coin Flip (Double or Nothing)<br>
                     • <code>!slots 50</code> ➔ 3-Reel Slots (3 Match = 5x, 2 Match = 2x)<br>
-                    • <code>!duel @user 200</code> ➔ Challenge viewer to duel (opponent types <code>!accept</code>)
+                    • <code>!duel @user 200</code> ➔ Duel challenge (Accept: <code>!accept</code>)
                 </div>
             </div>
 
@@ -532,7 +534,6 @@
                     <input type="checkbox" id="ai-tts" checked>
                 </div>
 
-                <!-- ONLY 1 FEMALE & 1 MALE OPTION -->
                 <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Select Voice</label>
                 <select id="ai-voice-select">
                     <option value="female" selected>👩 Female (Natural Hindi Voice)</option>
@@ -573,7 +574,7 @@
             </div>
         </div>
 
-        <!-- TAB 7: 🛡️ AUTO-MOD & ALERTS SIMULATOR (WITH NEW SUBSCRIBER BUTTON) -->
+        <!-- TAB 7: 🛡️ AUTO-MOD & DYNAMIC TIER ALERTS SIMULATOR -->
         <div id="tab-automod" class="tab-content">
             <div class="card">
                 <div class="section-title">🛡️ Auto-Moderation & Chat Shield</div>
@@ -593,13 +594,17 @@
                 <button class="btn-submit" onclick="saveAutoModSettings()">💾 Save Auto-Mod Shield</button>
             </div>
 
-            <!-- LIVE ALERTS TEST CARD (SUPERCHAT, MEMBER, SUBSCRIBER) -->
+            <!-- LIVE ALERTS TIER SIMULATOR -->
             <div class="card">
-                <div class="section-title">🎉 Live Alerts Simulator (Test on Screen)</div>
+                <div class="section-title">🎉 Live Alerts Tier Simulator</div>
                 <div class="grid-3">
-                    <button style="background:linear-gradient(135deg, #f1c40f, #e67e22); color:#000; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-superchat')">💰 Test ₹500 SuperChat</button>
-                    <button style="background:linear-gradient(135deg, #00d2d3, #2ecc71); color:#000; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-member')">👑 Test New Member</button>
-                    <button style="background:linear-gradient(135deg, #ff4757, #c0392b); color:#fff; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-sub')">🔴 Test New Subscriber</button>
+                    <button style="background:linear-gradient(135deg, #0984e3, #00cec9); color:#fff; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-superchat-tier', '₹50')">💙 ₹50 Blue Tier</button>
+                    <button style="background:linear-gradient(135deg, #f1c40f, #e67e22); color:#000; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-superchat-tier', '₹200')">💛 ₹200 Gold Tier</button>
+                    <button style="background:linear-gradient(135deg, #ff4757, #8e44ad); color:#fff; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-superchat-tier', '₹1000')">💖 ₹1000 VIP Red</button>
+                </div>
+                <div class="grid-2" style="margin-top:6px;">
+                    <button style="background:linear-gradient(135deg, #00d2d3, #2ecc71); color:#000; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-member')">👑 Test Member</button>
+                    <button style="background:linear-gradient(135deg, #ff4757, #c0392b); color:#fff; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-sub')">🔴 Test Subscriber</button>
                 </div>
             </div>
         </div>
