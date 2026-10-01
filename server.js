@@ -5,6 +5,18 @@ const cors = require('cors');
 const { LiveChat } = require('youtube-chat');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+
+let WS;
+try {
+    WS = require('ws');
+} catch (e) {
+    try {
+        WS = require('engine.io/node_modules/ws');
+    } catch (e2) {
+        WS = globalThis.WebSocket;
+    }
+}
 
 const app = express();
 app.use(cors());
@@ -45,9 +57,9 @@ let streamData = {
     ttsPitch: 1.0,
     ttsRate: 1.0,
     aiCommand: '!ai',
-    characterName: 'Bot',
-    characterImage: 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
-    characterPersona: "You are an intelligent gaming stream companion. Reply in 1-2 punchy sentences in the viewer's language.",
+    characterName: 'Ryomen Sukuna',
+    characterImage: 'https://images3.alphacoders.com/134/1344406.jpeg',
+    characterPersona: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences.",
     welcomeNewChatters: true,
     reminderMinutes: 15,
 
@@ -145,90 +157,161 @@ setInterval(() => {
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
 // ========================================================
-// 🎙️ 100% RELIABLE INDIAN MALE & FEMALE DUAL ENGINE
+// 🎙️ NEURAL CLOUD TTS ENGINE (INDEPENDENT PITCH & SPEED)
 // ========================================================
+const EDGE_VOICES = {
+    'female_hi': 'hi-IN-SwaraNeural',
+    'female_en': 'en-IN-NeerjaNeural',
+    'male_hi': 'hi-IN-MadhurNeural',
+    'male_en': 'en-IN-PrabhatNeural'
+};
+
+const SE_BACKUP_VOICES = {
+    'female_hi': 'Aditi',
+    'female_en': 'Raveena',
+    'male_hi': 'Brian',
+    'male_en': 'Brian'
+};
+
+function synthesizeNeuralEdgeTTS(text, voiceCode, pitchVal, rateVal) {
+    return new Promise((resolve, reject) => {
+        try {
+            const WebSocketClass = WS || globalThis.WebSocket;
+            if (!WebSocketClass) return reject(new Error("WebSocket not found"));
+
+            const voice = EDGE_VOICES[voiceCode] || 'hi-IN-SwaraNeural';
+            const TRUSTED_TOKEN = "6A5AA1D4EAFF4E9FB37E23D68491D6F4";
+            const WIN_EPOCH = 11644473600;
+            const WSS_URL = "wss://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1";
+
+            let ticks = Date.now() / 1000 + WIN_EPOCH;
+            ticks -= ticks % 300;
+            ticks *= 1e7;
+            const sec = crypto.createHash("sha256")
+                .update(`${ticks.toFixed(0)}${TRUSTED_TOKEN}`)
+                .digest("hex")
+                .toUpperCase();
+
+            const connId = crypto.randomUUID().replace(/-/g, "");
+            const fullUrl = `${WSS_URL}?TrustedClientToken=${TRUSTED_TOKEN}&Sec-MS-GEC=${sec}&Sec-MS-GEC-Version=1-143.0.3650.75&ConnectionId=${connId}`;
+
+            const ws = new WebSocketClass(fullUrl, {
+                headers: {
+                    'Pragma': 'no-cache',
+                    'Cache-Control': 'no-cache',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0',
+                    'Origin': 'chrome-extension://jdiccldimpdaibmpdkjnbmckianbfold'
+                }
+            });
+
+            const audioChunks = [];
+            const timer = setTimeout(() => {
+                try { ws.close(); } catch(e) {}
+                reject(new Error("Timeout"));
+            }, 6000);
+
+            // True Acoustic Pitch Calculation (Does NOT affect speed)
+            const pDiff = Math.round(((parseFloat(pitchVal) || 1.0) - 1.0) * 60);
+            const pitchStr = pDiff >= 0 ? `+${pDiff}Hz` : `${pDiff}Hz`;
+
+            // True Talking Speed Calculation (Does NOT affect pitch)
+            const rDiff = Math.round(((parseFloat(rateVal) || 1.0) - 1.0) * 100);
+            const rateStr = rDiff >= 0 ? `+${rDiff}%` : `${rDiff}%`;
+
+            ws.on('open', () => {
+                ws.send(`X-Timestamp:${new Date().toISOString()}\r\nContent-Type:application/json; charset=utf-8\r\nPath:speech.config\r\n\r\n{"context":{"synthesis":{"audio":{"metadataoptions":{"sentenceBoundaryEnabled":"false","wordBoundaryEnabled":"false"},"outputFormat":"audio-24khz-48kbitrate-mono-mp3"}}}}\r\n`);
+
+                const cleanEsc = String(text)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;");
+
+                const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="hi-IN"><voice name="${voice}"><prosody pitch="${pitchStr}" rate="${rateStr}">${cleanEsc}</prosody></voice></speak>`;
+                const reqId = crypto.randomUUID().replace(/-/g, "");
+                ws.send(`X-RequestId:${reqId}\r\nContent-Type:application/ssml+xml\r\nX-Timestamp:${new Date().toISOString()}\r\nPath:ssml\r\n\r\n${ssml}`);
+            });
+
+            ws.on('message', (data) => {
+                if (typeof data === 'string') {
+                    if (data.includes("Path:turn.end")) {
+                        clearTimeout(timer);
+                        try { ws.close(); } catch(e) {}
+                        if (audioChunks.length > 0) resolve(Buffer.concat(audioChunks));
+                        else reject(new Error("No audio"));
+                    }
+                } else {
+                    const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+                    const needle = Buffer.from("Path:audio\r\n");
+                    const idx = buf.indexOf(needle);
+                    if (idx !== -1) {
+                        const audioPart = buf.subarray(idx + needle.length);
+                        if (audioPart.length > 0) audioChunks.push(audioPart);
+                    }
+                }
+            });
+
+            ws.on('error', (err) => {
+                clearTimeout(timer);
+                reject(err);
+            });
+        } catch(err) {
+            reject(err);
+        }
+    });
+}
+
 app.get('/api/tts', async (req, res) => {
     try {
         const text = (req.query.text || '').slice(0, 280).trim();
-        const voice = (req.query.voice || streamData.ttsVoice || 'female_hi').trim().toLowerCase();
+        const voiceCode = (req.query.voice || streamData.ttsVoice || 'female_hi').trim();
+        const pitch = parseFloat(req.query.pitch) || streamData.ttsPitch || 1.0;
+        const rate = parseFloat(req.query.rate) || streamData.ttsRate || 1.0;
+
         if (!text) return res.status(400).send("No text provided");
 
-        const isFemale = voice.includes('female') || voice === 'swara' || voice === 'neerja' || voice === 'aditi';
-        const cleanText = text.replace(/[*_#~`]/g, '').trim();
-
-        // 1. FEMALE STREAMING PIPELINE (Swara / Neerja - 100% Success Guaranteed)
-        if (isFemale) {
-            // Primary: Google Cloud Translate Indian Hindi/English Engine (Never Fails)
-            const lang = (voice === 'female_en') ? 'en-IN' : 'hi';
-            try {
-                const gUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(cleanText)}`;
-                const gResponse = await fetch(gUrl, {
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-                });
-                if (gResponse.ok) {
-                    const buf = await gResponse.arrayBuffer();
-                    if (buf && buf.byteLength > 300) {
-                        res.setHeader('Content-Type', 'audio/mpeg');
-                        return res.send(Buffer.from(buf));
-                    }
-                }
-            } catch(e) {}
-
-            // Secondary: StreamElements Aditi
-            try {
-                const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Aditi&text=${encodeURIComponent(cleanText)}`;
-                const seRes = await fetch(seUrl, {
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-                });
-                if (seRes.ok) {
-                    const buf = await seRes.arrayBuffer();
-                    res.setHeader('Content-Type', 'audio/mpeg');
-                    return res.send(Buffer.from(buf));
-                }
-            } catch(e) {}
-        }
-
-        // 2. MALE STREAMING PIPELINE (Madhur / Prabhat)
-        else {
-            const maleQueue = (voice === 'male_en') 
-                ? ['Matthew', 'Brian', 'Joey', 'Russell'] 
-                : ['Brian', 'Russell', 'Matthew', 'Joey'];
-
-            for (const v of maleQueue) {
-                try {
-                    const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${v}&text=${encodeURIComponent(cleanText)}`;
-                    const response = await fetch(seUrl, {
-                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-                    });
-                    if (response.ok) {
-                        const buf = await response.arrayBuffer();
-                        if (buf && buf.byteLength > 400) {
-                            res.setHeader('Content-Type', 'audio/mpeg');
-                            return res.send(Buffer.from(buf));
-                        }
-                    }
-                } catch(e) {}
+        // 1. Primary: Microsoft Neural Indian Voice (Swara, Neerja, Madhur, Prabhat)
+        try {
+            const audioBuffer = await synthesizeNeuralEdgeTTS(text, voiceCode, pitch, rate);
+            if (audioBuffer && audioBuffer.length > 300) {
+                res.setHeader('Content-Type', 'audio/mpeg');
+                return res.send(audioBuffer);
             }
+        } catch(err) {}
 
-            // TikTok Deep Male Fallback
-            try {
-                const ttRes = await fetch('https://tiktok-tts.weilnet.workers.dev/api/generation', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: cleanText.slice(0, 200), voice: 'en_male_narration' })
-                });
-                if (ttRes.ok) {
-                    const data = await ttRes.json();
-                    if (data && data.data) {
-                        res.setHeader('Content-Type', 'audio/mpeg');
-                        return res.send(Buffer.from(data.data, 'base64'));
-                    }
+        // 2. High Quality Secondary Fallback (StreamElements Polly)
+        try {
+            const seVoice = SE_BACKUP_VOICES[voiceCode] || 'Aditi';
+            const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${seVoice}&text=${encodeURIComponent(text)}`;
+            const response = await fetch(seUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+            });
+            if (response.ok) {
+                const buf = Buffer.from(await response.arrayBuffer());
+                if (buf.length > 400 && buf[0] !== 0x3C) { // Ignore HTML captcha blocks
+                    res.setHeader('Content-Type', 'audio/mpeg');
+                    return res.send(buf);
                 }
-            } catch(e) {}
+            }
+        } catch(err) {}
+
+        // 3. TikTok Studio Fallback
+        const isFem = voiceCode.includes('female');
+        const ttVoice = isFem ? 'en_female_emotion' : 'en_male_narration';
+        const ttRes = await fetch('https://tiktok-tts.weilnet.workers.dev/api/generation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text.slice(0, 200), voice: ttVoice })
+        });
+        if (ttRes.ok) {
+            const d = await ttRes.json();
+            if (d && d.data) {
+                res.setHeader('Content-Type', 'audio/mpeg');
+                return res.send(Buffer.from(d.data, 'base64'));
+            }
         }
 
-        res.status(500).send("TTS Generation Failed");
-    } catch (err) {
+        res.status(500).send("TTS Error");
+    } catch(err) {
         res.status(500).send("TTS Error: " + err.message);
     }
 });
@@ -536,7 +619,7 @@ function recordHistory(username, userPrompt, aiReply) {
     saveDataToDisk();
 }
 
-// Live Chat Scraper
+// Live Chat Listener
 const CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ';
 const chatConfig = { channelId: CHANNEL_ID };
 const liveChat = new LiveChat(chatConfig);
@@ -700,7 +783,7 @@ liveChat.on("chat", async (chatItem) => {
 
             saveDataToDisk();
             broadcastState();
-            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount}${cName})` : ''}`, false);
+            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`, false);
             return;
         }
     }
