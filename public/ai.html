@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>OBS AI Speech Overlay</title>
+    <title>OBS AI Speech & Alerts Overlay</title>
     <style>
         body {
             margin: 0;
@@ -23,11 +23,58 @@
             max-width: 550px;
             box-shadow: 0 8px 30px rgba(0, 210, 211, 0.4);
             animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin-bottom: 12px;
+        }
+
+        /* 🌟 SUPER CHAT & MEMBER GOLDEN ALERT BANNER */
+        #alert-box {
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(241, 196, 15, 0.95), rgba(230, 126, 34, 0.95));
+            border: 3px solid #ffffff;
+            border-radius: 16px;
+            padding: 16px 22px;
+            max-width: 500px;
+            color: #000;
+            box-shadow: 0 0 35px rgba(241, 196, 15, 0.8);
+            animation: alertPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes alertPop {
+            0% { transform: scale(0.6) translateY(-30px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
         }
 
         @keyframes popIn {
             0% { transform: scale(0.7) translateY(20px); opacity: 0; }
             100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        .alert-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 17px;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .alert-amount {
+            background: #000;
+            color: #f1c40f;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 900;
+        }
+
+        .alert-body {
+            font-size: 15px;
+            font-weight: 700;
+            color: #111;
+            line-height: 1.3;
         }
 
         #avatar {
@@ -68,6 +115,16 @@
 
     <audio id="tts-audio" style="display:none;"></audio>
 
+    <!-- SUPER CHAT & MEMBER BANNER -->
+    <div id="alert-box">
+        <div class="alert-header">
+            <span id="alert-title">🎉 SUPER CHAT!</span>
+            <span id="alert-val" class="alert-amount">₹500</span>
+        </div>
+        <div class="alert-body" id="alert-msg">Rahul Gamer: Keep grinding boss!</div>
+    </div>
+
+    <!-- AI BUBBLE OVERLAY -->
     <div id="ai-container">
         <img id="avatar" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar">
         <div class="content">
@@ -85,7 +142,13 @@
         const botText = document.getElementById('bot-text');
         const audioPlayer = document.getElementById('tts-audio');
 
+        const alertBox = document.getElementById('alert-box');
+        const alertTitle = document.getElementById('alert-title');
+        const alertVal = document.getElementById('alert-val');
+        const alertMsg = document.getElementById('alert-msg');
+
         let hideTimeout = null;
+        let alertTimeout = null;
         let audioCtx = null;
         let bassFilter = null;
         let trebleFilter = null;
@@ -127,14 +190,12 @@
             const p = parseFloat(pitch) || 1.0;
             currentRate = Math.max(0.6, Math.min(1.8, parseFloat(rate) || 1.0));
 
-            // TONE EQUALIZER: Only alters bass/treble resonance without touching speed
+            // TONE EQUALIZER: Alters bass/treble resonance without touching speed
             if (bassFilter && trebleFilter) {
                 if (p < 1.0) {
-                    // Deep heavy tone
                     bassFilter.gain.value = (1.0 - p) * 28;
                     trebleFilter.gain.value = -(1.0 - p) * 14;
                 } else if (p > 1.0) {
-                    // Crisp sharp tone
                     bassFilter.gain.value = -(p - 1.0) * 14;
                     trebleFilter.gain.value = (p - 1.0) * 20;
                 } else {
@@ -147,7 +208,6 @@
             audioPlayer.pause();
             audioPlayer.crossOrigin = "anonymous";
 
-            // Enforce speed on all Chromium audio events so it never resets to 1.0
             const applySpeed = () => {
                 try { audioPlayer.playbackRate = currentRate; } catch(e) {}
             };
@@ -164,7 +224,7 @@
                 playPromise.then(() => {
                     applySpeed();
                 }).catch(err => {
-                    console.error("Audio playback error:", err);
+                    console.error("Audio play error:", err);
                 });
             }
         }
@@ -185,6 +245,25 @@
             if (data.enableTTS) {
                 playVoice(data.text, data.voice, data.pitch, data.rate);
             }
+        });
+
+        // 🌟 ON-SCREEN ALERT LISTENER
+        socket.on('stream-alert', (data) => {
+            if (data.type === 'superchat') {
+                alertTitle.innerText = `💰 SUPER CHAT: @${data.user}`;
+                alertVal.innerText = data.amount;
+                alertMsg.innerText = data.msg || 'Thanks for supporting the stream!';
+            } else if (data.type === 'member') {
+                alertTitle.innerText = `👑 NEW MEMBER: @${data.user}`;
+                alertVal.innerText = 'MEMBER';
+                alertMsg.innerText = 'Welcome to the channel family!';
+            }
+
+            alertBox.style.display = 'flex';
+            if (alertTimeout) clearTimeout(alertTimeout);
+            alertTimeout = setTimeout(() => {
+                alertBox.style.display = 'none';
+            }, 8000);
         });
     </script>
 </body>
