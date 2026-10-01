@@ -66,10 +66,12 @@
 </head>
 <body>
 
+    <audio id="tts-audio" style="display:none;"></audio>
+
     <div id="ai-container">
         <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Avatar">
         <div class="content">
-            <span id="bot-name">Son Goku</span>
+            <span id="bot-name">Bot</span>
             <div id="bot-text">Hello Stream!</div>
         </div>
     </div>
@@ -81,79 +83,87 @@
         const avatar = document.getElementById('avatar');
         const botName = document.getElementById('bot-name');
         const botText = document.getElementById('bot-text');
+        const audioPlayer = document.getElementById('tts-audio');
 
         let hideTimeout = null;
-        let voices = [];
-        let voiceMap = {};
-        let currentUtterance = null;
+        let audioCtx = null;
+        let bassFilter = null;
+        let trebleFilter = null;
+        let sourceNode = null;
 
-        // 1. Indian Voices Initialization (2 Female & 2 Male)
-        function initVoices() {
-            if (!('speechSynthesis' in window)) return;
-            voices = window.speechSynthesis.getVoices();
-            if (!voices.length) return;
+        function initAudioEqualizer() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    bassFilter = audioCtx.createBiquadFilter();
+                    bassFilter.type = "lowshelf";
+                    bassFilter.frequency.value = 240;
 
-            voiceMap = {
-                // Female 1: Hindi Accent (Swara / hi-IN)
-                female_hi: voices.find(v => v.name.includes("Swara") || (v.lang === "hi-IN" && v.name.toLowerCase().includes("female"))) || 
-                           voices.find(v => v.lang === "hi-IN") || voices[0],
+                    trebleFilter = audioCtx.createBiquadFilter();
+                    trebleFilter.type = "highshelf";
+                    trebleFilter.frequency.value = 2800;
 
-                // Female 2: Indian English Accent (Neerja / en-IN)
-                female_en: voices.find(v => v.name.includes("Neerja") || (v.lang === "en-IN" && v.name.toLowerCase().includes("female"))) || 
-                           voices.find(v => v.lang === "en-IN") || voices[0],
-
-                // Male 1: Hindi Accent (Madhur / hi-IN)
-                male_hi: voices.find(v => v.name.includes("Madhur") || (v.lang === "hi-IN" && v.name.toLowerCase().includes("male"))) || 
-                         voices.find(v => v.lang === "hi-IN") || voices[0],
-
-                // Male 2: Indian English Accent (Prabhat / en-IN)
-                male_en: voices.find(v => v.name.includes("Prabhat") || (v.lang === "en-IN" && v.name.toLowerCase().includes("male"))) || 
-                         voices.find(v => v.lang === "en-IN") || voices[0]
-            };
+                    sourceNode = audioCtx.createMediaElementSource(audioPlayer);
+                    sourceNode.connect(bassFilter);
+                    bassFilter.connect(trebleFilter);
+                    trebleFilter.connect(audioCtx.destination);
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch(e) {}
         }
 
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = initVoices;
-            initVoices();
-        }
-
-        // 2. Zero-Delay Direct Speech Player
-        function speakIndianTTS(text, voiceType, rate, pitch) {
-            if (!('speechSynthesis' in window)) return;
-
-            // Purani queue flush karo taaki audio me bilkul delay na ho
-            window.speechSynthesis.cancel();
-
-            if (!voices.length) initVoices();
-
+        function playIndianVoice(text, voice, pitch, rate) {
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return;
 
-            currentUtterance = new SpeechSynthesisUtterance(cleanText);
+            initAudioEqualizer();
 
-            // Correct Indian voice selection
-            const key = voiceType || 'female_hi';
-            const selected = voiceMap[key] || voiceMap['female_hi'] || voices[0];
+            const selectedVoice = voice || 'female_hi';
+            const audioSrc = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
 
-            if (selected) {
-                currentUtterance.voice = selected;
-                currentUtterance.lang = selected.lang;
+            audioPlayer.pause();
+            audioPlayer.src = audioSrc;
+            audioPlayer.volume = 1.0;
+
+            const p = parseFloat(pitch) || 1.0;
+            const r = parseFloat(rate) || 1.0;
+
+            // Pitch & Tone Modulation Engine
+            audioPlayer.preservesPitch = false;
+            audioPlayer.mozPreservesPitch = false;
+            audioPlayer.webkitPreservesPitch = false;
+
+            if (bassFilter && trebleFilter) {
+                if (p < 1.0) {
+                    // Deep heavy bass resonance
+                    bassFilter.gain.value = (1.0 - p) * 24; 
+                    trebleFilter.gain.value = -(1.0 - p) * 12; 
+                } else if (p > 1.0) {
+                    // Crisp sharp high frequency
+                    bassFilter.gain.value = -(p - 1.0) * 14; 
+                    trebleFilter.gain.value = (p - 1.0) * 18; 
+                } else {
+                    bassFilter.gain.value = 0;
+                    trebleFilter.gain.value = 0;
+                }
             }
 
-            // Sliders Control: Speed & Tone Pitch
-            currentUtterance.rate = Math.max(0.5, Math.min(2.0, parseFloat(rate) || 1.0));
-            currentUtterance.pitch = Math.max(0.5, Math.min(1.8, parseFloat(pitch) || 1.0));
+            // Real acoustic scaling combining pitch & speed
+            const finalRate = Math.max(0.55, Math.min(1.85, r * Math.pow(p, 0.45)));
+            audioPlayer.playbackRate = finalRate;
 
-            currentUtterance.onend = () => { currentUtterance = null; };
-            currentUtterance.onerror = () => { window.speechSynthesis.cancel(); };
-
-            window.speechSynthesis.speak(currentUtterance);
+            audioPlayer.play().catch(err => {
+                console.error("Audio playback error:", err);
+            });
         }
 
         socket.on('ai-speak', (data) => {
             if (data.enableBubble) {
                 avatar.src = data.characterImage || 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png';
-                botName.innerText = data.characterName || 'Son Goku';
+                botName.innerText = data.characterName || 'Bot';
                 botText.innerText = data.text;
                 container.style.display = 'flex';
 
@@ -164,7 +174,7 @@
             }
 
             if (data.enableTTS) {
-                speakIndianTTS(data.text, data.voice, data.rate, data.pitch);
+                playIndianVoice(data.text, data.voice, data.pitch, data.rate);
             }
         });
     </script>
