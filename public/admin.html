@@ -455,7 +455,7 @@
         <div id="tab-ai" class="tab-content">
             <div class="card">
                 <div class="section-title">
-                    <span>🤖 Multi-Provider AI Engine</span>
+                    <span>🤖 AI Connection Status</span>
                     <span id="api-key-status" style="font-size:10px; color:var(--red);">🔴 Disconnected</span>
                 </div>
 
@@ -463,13 +463,13 @@
                     <label style="font-size:10px; color:var(--cyan); font-weight:700;">1. Google Gemini API Key</label>
                     <input type="password" id="ai-key" placeholder="Paste Google AI Studio Key" style="font-size:11px;" oninput="updateKeyStatusBadge()">
 
-                    <label style="font-size:10px; color:var(--gold); font-weight:700; margin-top:4px; display:block;">2. Groq API Key (Optional Backup - console.groq.com)</label>
+                    <label style="font-size:10px; color:var(--gold); font-weight:700; margin-top:4px; display:block;">2. Groq API Key (Recommended: console.groq.com)</label>
                     <input type="password" id="ai-groq-key" placeholder="gsk_... (Chhod sakte hain agar nahi hai)" style="font-size:11px;">
 
-                    <label style="font-size:10px; color:#a29bfe; font-weight:700; margin-top:4px; display:block;">3. OpenRouter API Key (Optional Backup - openrouter.ai)</label>
+                    <label style="font-size:10px; color:#a29bfe; font-weight:700; margin-top:4px; display:block;">3. OpenRouter API Key (Optional)</label>
                     <input type="password" id="ai-openrouter-key" placeholder="sk-or-... (Chhod sakte hain agar nahi hai)" style="font-size:11px;">
 
-                    <button style="background:linear-gradient(90deg, #0984e3, #00d2d3); width:100%; font-size:12px; font-weight:800; padding:10px; margin-top:4px;" onclick="triggerServerVerification()">⚡ Verify Connections</button>
+                    <button style="background:linear-gradient(90deg, #0984e3, #00d2d3); width:100%; font-size:12px; font-weight:800; padding:10px; margin-top:6px;" onclick="triggerServerVerification()">⚡ Verify AI Connections</button>
                 </div>
 
                 <div class="section-title" style="margin-top:8px;">🎭 Character & Voice Setup</div>
@@ -731,7 +731,7 @@
             const openrouterKey = document.getElementById('ai-openrouter-key').value.trim();
             const badge = document.getElementById('api-key-status');
 
-            badge.innerText = '⏳ Testing Multi-Provider Connections...';
+            badge.innerText = '⏳ Testing Connections...';
             badge.style.color = 'var(--orange)';
 
             socket.emit('admin-verify-ai', { geminiKey, groqKey, openrouterKey });
@@ -1057,7 +1057,7 @@
             const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
             const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${h}h ${m}s`;
+            return `${h}h ${m}m ${s}s`;
         }
 
         socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
