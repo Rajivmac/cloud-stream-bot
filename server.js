@@ -187,11 +187,12 @@ setInterval(() => {
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
+// Updated Gemini 2.5 Flash Endpoint
 async function askGemini(userPrompt, username, userRole) {
     const key = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
     if (!key) return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
 
     let roleInstructions = "";
     if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
@@ -206,11 +207,22 @@ async function askGemini(userPrompt, username, userRole) {
     contents.push({ role: "user", parts: [{ text: userPrompt }] });
 
     try {
-        const res = await fetch(endpoint, {
+        let res = await fetch(endpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ system_instruction: { parts: [{ text: systemInstructionText }] }, contents })
         });
+
+        // Fallback to gemini-2.0-flash if needed
+        if (!res.ok) {
+            const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+            res = await fetch(fallbackUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ system_instruction: { parts: [{ text: systemInstructionText }] }, contents })
+            });
+        }
+
         const data = await res.json();
         if (data.candidates && data.candidates[0].content.parts[0].text) {
             const aiReply = data.candidates[0].content.parts[0].text.trim();
@@ -488,7 +500,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Questions (Streamer = Free, Others = Pay)
+    // AI Questions
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -554,7 +566,6 @@ io.on('connection', (socket) => {
     socket.emit('bet-update', getCalculatedBetData());
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
 
-    // Auto Handshake: Sync local data if server has empty fields
     socket.on('admin-sync-local', (localData) => {
         let changed = false;
         if (!streamData.geminiApiKey && localData.geminiApiKey) {
@@ -615,7 +626,6 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
-    // Start Custom Multi-Option Poll
     socket.on('admin-start-bet', ({ title, options }) => {
         const parsedOptions = (options && options.length > 0) ? options.map((optName, index) => ({
             id: index + 1,
@@ -654,7 +664,6 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
-    // Declare Winner & Payout
     socket.on('admin-resolve-bet', ({ winningOptionId }) => {
         if (!activeBet.isOpen) return;
         const totalPool = activeBet.options.reduce((sum, o) => sum + (o.pool || 0), 0);
@@ -677,7 +686,7 @@ io.on('connection', (socket) => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `🏆 RESULT: "${winningOption.name}" JEET GAYA! 🪙 ${totalPool} Mac-Coins distribute ho gaye!`,
+            text: `🏆 RESULT: "${winningOption.name}" JEET GAYA! Total 🪙 ${totalPool} Mac-Coins distribute ho gaye!`,
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS,
             pitch: streamData.ttsPitch,
@@ -692,7 +701,6 @@ io.on('connection', (socket) => {
         }, 12000);
     });
 
-    // End / Stop Poll (Instant Hide and refund)
     socket.on('admin-end-bet', () => {
         for (const [user, bet] of Object.entries(activeBet.bets)) {
             if (bet.amount > 0) {
@@ -728,7 +736,6 @@ io.on('connection', (socket) => {
         });
     });
 
-    // Streamer clicks button on Live Deck -> Free 0 coins!
     socket.on('admin-play-meme', (data) => {
         io.emit('play-meme', { mediaUrl: data.mediaUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" });
     });
