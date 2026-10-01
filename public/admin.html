@@ -2,150 +2,253 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Stream Master Deck</title>
     <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.5/dist/obs-ws.min.js"></script>
     <style>
         :root {
-            --bg-color: #0b0d14;
-            --card-bg: #141724;
-            --active-tab: #22283d;
+            --bg: #090b10;
+            --surface: #121622;
+            --surface-hover: #191f30;
+            --border: #222a40;
             --green: #2ecc71;
             --orange: #f39c12;
             --red: #ff4757;
             --blue: #3498db;
-            --purple: #9b59b6;
             --cyan: #00d2d3;
             --gold: #f1c40f;
-            --scene-btn: #34495e;
+            --purple: #9b59b6;
+            --text-dim: #7f8b9f;
         }
+
+        * { box-sizing: border-box; }
+
         body {
-            background-color: var(--bg-color);
+            background-color: var(--bg);
             color: #ffffff;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
-            padding: 12px;
+            padding: 10px;
             user-select: none;
             display: flex;
             flex-direction: column;
             align-items: center;
+            overflow-x: hidden;
         }
-        .container { width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 12px; }
+
+        /* Slim Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #262e45; border-radius: 4px; }
+
+        .container { width: 100%; max-width: 490px; display: flex; flex-direction: column; gap: 10px; }
         
+        /* Sticky Top Status Bar */
         .status-card {
-            background: var(--card-bg);
-            padding: 10px 16px;
-            border-radius: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            padding: 8px 14px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            font-size: 12px;
+            font-weight: 600;
         }
-        .status-info { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 13px; }
-        .status-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); }
+        .status-info { display: flex; align-items: center; gap: 8px; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 8px var(--orange); }
 
+        /* Modern Horizontal App Bar (No Ugly Scrollbar) */
+        .tab-bar-container {
+            position: relative;
+            width: 100%;
+        }
         .tab-bar {
             display: flex;
-            gap: 3px;
-            background: #11131c;
-            padding: 6px;
+            gap: 6px;
+            background: #0d1017;
+            padding: 5px;
             border-radius: 12px;
+            border: 1px solid var(--border);
             overflow-x: auto;
+            scroll-behavior: smooth;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
         }
+        .tab-bar::-webkit-scrollbar { display: none; /* Chrome/Safari */ }
+
         .tab-btn {
-            flex: 1;
-            padding: 9px 5px;
-            font-size: 11px;
+            flex: 0 0 auto;
+            padding: 8px 13px;
+            font-size: 12px;
             font-weight: 700;
             border: none;
             border-radius: 8px;
             background: transparent;
-            color: #8c93a8;
+            color: var(--text-dim);
             cursor: pointer;
             white-space: nowrap;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 5px;
         }
         .tab-btn.active {
-            background: var(--active-tab);
+            background: var(--surface-hover);
             color: #ffffff;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            border: 1px solid #2d3856;
         }
 
-        .tab-content { display: none; flex-direction: column; gap: 12px; }
+        .tab-content { display: none; flex-direction: column; gap: 10px; }
         .tab-content.active { display: flex; }
 
-        .card { background: var(--card-bg); padding: 14px; border-radius: 12px; }
-        .section-title { font-size: 12px; color: #8c93a8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; font-weight: 700; }
-        
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-        .grid-dynamic { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+        .card { 
+            background: var(--surface); 
+            border: 1px solid var(--border); 
+            padding: 12px; 
+            border-radius: 12px; 
+        }
+        .section-title { 
+            font-size: 11px; 
+            color: var(--text-dim); 
+            text-transform: uppercase; 
+            letter-spacing: 1px; 
+            margin-bottom: 8px; 
+            font-weight: 800; 
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* Collapsible Form Styling */
+        details.collapsible-box {
+            background: #151a28;
+            border: 1px solid #232b40;
+            border-radius: 8px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+        }
+        details.collapsible-box summary {
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            color: var(--cyan);
+            list-style: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        details.collapsible-box summary::-webkit-details-marker { display: none; }
+        details.collapsible-box summary::after { content: "＋"; font-size: 14px; }
+        details[open].collapsible-box summary::after { content: "－"; }
+        .details-body { margin-top: 10px; }
+
+        /* Grids & Layouts */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+        .grid-dynamic { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); 
+            gap: 8px; 
+            max-height: 280px;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
         
         button {
-            padding: 13px 8px;
+            padding: 12px 8px;
             font-size: 13px;
             font-weight: 700;
             border: none;
-            border-radius: 10px;
+            border-radius: 8px;
             cursor: pointer;
             color: white;
-            transition: transform 0.1s;
+            transition: transform 0.08s, filter 0.15s;
         }
-        button:active { transform: scale(0.96); }
+        button:active { transform: scale(0.97); filter: brightness(0.9); }
 
-        .btn-mic { width: 100%; padding: 16px; font-size: 16px; border-radius: 10px; font-weight: 800; }
-        .mic-unmuted { background: var(--green); box-shadow: 0 0 15px rgba(46, 204, 113, 0.4); }
-        .mic-muted { background: var(--red); box-shadow: 0 0 15px rgba(255, 71, 87, 0.5); }
+        .btn-mic { width: 100%; padding: 14px; font-size: 15px; border-radius: 8px; font-weight: 800; }
+        .mic-unmuted { background: var(--green); box-shadow: 0 0 12px rgba(46, 204, 113, 0.3); }
+        .mic-muted { background: var(--red); box-shadow: 0 0 12px rgba(255, 71, 87, 0.4); }
 
-        .btn-scene { background: var(--scene-btn); border-left: 4px solid var(--blue); min-height: 55px; }
-        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); min-height: 60px; }
-        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); min-height: 60px; }
+        .btn-scene { background: #262f44; border-left: 4px solid var(--blue); min-height: 50px; font-size: 12px; }
+        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); min-height: 52px; font-size: 12px; }
+        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); min-height: 52px; font-size: 12px; }
 
-        .counter-big-display { font-size: 64px; font-weight: 900; color: var(--red); text-align: center; margin: 5px 0 15px 0; }
-        .timer-display { font-size: 38px; font-weight: 900; color: #00d2d3; text-align: center; margin: 5px 0 15px 0; font-family: monospace; }
+        .counter-big-display { font-size: 58px; font-weight: 900; color: var(--red); text-align: center; margin: 4px 0 12px 0; }
+        .timer-display { font-size: 34px; font-weight: 900; color: #00d2d3; text-align: center; margin: 4px 0 12px 0; font-family: monospace; }
 
-        .btn-death-add { background: var(--red); font-size: 22px; padding: 18px; width: 100%; margin-bottom: 10px; }
-        .btn-sub { background: #4a5568; }
-        .btn-reset { background: #2d3748; }
+        .btn-death-add { background: var(--red); font-size: 20px; padding: 16px; width: 100%; margin-bottom: 8px; }
+        .btn-sub { background: #333d54; }
+        .btn-reset { background: #222838; }
 
         select, input, textarea {
             width: 100%;
-            padding: 10px;
-            background: #202538;
-            border: 1px solid #353c58;
+            padding: 9px;
+            background: #171d2b;
+            border: 1px solid #273147;
             color: white;
-            border-radius: 8px;
+            border-radius: 7px;
             box-sizing: border-box;
-            margin-bottom: 8px;
+            margin-bottom: 7px;
             font-size: 13px;
             font-family: inherit;
         }
-        .btn-submit { background: var(--blue); width: 100%; padding: 12px; font-size: 14px; }
-        .btn-gold { background: var(--gold); color: #000; font-weight: 800; width: 100%; padding: 12px; }
+        select:focus, input:focus, textarea:focus { outline: none; border-color: var(--cyan); }
+
+        .btn-submit { background: var(--blue); width: 100%; padding: 10px; font-size: 13px; }
+        .btn-gold { background: var(--gold); color: #000; font-weight: 800; width: 100%; padding: 11px; }
 
         .row-toggle {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 13px;
+            margin-bottom: 7px;
+            font-size: 12px;
         }
-        .row-toggle input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
+        .row-toggle input[type="checkbox"] { width: 17px; height: 17px; margin: 0; }
 
-        /* Betting Box */
+        /* Contained Scrollable Lists */
+        .contained-list {
+            max-height: 220px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            padding-right: 2px;
+        }
+
+        .cmd-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #161b28;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border-left: 3px solid var(--cyan);
+        }
+        .cmd-info { font-size: 12px; max-width: 82%; }
+        .cmd-tag { color: var(--cyan); font-weight: 800; }
+        .cmd-reply { color: var(--text-dim); font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-del { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 5px; cursor: pointer; font-size: 11px; }
+
+        /* Prediction Arena */
         .bet-box {
-            background: #181d2f;
-            border: 1px solid #2e3858;
-            padding: 12px;
-            border-radius: 10px;
-            margin-bottom: 10px;
+            background: #141926;
+            border: 1px solid #252f47;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
         }
         .pool-meter {
             display: flex;
             justify-content: space-between;
-            background: #0b0d14;
-            padding: 8px 12px;
-            border-radius: 8px;
-            margin: 8px 0;
+            background: #0a0d13;
+            padding: 8px 10px;
+            border-radius: 6px;
+            margin: 6px 0;
+            font-size: 13px;
             font-weight: 700;
         }
     </style>
@@ -153,6 +256,7 @@
 <body>
     <div class="container">
         
+        <!-- 1. STATUS BAR -->
         <div class="status-card">
             <div class="status-info">
                 <div id="status-indicator" class="status-dot"></div>
@@ -163,19 +267,22 @@
             </div>
         </div>
 
-        <div class="tab-bar">
-            <button class="tab-btn active" onclick="switchTab('deck')">🎮 Deck</button>
-            <button class="tab-btn" onclick="switchTab('counter')">💀 Deaths</button>
-            <button class="tab-btn" onclick="switchTab('timer')">⏱️ Playtime</button>
-            <button class="tab-btn" onclick="switchTab('bet')">🎲 Bets</button>
-            <button class="tab-btn" onclick="switchTab('coins')">🪙 Coins</button>
-            <button class="tab-btn" onclick="switchTab('ai')">🤖 AI</button>
-            <button class="tab-btn" onclick="switchTab('commands')">💬 Cmds</button>
-            <button class="tab-btn" onclick="switchTab('customizer')">🎨 Styles</button>
-            <button class="tab-btn" onclick="switchTab('add')">➕ Add</button>
+        <!-- 2. SMOOTH TOUCH-SLIDE TAB BAR (NO OS SCROLLBAR) -->
+        <div class="tab-bar-container">
+            <div class="tab-bar" id="top-tab-bar">
+                <button class="tab-btn active" onclick="switchTab('deck')">🎮 Deck</button>
+                <button class="tab-btn" onclick="switchTab('counter')">💀 Deaths</button>
+                <button class="tab-btn" onclick="switchTab('timer')">⏱️ Timer</button>
+                <button class="tab-btn" onclick="switchTab('bet')">🎲 Bets</button>
+                <button class="tab-btn" onclick="switchTab('coins')">🪙 Coins</button>
+                <button class="tab-btn" onclick="switchTab('ai')">🤖 AI</button>
+                <button class="tab-btn" onclick="switchTab('commands')">💬 Cmds</button>
+                <button class="tab-btn" onclick="switchTab('customizer')">🎨 Styles</button>
+                <button class="tab-btn" onclick="switchTab('add')">➕ Add</button>
+            </div>
         </div>
 
-        <!-- TAB 1: LIVE DECK -->
+        <!-- ================= TAB 1: LIVE DECK ================= -->
         <div id="tab-deck" class="tab-content active">
             <div class="card">
                 <div class="section-title">🎙️ Audio Controls</div>
@@ -191,10 +298,10 @@
             </div>
         </div>
 
-        <!-- TAB 2: DEATH COUNTER -->
+        <!-- ================= TAB 2: DEATH COUNTER ================= -->
         <div id="tab-counter" class="tab-content">
             <div class="card">
-                <div class="section-title" style="text-align:center;">💀 Match Death Count</div>
+                <div class="section-title" style="justify-content:center;">💀 Match Death Count</div>
                 <div class="counter-big-display" id="death-display">0</div>
                 <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
                 <div class="grid-2">
@@ -204,188 +311,209 @@
             </div>
         </div>
 
-        <!-- TAB 3: PLAYTIME TIMER -->
+        <!-- ================= TAB 3: PLAYTIME TIMER ================= -->
         <div id="tab-timer" class="tab-content">
             <div class="card">
-                <div class="section-title" style="text-align:center;">⏱️ Game Completion Time</div>
+                <div class="section-title" style="justify-content:center;">⏱️ Game Playtime Timer</div>
                 <div class="timer-display" id="admin-timer-display">00h 00m 00s</div>
                 <div class="grid-3">
-                    <button style="background:var(--green);" onclick="socket.emit('admin-timer-start')">▶ Resume</button>
+                    <button style="background:var(--green);" onclick="socket.emit('admin-timer-start')">▶ Start</button>
                     <button style="background:var(--orange);" onclick="socket.emit('admin-timer-pause')">⏸ Pause</button>
                     <button class="btn-reset" onclick="socket.emit('admin-timer-reset')">🔄 Reset</button>
                 </div>
             </div>
         </div>
 
-        <!-- ================= TAB 4: BETTING & PREDICTION ARENA ================= -->
+        <!-- ================= TAB 4: BETTING & PREDICTION ================= -->
         <div id="tab-bet" class="tab-content">
             <div class="card">
-                <div class="section-title">🎲 Live Betting / Prediction Manager</div>
+                <div class="section-title">🎲 Active Match Betting</div>
 
                 <div class="bet-box">
-                    <span id="bet-status-indicator" style="color:var(--orange); font-size:12px; font-weight:700;">STATUS: NO ACTIVE BET</span>
-                    <h3 id="bet-title-display" style="margin:6px 0 10px 0; font-size:16px;">Create a match bet below</h3>
+                    <span id="bet-status-indicator" style="color:var(--orange); font-size:11px; font-weight:800;">STATUS: NO ACTIVE BET</span>
+                    <h4 id="bet-title-display" style="margin:5px 0 8px 0; font-size:15px;">No prediction launched</h4>
                     
                     <div class="pool-meter">
                         <span style="color:var(--cyan);" id="bet-opt1-label">Opt 1: 🪙 0</span>
                         <span style="color:var(--red);" id="bet-opt2-label">Opt 2: 🪙 0</span>
                     </div>
 
-                    <div class="grid-3" style="margin-top:10px;">
-                        <button style="background:var(--orange);" onclick="socket.emit('admin-lock-bet')">🔒 Lock Bets</button>
-                        <button style="background:var(--cyan); color:#000;" onclick="resolveBet(1)">1 Won</button>
-                        <button style="background:var(--red);" onclick="resolveBet(2)">2 Won</button>
+                    <div class="grid-3" style="margin-top:8px;">
+                        <button style="background:var(--orange); font-size:12px;" onclick="socket.emit('admin-lock-bet')">🔒 Lock</button>
+                        <button style="background:var(--cyan); color:#000; font-size:12px;" onclick="resolveBet(1)">1 Won</button>
+                        <button style="background:var(--red); font-size:12px;" onclick="resolveBet(2)">2 Won</button>
                     </div>
-                    <button style="background:#4a5568; width:100%; margin-top:6px; padding:8px;" onclick="socket.emit('admin-cancel-bet')">❌ Cancel & Refund All</button>
+                    <button style="background:#323b4e; width:100%; margin-top:6px; padding:7px; font-size:11px;" onclick="socket.emit('admin-cancel-bet')">❌ Cancel & Refund</button>
                 </div>
 
-                <div class="section-title" style="margin-top:10px;">➕ Start New Prediction</div>
-                <input type="text" id="bet-new-title" placeholder="Prediction Title (e.g. Will I win against Reina?)">
-                <div class="grid-2">
-                    <input type="text" id="bet-new-opt1" placeholder="Option 1 (e.g. Yes / Win)" value="Win">
-                    <input type="text" id="bet-new-opt2" placeholder="Option 2 (e.g. No / Lose)" value="Lose">
-                </div>
-                <button class="btn-gold" onclick="startNewBet()">🚀 Launch Bet on Stream</button>
+                <!-- Collapsible Launcher to save space -->
+                <details class="collapsible-box">
+                    <summary>Launch New Prediction</summary>
+                    <div class="details-body">
+                        <input type="text" id="bet-new-title" placeholder="Prediction Question">
+                        <div class="grid-2">
+                            <input type="text" id="bet-new-opt1" placeholder="Option 1" value="Win">
+                            <input type="text" id="bet-new-opt2" placeholder="Option 2" value="Lose">
+                        </div>
+                        <button class="btn-gold" onclick="startNewBet()">🚀 Launch on Stream</button>
+                    </div>
+                </details>
             </div>
         </div>
 
         <!-- ================= TAB 5: MAC-COINS ECONOMY ================= -->
         <div id="tab-coins" class="tab-content">
-            <!-- Streamer Direct Coin Grant -->
             <div class="card">
-                <div class="section-title">👑 Streamer Coin Grant (Direct Access)</div>
-                <input type="text" id="grant-user" placeholder="Viewer Username (e.g. Rahul)">
-                <input type="number" id="grant-amount" placeholder="Amount (+100 or -50)">
-                <button class="btn-gold" onclick="grantCoinsDirect()">⚡ Update Mac-Coins</button>
-            </div>
-
-            <div class="card">
-                <div class="section-title">🪙 Economy Rules & Rates</div>
-                <div class="row-toggle">
-                    <span>Free AI for Streamer & Mods</span>
-                    <input type="checkbox" id="coin-free-mods" checked>
-                </div>
-
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:11px; color:#8c93a8;">Coins Per Chat Msg</label>
-                        <input type="number" id="coin-per-msg" value="5">
+                <!-- Collapsible Coin Grant -->
+                <details class="collapsible-box">
+                    <summary>👑 Streamer Coin Grant / Edit</summary>
+                    <div class="details-body">
+                        <div class="grid-2">
+                            <input type="text" id="grant-user" placeholder="Username (e.g. Rahul)">
+                            <input type="number" id="grant-amount" placeholder="Amount (+100 / -50)">
+                        </div>
+                        <button class="btn-gold" onclick="grantCoinsDirect()">⚡ Update Balance</button>
                     </div>
-                    <div>
-                        <label style="font-size:11px; color:#8c93a8;">Cooldown (Sec)</label>
-                        <input type="number" id="coin-cooldown" value="30">
+                </details>
+
+                <!-- Collapsible Economy Rates -->
+                <details class="collapsible-box">
+                    <summary>⚙️ Economy Rates & Rules</summary>
+                    <div class="details-body">
+                        <div class="row-toggle">
+                            <span>Free AI for Streamer/Mods</span>
+                            <input type="checkbox" id="coin-free-mods" checked>
+                        </div>
+                        <div class="grid-2">
+                            <div>
+                                <label style="font-size:10px; color:var(--text-dim);">Coins / Msg</label>
+                                <input type="number" id="coin-per-msg" value="5">
+                            </div>
+                            <div>
+                                <label style="font-size:10px; color:var(--text-dim);">Cooldown (s)</label>
+                                <input type="number" id="coin-cooldown" value="30">
+                            </div>
+                        </div>
+                        <div>
+                            <label style="font-size:10px; color:var(--text-dim);">AI Question Cost</label>
+                            <input type="number" id="coin-ai-cost" value="50">
+                        </div>
+                        <button class="btn-submit" onclick="saveCoinRules()">💾 Save Rates</button>
                     </div>
-                </div>
+                </details>
 
-                <div>
-                    <label style="font-size:11px; color:#8c93a8;">AI Question Cost (Mac-Coins)</label>
-                    <input type="number" id="coin-ai-cost" value="50">
-                </div>
-
-                <button class="btn-submit" onclick="saveCoinRules()">💾 Save Rates</button>
-            </div>
-
-            <div class="card">
-                <div class="section-title">🏆 Viewer Mac-Coins Balances</div>
-                <div id="coin-balances-list" style="max-height: 180px; overflow-y: auto;"></div>
+                <div class="section-title" style="margin-top:10px;">🏆 Viewer Mac-Coins Balances</div>
+                <div class="contained-list" id="coin-balances-list"></div>
             </div>
         </div>
 
-        <!-- TAB 6: AI BOT -->
+        <!-- ================= TAB 6: AI BOT ================= -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
-                <div class="section-title">🎙️ Output Destination</div>
+                <div class="section-title">🎙️ Speech & Destination</div>
                 <div class="row-toggle">
                     <span>Show Screen Bubble</span>
                     <input type="checkbox" id="ai-bubble" checked>
                 </div>
                 <div class="row-toggle">
-                    <span>TTS Audio on Stream</span>
+                    <span>Play TTS Voice</span>
                     <input type="checkbox" id="ai-tts" checked>
                 </div>
 
-                <label style="font-size:11px; color:#8c93a8;">Google Gemini API Key</label>
+                <label style="font-size:10px; color:var(--text-dim);">Gemini API Key</label>
                 <input type="password" id="ai-key" placeholder="AI Studio Free API Key">
 
                 <div class="grid-2">
                     <div>
-                        <label style="font-size:11px; color:#8c93a8;">Character Name</label>
+                        <label style="font-size:10px; color:var(--text-dim);">Character Name</label>
                         <input type="text" id="ai-name" value="Son Goku">
                     </div>
                     <div>
-                        <label style="font-size:11px; color:#8c93a8;">Chat Command</label>
+                        <label style="font-size:10px; color:var(--text-dim);">Chat Command</label>
                         <input type="text" id="ai-cmd" value="!goku">
                     </div>
                 </div>
 
-                <label style="font-size:11px; color:#8c93a8;">Personality Prompt</label>
-                <textarea id="ai-persona" rows="3"></textarea>
+                <label style="font-size:10px; color:var(--text-dim);">Behavior Prompt</label>
+                <textarea id="ai-persona" rows="2"></textarea>
 
-                <div class="grid-2" style="margin-top: 5px;">
+                <div class="grid-2">
                     <button class="btn-gold" onclick="saveAISettings()">💾 Save AI</button>
                     <button style="background: #e67e22;" onclick="socket.emit('admin-test-ai')">🔊 Test Voice</button>
                 </div>
             </div>
         </div>
 
-        <!-- TAB 7: CUSTOM COMMANDS -->
+        <!-- ================= TAB 7: CHAT COMMANDS ================= -->
         <div id="tab-commands" class="tab-content">
             <div class="card">
-                <div class="section-title">➕ Add New Chat Command</div>
-                <input type="text" id="new-cmd-name" placeholder="Trigger (e.g. !specs)">
-                <textarea id="new-cmd-reply" placeholder="Bot response text" rows="2"></textarea>
-                <button class="btn-submit" onclick="addCustomCommand()">Save Command</button>
-            </div>
-            <div class="card">
+                <!-- Collapsible Command Adder -->
+                <details class="collapsible-box" open>
+                    <summary>Add New Command</summary>
+                    <div class="details-body">
+                        <input type="text" id="new-cmd-name" placeholder="Command trigger (e.g. !specs, !rank)">
+                        <textarea id="new-cmd-reply" placeholder="Bot response message" rows="2"></textarea>
+                        <button class="btn-submit" onclick="addCustomCommand()">Save Command</button>
+                    </div>
+                </details>
+
                 <div class="section-title">📋 Active Chat Commands</div>
-                <div id="custom-commands-list"></div>
+                <div class="contained-list" id="custom-commands-list"></div>
             </div>
         </div>
 
-        <!-- TAB 8: STYLES & OBS -->
+        <!-- ================= TAB 8: STYLES & OBS ================= -->
         <div id="tab-customizer" class="tab-content">
             <div class="card">
-                <div class="section-title">🎨 Fonts & Styles</div>
-                <label style="font-size:11px; color:#8c93a8;">Counter Font</label>
-                <select id="cust-counter-font" onchange="applyVisualStyles()">
-                    <option value="Teko">Teko</option>
-                    <option value="Orbitron">Orbitron</option>
-                    <option value="Russo One">Russo One</option>
-                    <option value="Share Tech Mono">Share Tech Mono</option>
-                </select>
-
-                <label style="font-size:11px; color:#8c93a8;">Theme Color</label>
-                <select id="cust-color" onchange="applyVisualStyles()">
-                    <option value="#ff4757">Blood Red</option>
-                    <option value="#00d2d3">Cyan / Neon</option>
-                    <option value="#ffa502">Flame Gold</option>
-                    <option value="#2ed573">Acid Green</option>
-                </select>
+                <div class="section-title">🎨 Fonts & Color</div>
+                <div class="grid-2">
+                    <div>
+                        <label style="font-size:10px; color:var(--text-dim);">Counter Font</label>
+                        <select id="cust-counter-font" onchange="applyVisualStyles()">
+                            <option value="Teko">Teko</option>
+                            <option value="Orbitron">Orbitron</option>
+                            <option value="Russo One">Russo One</option>
+                            <option value="Share Tech Mono">Share Tech Mono</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size:10px; color:var(--text-dim);">Accent Color</label>
+                        <select id="cust-color" onchange="applyVisualStyles()">
+                            <option value="#ff4757">Blood Red</option>
+                            <option value="#00d2d3">Cyan Neon</option>
+                            <option value="#ffa502">Flame Gold</option>
+                            <option value="#2ed573">Acid Green</option>
+                        </select>
+                    </div>
+                </div>
             </div>
+
             <div class="card">
                 <div class="section-title">🔌 OBS WebSocket Connection</div>
-                <input type="text" id="obs-ip" placeholder="OBS IP" value="127.0.0.1">
-                <input type="text" id="obs-port" placeholder="Port" value="4455">
+                <div class="grid-2">
+                    <input type="text" id="obs-ip" placeholder="IP (127.0.0.1)" value="127.0.0.1">
+                    <input type="text" id="obs-port" placeholder="Port (4455)" value="4455">
+                </div>
                 <input type="password" id="obs-pass" placeholder="Password (Empty if none)">
-                <input type="text" id="obs-mic-name" placeholder="Mic Name" value="Mic/Aux">
+                <input type="text" id="obs-mic-name" placeholder="Mic Name (Mic/Aux)" value="Mic/Aux">
                 <button class="btn-submit" onclick="manualSaveAndConnect()">Force Connect OBS</button>
             </div>
         </div>
 
-        <!-- TAB 9: ADD ITEM -->
+        <!-- ================= TAB 9: ADD TRIGGER / SCENE ================= -->
         <div id="tab-add" class="tab-content">
             <div class="card">
-                <div class="section-title">➕ Add Video/SFX/Scene</div>
+                <div class="section-title">➕ Add New Item to Live Deck</div>
                 <select id="trig-type" onchange="toggleFormFields()">
                     <option value="scene">🎬 OBS Scene Switcher</option>
                     <option value="video">🎥 Video Meme</option>
                     <option value="sfx">🔊 Sound Effect</option>
                 </select>
-                <input type="text" id="trig-name" placeholder="Display Name">
-                <input type="text" id="trig-scene-name" placeholder="Exact Scene Name">
-                <input type="text" id="trig-cmd" placeholder="Chat Command" style="display:none;">
+                <input type="text" id="trig-name" placeholder="Display Button Name">
+                <input type="text" id="trig-scene-name" placeholder="Exact Scene Name in OBS">
+                <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !ko)" style="display:none;">
                 <input type="text" id="trig-url" placeholder="Direct Media URL" style="display:none;">
-                <button class="btn-submit" onclick="addNewTrigger()">Add to Deck</button>
+                <button class="btn-submit" onclick="addNewTrigger()">Add to Live Deck</button>
             </div>
         </div>
 
@@ -407,18 +535,33 @@
         const coinsListContainer = document.getElementById('coin-balances-list');
         const micBtn = document.getElementById('mic-btn');
 
-        // BETTING FUNCTIONS
+        // Smooth Tab Switcher
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 'coins': 4, 'ai': 5, 'commands': 6, 'customizer': 7, 'add': 8 };
+            const activeBtn = document.querySelectorAll('.tab-btn')[tabMap[tabName]];
+            
+            if (activeBtn) {
+                activeBtn.classList.add('active');
+                activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // Betting Controls
         function startNewBet() {
             const title = document.getElementById('bet-new-title').value.trim();
             const option1 = document.getElementById('bet-new-opt1').value.trim() || 'Win';
             const option2 = document.getElementById('bet-new-opt2').value.trim() || 'Lose';
-            if (!title) return alert('Bet title daalna zaroori hai!');
+            if (!title) return alert('Bet title likhna zaroori hai!');
             socket.emit('admin-start-bet', { title, option1, option2 });
             document.getElementById('bet-new-title').value = '';
         }
 
         function resolveBet(winnerNum) {
-            if (confirm(`Confirm: Option ${winnerNum} jeet gaya hai? Pool distribute karein?`)) {
+            if (confirm(`Option ${winnerNum} ko winner declare karein? Pool distribute hoga!`)) {
                 socket.emit('admin-resolve-bet', { winningOption: winnerNum });
             }
         }
@@ -431,12 +574,12 @@
 
             if (!bet.isOpen) {
                 ind.innerText = 'STATUS: NO ACTIVE BET';
-                ind.style.color = '#8c93a8';
-                title.innerText = 'Launch a new bet below';
+                ind.style.color = '#7f8b9f';
+                title.innerText = 'No prediction running';
                 opt1.innerText = 'Opt 1: 🪙 0';
                 opt2.innerText = 'Opt 2: 🪙 0';
             } else {
-                ind.innerText = bet.locked ? 'STATUS: 🔒 LOCKED (IN MATCH)' : 'STATUS: 🟢 ACCEPTING BETS';
+                ind.innerText = bet.locked ? 'STATUS: 🔒 LOCKED (MATCH RUNNING)' : 'STATUS: 🟢 ACCEPTING BETS';
                 ind.style.color = bet.locked ? 'var(--orange)' : 'var(--green)';
                 title.innerText = bet.title;
                 opt1.innerText = `[1] ${bet.option1}: 🪙 ${bet.pool1}`;
@@ -444,11 +587,11 @@
             }
         });
 
-        // DIRECT COIN GRANT
+        // Direct Coin Modification
         function grantCoinsDirect() {
             const username = document.getElementById('grant-user').value.trim();
             const amount = document.getElementById('grant-amount').value.trim();
-            if (!username || !amount) return alert('Username aur amount dono likhein!');
+            if (!username || !amount) return alert('Username aur amount dono zaroori hain!');
             socket.emit('admin-modify-user-coins', { username, amount });
             document.getElementById('grant-user').value = '';
             document.getElementById('grant-amount').value = '';
@@ -468,21 +611,53 @@
             coinsListContainer.innerHTML = '';
             const users = Object.keys(userCoins || {});
             if (users.length === 0) {
-                coinsListContainer.innerHTML = '<small style="color:#8c93a8;">Abhi koi records nahi hain.</small>';
+                coinsListContainer.innerHTML = '<small style="color:var(--text-dim); padding:4px;">No viewer coins yet.</small>';
                 return;
             }
             users.sort((a,b) => userCoins[b] - userCoins[a]);
             users.forEach(u => {
                 const row = document.createElement('div');
-                row.style.display = 'flex';
-                row.style.justifyContent = 'space-between';
-                row.style.padding = '6px 10px';
-                row.style.background = '#1a1e2e';
-                row.style.borderRadius = '6px';
-                row.style.marginBottom = '4px';
-                row.style.fontSize = '12px';
-                row.innerHTML = `<span>👤 @${u}</span><strong style="color:var(--gold);">🪙 ${userCoins[u]} Mac-Coins</strong>`;
+                row.className = 'cmd-item';
+                row.style.borderLeftColor = 'var(--gold)';
+                row.innerHTML = `<span>👤 @${u}</span><strong style="color:var(--gold);">🪙 ${userCoins[u]}</strong>`;
                 coinsListContainer.appendChild(row);
+            });
+        }
+
+        function addCustomCommand() {
+            let cmd = document.getElementById('new-cmd-name').value.trim();
+            const reply = document.getElementById('new-cmd-reply').value.trim();
+            if (!cmd || !reply) return alert('Command aur Reply dono likhein!');
+            if (!cmd.startsWith('!')) cmd = '!' + cmd;
+
+            socket.emit('admin-add-custom-cmd', { cmd, reply, tts: false });
+            document.getElementById('new-cmd-name').value = '';
+            document.getElementById('new-cmd-reply').value = '';
+        }
+
+        function deleteCustomCommand(cmd) {
+            if (confirm(`Delete command: "${cmd}"?`)) {
+                socket.emit('admin-del-custom-cmd', cmd);
+            }
+        }
+
+        function renderCustomCommands(commands) {
+            commandsContainer.innerHTML = '';
+            if (!commands || commands.length === 0) {
+                commandsContainer.innerHTML = '<small style="color:var(--text-dim); padding:4px;">No custom commands.</small>';
+                return;
+            }
+            commands.forEach(c => {
+                const div = document.createElement('div');
+                div.className = 'cmd-item';
+                div.innerHTML = `
+                    <div class="cmd-info">
+                        <span class="cmd-tag">${c.cmd}</span>
+                        <span class="cmd-reply">${c.reply}</span>
+                    </div>
+                    <button class="btn-del" onclick="deleteCustomCommand('${c.cmd}')">🗑️</button>
+                `;
+                commandsContainer.appendChild(div);
             });
         }
 
@@ -495,7 +670,7 @@
                 characterPersona: document.getElementById('ai-persona').value.trim(),
                 aiCommand: document.getElementById('ai-cmd').value.trim()
             });
-            alert('Settings Saved!');
+            alert('AI Settings Saved!');
         }
 
         socket.on('update-styles', (data) => {
@@ -510,6 +685,7 @@
                 document.getElementById('coin-free-mods').checked = data.coinSettings.freeForMods;
             }
             if (data.userCoins) renderCoinBalances(data.userCoins);
+            if (data.customCommands) renderCustomCommands(data.customCommands);
         });
 
         // OBS Auto-Connect
@@ -563,14 +739,6 @@
         async function switchScene(sceneName) {
             try { await obs.call('SetCurrentProgramScene', { sceneName }); }
             catch (err) { alert(`Scene '${sceneName}' nahi mila!`); }
-        }
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 'coins': 4, 'ai': 5, 'commands': 6, 'customizer': 7, 'add': 8 };
-            document.querySelectorAll('.tab-btn')[tabMap[tabName]].classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
         function toggleFormFields() {
