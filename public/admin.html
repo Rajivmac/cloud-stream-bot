@@ -451,43 +451,60 @@
             </div>
         </div>
 
-        <!-- TAB 6: MULTI-PROVIDER AI PERSONA -->
+        <!-- TAB 6: AI PERSONA WITH YOUTUBE LIVE CHAT & QUOTA TRACKER -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
                 <div class="section-title">
-                    <span>🤖 AI Connection Status</span>
-                    <span id="api-key-status" style="font-size:10px; color:var(--red);">🔴 Disconnected</span>
+                    <span>💬 Direct YouTube Chat Post (API)</span>
+                    <span id="yt-quota-status" style="font-size:10px; color:var(--green);">0 / 180 Msgs</span>
                 </div>
 
-                <div style="background:#161c2b; padding:10px; border-radius:8px; margin-bottom:8px; border:1px solid var(--border);">
-                    <label style="font-size:10px; color:var(--cyan); font-weight:700;">1. Google Gemini API Key</label>
-                    <input type="password" id="ai-key" placeholder="Paste Google AI Studio Key" style="font-size:11px;" oninput="updateKeyStatusBadge()">
-
-                    <label style="font-size:10px; color:var(--gold); font-weight:700; margin-top:4px; display:block;">2. Groq API Key (Recommended: console.groq.com)</label>
-                    <input type="password" id="ai-groq-key" placeholder="gsk_... (Chhod sakte hain agar nahi hai)" style="font-size:11px;">
-
-                    <label style="font-size:10px; color:#a29bfe; font-weight:700; margin-top:4px; display:block;">3. OpenRouter API Key (Optional)</label>
-                    <input type="password" id="ai-openrouter-key" placeholder="sk-or-... (Chhod sakte hain agar nahi hai)" style="font-size:11px;">
-
-                    <button style="background:linear-gradient(90deg, #0984e3, #00d2d3); width:100%; font-size:12px; font-weight:800; padding:10px; margin-top:6px;" onclick="triggerServerVerification()">⚡ Verify AI Connections</button>
+                <div class="row-toggle">
+                    <span>Post Bot Replies directly into YouTube Live Chat</span>
+                    <input type="checkbox" id="yt-enable-chat-send">
                 </div>
 
-                <div class="section-title" style="margin-top:8px;">🎭 Character & Voice Setup</div>
+                <label style="font-size:10px; color:var(--text-dim);">YouTube Live Chat ID (Required only for chat box typing)</label>
+                <input type="text" id="yt-live-chat-id" placeholder="Paste YouTube Live Chat ID" style="font-size:11px;">
 
-                <label style="font-size:10px; color:var(--text-dim);">Load Character Preset</label>
+                <label style="font-size:10px; color:var(--text-dim);">YouTube OAuth Access Token</label>
+                <input type="password" id="yt-access-token" placeholder="Bearer ya OAuth Token" style="font-size:11px;">
+
+                <button style="background:#2f384d; font-size:11px; padding:6px; width:100%; margin-top:2px;" onclick="resetQuotaCounter()">🔄 Reset Daily Quota Counter</button>
+            </div>
+
+            <div class="card">
+                <div class="section-title">
+                    <span>🤖 AI Models & Keys</span>
+                    <span id="api-key-status" style="font-size:10px; color:var(--green);">🟢 Public Free AI Ready</span>
+                </div>
+
+                <label style="font-size:10px; color:var(--text-dim);">Google Gemini API Key (Optional)</label>
+                <input type="password" id="ai-key" placeholder="Paste Google AI Studio Key" style="font-size:11px;">
+
+                <label style="font-size:10px; color:var(--text-dim);">Groq API Key (Optional Fast Backup - console.groq.com)</label>
+                <input type="password" id="ai-groq-key" placeholder="gsk_... (Optional)" style="font-size:11px;">
+
+                <button style="background:linear-gradient(90deg, #0984e3, #00d2d3); width:100%; font-size:12px; font-weight:800; padding:10px; margin-top:4px;" onclick="triggerServerVerification()">⚡ Verify AI Connections</button>
+            </div>
+
+            <div class="card">
+                <div class="section-title">🎭 Character Avatar & Speech</div>
+
+                <label style="font-size:10px; color:var(--text-dim);">Load Preset</label>
                 <select id="persona-presets" onchange="applyPresetPersona()">
-                    <option value="goku">🔥 Son Goku (Dragon Ball - Energetic High Pitch)</option>
-                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen - Playful Natural)</option>
-                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8 - Deep Menacing)</option>
-                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses - Deep Royal)</option>
+                    <option value="goku">🔥 Son Goku (Dragon Ball)</option>
+                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen)</option>
+                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8)</option>
+                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses)</option>
                     <option value="custom">✏️ Custom Character</option>
                 </select>
 
                 <div class="avatar-preview-box">
                     <img id="avatar-preview" class="avatar-preview-img" src="https://images2.alphacoders.com/131/1312384.png" alt="Avatar">
                     <div style="flex:1;">
-                        <label style="font-size:10px; color:var(--text-dim); margin-bottom:3px; display:block;">Character Portrait Image URL</label>
-                        <input type="text" id="ai-image-url" placeholder="Direct Image URL (PNG/JPG)" style="margin-bottom:0; font-size:11px;" oninput="updateImagePreview()">
+                        <label style="font-size:10px; color:var(--text-dim); margin-bottom:3px; display:block;">Avatar Image URL</label>
+                        <input type="text" id="ai-image-url" placeholder="Direct Image URL" style="margin-bottom:0; font-size:11px;" oninput="updateImagePreview()">
                     </div>
                 </div>
 
@@ -542,10 +559,10 @@
         <div id="tab-commands" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Command</div>
-                <input type="text" id="new-cmd-name" placeholder="Command trigger (e.g. !specs, !vip)">
+                <input type="text" id="new-cmd-name" placeholder="Trigger (e.g. !specs)">
                 <textarea id="new-cmd-reply" placeholder="Bot reply text" rows="2"></textarea>
                 
-                <label style="font-size:10px; color:var(--text-dim);">Mac-Coin Cost (0 = Free command)</label>
+                <label style="font-size:10px; color:var(--text-dim);">Mac-Coin Cost (0 = Free)</label>
                 <input type="number" id="new-cmd-cost" placeholder="Coins required" value="0">
 
                 <div class="row-toggle">
@@ -613,7 +630,7 @@
                     <option value="sfx">🔊 Sound Effect (Audio MP3 URL)</option>
                     <option value="scene">🎬 OBS Scene Switcher</option>
                 </select>
-                <input type="text" id="trig-name" placeholder="Button Display Name (e.g. Vine Boom)">
+                <input type="text" id="trig-name" placeholder="Button Name (e.g. Vine Boom)">
                 <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !boom)">
                 <input type="number" id="trig-cost" placeholder="Mac-Coin Cost (e.g. 25, ya 0 for Free)" value="0">
                 <input type="text" id="trig-url" placeholder="Direct Media URL (MP4 / MP3)">
@@ -712,44 +729,22 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
-        function updateKeyStatusBadge() {
-            const gemKey = document.getElementById('ai-key').value.trim();
-            const groqKey = document.getElementById('ai-groq-key').value.trim();
-            const badge = document.getElementById('api-key-status');
-            if (gemKey || groqKey) {
-                badge.innerText = '🟢 Key Entered';
-                badge.style.color = 'var(--green)';
-            } else {
-                badge.innerText = '🔴 Disconnected';
-                badge.style.color = 'var(--red)';
-            }
-        }
-
         function triggerServerVerification() {
             const geminiKey = document.getElementById('ai-key').value.trim();
             const groqKey = document.getElementById('ai-groq-key').value.trim();
-            const openrouterKey = document.getElementById('ai-openrouter-key').value.trim();
-            const badge = document.getElementById('api-key-status');
-
-            badge.innerText = '⏳ Testing Connections...';
-            badge.style.color = 'var(--orange)';
-
-            socket.emit('admin-verify-ai', { geminiKey, groqKey, openrouterKey });
+            socket.emit('admin-verify-ai', { geminiKey, groqKey });
         }
 
         socket.on('admin-ai-verify-result', (data) => {
-            const badge = document.getElementById('api-key-status');
-            if (data.success) {
-                badge.innerText = '🟢 AI Active & Ready!';
-                badge.style.color = 'var(--green)';
-                saveAISettings();
-                alert(data.message);
-            } else {
-                badge.innerText = '🔴 Connection Error';
-                badge.style.color = 'var(--red)';
-                alert(data.message);
-            }
+            alert(data.message);
         });
+
+        function resetQuotaCounter() {
+            if (confirm("Reset YouTube daily messages quota counter?")) {
+                socket.emit('admin-reset-yt-quota');
+                alert("Quota counter reset to 0!");
+            }
+        }
 
         function addOptionField() {
             const count = customOptionsContainer.children.length + 1;
@@ -912,20 +907,16 @@
         }
 
         function saveAISettings() {
-            const gemKey = document.getElementById('ai-key').value.trim() || localStorage.getItem('geminiApiKey') || '';
-            const groqKey = document.getElementById('ai-groq-key').value.trim() || localStorage.getItem('groqApiKey') || '';
-            const openrouterKey = document.getElementById('ai-openrouter-key').value.trim() || localStorage.getItem('openrouterApiKey') || '';
-            const img = document.getElementById('ai-image-url').value.trim() || localStorage.getItem('characterImage') || '';
-
-            if (gemKey) localStorage.setItem('geminiApiKey', gemKey);
-            if (groqKey) localStorage.setItem('groqApiKey', groqKey);
-            if (openrouterKey) localStorage.setItem('openrouterApiKey', openrouterKey);
-            if (img) localStorage.setItem('characterImage', img);
+            const gemKey = document.getElementById('ai-key').value.trim();
+            const groqKey = document.getElementById('ai-groq-key').value.trim();
+            const img = document.getElementById('ai-image-url').value.trim();
 
             socket.emit('admin-change-styles', {
                 geminiApiKey: gemKey,
                 groqApiKey: groqKey,
-                openrouterApiKey: openrouterKey,
+                enableYTChatSend: document.getElementById('yt-enable-chat-send').checked,
+                ytLiveChatId: document.getElementById('yt-live-chat-id').value.trim(),
+                ytAccessToken: document.getElementById('yt-access-token').value.trim(),
                 enableBubble: document.getElementById('ai-bubble').checked,
                 enableTTS: document.getElementById('ai-tts').checked,
                 ttsGender: document.getElementById('ai-voice-gender').value,
@@ -936,34 +927,31 @@
                 characterPersona: document.getElementById('ai-persona').value.trim(),
                 aiCommand: document.getElementById('ai-cmd').value.trim()
             });
-            updateKeyStatusBadge();
-            alert('AI Persona & Settings Saved!');
+            alert('Settings Saved!');
         }
 
         socket.on('update-styles', (data) => {
-            const savedGemKey = localStorage.getItem('geminiApiKey');
-            const savedGroqKey = localStorage.getItem('groqApiKey');
-            const savedRouterKey = localStorage.getItem('openrouterApiKey');
-            const savedImg = localStorage.getItem('characterImage');
+            if (data.geminiApiKey) document.getElementById('ai-key').value = data.geminiApiKey;
+            if (data.groqApiKey) document.getElementById('ai-groq-key').value = data.groqApiKey;
 
-            if (data.geminiApiKey) { document.getElementById('ai-key').value = data.geminiApiKey; localStorage.setItem('geminiApiKey', data.geminiApiKey); }
-            else if (savedGemKey) { document.getElementById('ai-key').value = savedGemKey; }
+            if (data.enableYTChatSend !== undefined) document.getElementById('yt-enable-chat-send').checked = data.enableYTChatSend;
+            if (data.ytLiveChatId) document.getElementById('yt-live-chat-id').value = data.ytLiveChatId;
+            if (data.ytAccessToken) document.getElementById('yt-access-token').value = data.ytAccessToken;
 
-            if (data.groqApiKey) { document.getElementById('ai-groq-key').value = data.groqApiKey; localStorage.setItem('groqApiKey', data.groqApiKey); }
-            else if (savedGroqKey) { document.getElementById('ai-groq-key').value = savedGroqKey; }
-
-            if (data.openrouterApiKey) { document.getElementById('ai-openrouter-key').value = data.openrouterApiKey; localStorage.setItem('openrouterApiKey', data.openrouterApiKey); }
-            else if (savedRouterKey) { document.getElementById('ai-openrouter-key').value = savedRouterKey; }
-
-            updateKeyStatusBadge();
+            // Live Quota Indicator Update
+            const quotaBadge = document.getElementById('yt-quota-status');
+            const sent = data.ytMessagesSentToday || 0;
+            if (data.ytQuotaExhausted) {
+                quotaBadge.innerText = '🔴 Quota Exhausted (TTS Active)';
+                quotaBadge.style.color = 'var(--red)';
+            } else {
+                quotaBadge.innerText = `🟢 ${sent} / 180 Msgs Sent`;
+                quotaBadge.style.color = 'var(--green)';
+            }
 
             if (data.characterImage) {
                 document.getElementById('ai-image-url').value = data.characterImage;
                 document.getElementById('avatar-preview').src = data.characterImage;
-                localStorage.setItem('characterImage', data.characterImage);
-            } else if (savedImg) {
-                document.getElementById('ai-image-url').value = savedImg;
-                document.getElementById('avatar-preview').src = savedImg;
             }
 
             if (data.characterName) document.getElementById('ai-name').value = data.characterName;
@@ -1142,22 +1130,6 @@
             document.getElementById('trig-scene-name').value = '';
             switchTab('deck');
         }
-
-        socket.on('connect', () => {
-            const localGemKey = localStorage.getItem('geminiApiKey');
-            const localGroqKey = localStorage.getItem('groqApiKey');
-            const localRouterKey = localStorage.getItem('openrouterApiKey');
-            const localImg = localStorage.getItem('characterImage');
-
-            if (localGemKey || localGroqKey || localRouterKey || localImg) {
-                socket.emit('admin-sync-local', {
-                    geminiApiKey: localGemKey || '',
-                    groqApiKey: localGroqKey || '',
-                    openrouterApiKey: localRouterKey || '',
-                    characterImage: localImg || ''
-                });
-            }
-        });
     </script>
 </body>
 </html>
