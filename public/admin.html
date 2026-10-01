@@ -450,7 +450,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA (CUSTOM CHARACTER - ZERO PRESETS) -->
+        <!-- TAB 6: AI PERSONA (CUSTOM CHARACTER SETUP) -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -505,10 +505,10 @@
                 <div class="section-title">🎭 Character Setup & Real Voice</div>
 
                 <div class="avatar-preview-box">
-                    <img id="avatar-preview" class="avatar-preview-img" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3233/3233514.png'">
+                    <img id="avatar-preview" class="avatar-preview-img" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3233/3233514.png'">
                     <div style="flex:1;">
                         <label style="font-size:10px; color:var(--text-dim); margin-bottom:3px; display:block;">Avatar Image URL</label>
-                        <input type="text" id="ai-image-url" placeholder="Direct Image URL" style="margin-bottom:0; font-size:11px;" oninput="updateImagePreview()">
+                        <input type="text" id="ai-image-url" value="https://images3.alphacoders.com/134/1344406.jpeg" placeholder="Direct Image URL" style="margin-bottom:0; font-size:11px;" oninput="updateImagePreview()">
                     </div>
                 </div>
 
@@ -521,12 +521,12 @@
                     <input type="checkbox" id="ai-tts" checked>
                 </div>
 
-                <!-- 4 INDIAN ACCENT VOICES -->
+                <!-- 4 REAL INDIAN VOICES -->
                 <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Indian AI Voice</label>
                 <select id="ai-voice-select">
                     <optgroup label="👩 FEMALE VOICES (Indian)">
                         <option value="female_hi" selected>👩 Swara (Indian Hindi - Natural Female)</option>
-                        <option value="female_en">👩 Neerja (Indian English/Hinglish - Female)</option>
+                        <option value="female_en">👩 Neerja (Indian English/Hinglish - Natural Female)</option>
                     </optgroup>
                     <optgroup label="👨 MALE VOICES (Indian)">
                         <option value="male_hi">👨 Madhur (Indian Hindi - Deep Male)</option>
@@ -543,14 +543,14 @@
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
                         <input type="range" id="ai-rate" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
-                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow | Fast →</small>
+                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow Speech | Fast Talk →</small>
                     </div>
                 </div>
 
                 <div class="grid-2" style="margin-top:6px;">
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Character Name</label>
-                        <input type="text" id="ai-name" value="Bot">
+                        <input type="text" id="ai-name" value="Ryomen Sukuna">
                     </div>
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Command</label>
@@ -559,7 +559,7 @@
                 </div>
 
                 <label style="font-size:10px; color:var(--text-dim);">Behavior Prompt</label>
-                <textarea id="ai-persona" rows="3" placeholder="Enter character personality... (e.g. You are a witty anime hero. Reply in 1-2 punchy sentences in viewer's language.)"></textarea>
+                <textarea id="ai-persona" rows="3">You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences.</textarea>
 
                 <div class="grid-2">
                     <button class="btn-gold" onclick="saveAISettings()">💾 Save AI Settings</button>
@@ -1123,7 +1123,7 @@
             try {
                 const res = await obs.call('ToggleInputMute', { inputName: micName });
                 micBtn.className = res.inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
+                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️️ MIC IS LIVE';
             } catch (err) { alert('OBS connect nahi hai!'); }
         }
 
