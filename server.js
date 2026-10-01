@@ -20,30 +20,34 @@ const PRESETS = {
         name: "Son Goku",
         cmd: "!goku",
         image: "https://images2.alphacoders.com/131/1312384.png",
+        gender: "male",
         pitch: 1.3,
         rate: 1.1,
-        prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the user's language."
+        prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the viewer's language."
     },
     gojo: {
         name: "Gojo Satoru",
         cmd: "!gojo",
         image: "https://images8.alphacoders.com/134/1344405.jpeg",
+        gender: "male",
         pitch: 1.0,
         rate: 1.0,
-        prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the user's language."
+        prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
     },
     kazuya: {
         name: "Kazuya Mishima",
         cmd: "!kazuya",
         image: "https://images3.alphacoders.com/134/1347311.jpeg",
+        gender: "male",
         pitch: 0.7,
         rate: 0.95,
-        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the user's language."
+        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
     },
     sukuna: {
         name: "Ryomen Sukuna",
         cmd: "!sukuna",
         image: "https://images3.alphacoders.com/134/1344406.jpeg",
+        gender: "male",
         pitch: 0.8,
         rate: 0.9,
         prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
@@ -63,6 +67,7 @@ let streamData = {
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
+    ttsGender: 'male',
     ttsPitch: 1.1,
     ttsRate: 1.0,
     aiCommand: '!goku',
@@ -124,10 +129,7 @@ function getCalculatedBetData() {
         pct1 = Math.round((votes1 / totalVotes) * 100);
         pct2 = 100 - pct1;
     }
-    return {
-        ...activeBet,
-        votes1, votes2, totalVotes, totalPool, pct1, pct2
-    };
+    return { ...activeBet, votes1, votes2, totalVotes, totalPool, pct1, pct2 };
 }
 
 if (fs.existsSync(DATA_FILE)) {
@@ -262,7 +264,7 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // 1. Passive Coin Earning
+    // Passive Coin Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -283,7 +285,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 2. Owner Grant Coins
+    // Owner Add Coins
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
         if (!isOwner) return;
         const parts = rawText.split(' ');
@@ -300,14 +302,17 @@ liveChat.on("chat", async (chatItem) => {
                     characterImage: streamData.characterImage,
                     text: `Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye!`,
                     enableBubble: streamData.enableBubble,
-                    enableTTS: streamData.enableTTS
+                    enableTTS: streamData.enableTTS,
+                    pitch: streamData.ttsPitch,
+                    rate: streamData.ttsRate,
+                    gender: streamData.ttsGender
                 });
                 return;
             }
         }
     }
 
-    // 3. P2P Transfer
+    // P2P Transfer
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -326,7 +331,10 @@ liveChat.on("chat", async (chatItem) => {
                         characterImage: streamData.characterImage,
                         text: `💸 @${username} ne @${recipient} ko 🪙 ${amount} ${cName} transfer kiye!`,
                         enableBubble: streamData.enableBubble,
-                        enableTTS: streamData.enableTTS
+                        enableTTS: streamData.enableTTS,
+                        pitch: streamData.ttsPitch,
+                        rate: streamData.ttsRate,
+                        gender: streamData.ttsGender
                     });
                 }
             }
@@ -334,7 +342,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 4. MEME & SFX REDEEM ENGINE
+    // Meme/SFX Redeem
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
@@ -347,7 +355,10 @@ liveChat.on("chat", async (chatItem) => {
                 characterImage: streamData.characterImage,
                 text: `@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} hain.`,
                 enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS
+                enableTTS: streamData.enableTTS,
+                pitch: streamData.ttsPitch,
+                rate: streamData.ttsRate,
+                gender: streamData.ttsGender
             });
             return;
         }
@@ -359,23 +370,15 @@ liveChat.on("chat", async (chatItem) => {
         }
 
         if (matchedTrigger.type === 'video') {
-            io.emit('play-meme', {
-                mediaUrl: matchedTrigger.url,
-                name: matchedTrigger.name,
-                redeemedBy: username
-            });
+            io.emit('play-meme', { mediaUrl: matchedTrigger.url, name: matchedTrigger.name, redeemedBy: username });
         }
         if (matchedTrigger.type === 'sfx') {
-            io.emit('play-sfx', {
-                sfxUrl: matchedTrigger.url,
-                name: matchedTrigger.name,
-                redeemedBy: username
-            });
+            io.emit('play-sfx', { sfxUrl: matchedTrigger.url, name: matchedTrigger.name, redeemedBy: username });
         }
         return;
     }
 
-    // 5. CUSTOM CHAT COMMANDS WITH COIN REDEEM INTEGRATION
+    // Custom Commands with Coins
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const cost = parseInt(matchedCustom.cost) || 0;
@@ -386,9 +389,12 @@ liveChat.on("chat", async (chatItem) => {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
-                text: `@${username}, '${matchedCustom.cmd}' command ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`,
+                text: `@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost} ${cName} chahiye!`,
                 enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS
+                enableTTS: streamData.enableTTS,
+                pitch: streamData.ttsPitch,
+                rate: streamData.ttsRate,
+                gender: streamData.ttsGender
             });
             return;
         }
@@ -404,12 +410,15 @@ liveChat.on("chat", async (chatItem) => {
             characterImage: streamData.characterImage,
             text: `${isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`)}, ${matchedCustom.reply}`,
             enableBubble: matchedCustom.bubble !== false,
-            enableTTS: matchedCustom.tts === true
+            enableTTS: matchedCustom.tts === true,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate,
+            gender: streamData.ttsGender
         });
         return;
     }
 
-    // 6. Betting
+    // Betting (!bet 1 <amount> / !bet 2 <amount>)
     if (message.startsWith('!bet ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -436,7 +445,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 7. Manual TTS
+    // Manual TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -444,12 +453,15 @@ liveChat.on("chat", async (chatItem) => {
             characterImage: 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
             text: ttsText,
             enableBubble: streamData.enableBubble,
-            enableTTS: true
+            enableTTS: true,
+            pitch: 1.0,
+            rate: 1.0,
+            gender: streamData.ttsGender
         });
         return;
     }
 
-    // 8. AI Questions
+    // AI Questions
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -463,7 +475,10 @@ liveChat.on("chat", async (chatItem) => {
                 characterImage: streamData.characterImage,
                 text: `@${username}, AI se baat karne ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentCoins} hain.`,
                 enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS
+                enableTTS: streamData.enableTTS,
+                pitch: streamData.ttsPitch,
+                rate: streamData.ttsRate,
+                gender: streamData.ttsGender
             });
             return;
         }
@@ -480,12 +495,15 @@ liveChat.on("chat", async (chatItem) => {
             characterImage: streamData.characterImage,
             text: aiAnswer,
             enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS
+            enableTTS: streamData.enableTTS,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate,
+            gender: streamData.ttsGender
         });
         return;
     }
 
-    // 9. Deaths
+    // Deaths
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -572,7 +590,10 @@ io.on('connection', (socket) => {
             characterImage: streamData.characterImage,
             text: `🚨 PREDICTION OPEN: "${activeBet.title}" 👉 [1: ${activeBet.option1}] vs [2: ${activeBet.option2}]. Command: !bet 1 <amount> ya !bet 2 <amount>`,
             enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS
+            enableTTS: streamData.enableTTS,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate,
+            gender: streamData.ttsGender
         });
     });
 
@@ -600,7 +621,10 @@ io.on('connection', (socket) => {
             characterImage: streamData.characterImage,
             text: `🏆 RESULT: "${winningName}" JEET GAYA! 🪙 ${totalPool} Mac-Coins ka pool distribute ho gaya!`,
             enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS
+            enableTTS: streamData.enableTTS,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate,
+            gender: streamData.ttsGender
         });
 
         activeBet = { isOpen: false, locked: false, title: "", option1: "Option 1", option2: "Option 2", pool1: 0, pool2: 0, bets: {} };
@@ -637,7 +661,8 @@ io.on('connection', (socket) => {
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS,
             pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate
+            rate: streamData.ttsRate,
+            gender: streamData.ttsGender
         });
     });
 
