@@ -16,13 +16,13 @@
             display: none;
             align-items: flex-start;
             gap: 16px;
-            background: rgba(14, 18, 28, 0.94);
+            background: rgba(14, 18, 28, 0.95);
             border: 2px solid #00d2d3;
             border-radius: 16px;
             padding: 16px 20px;
             max-width: 550px;
-            box-shadow: 0 8px 30px rgba(0, 210, 211, 0.35);
-            animation: popIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 8px 30px rgba(0, 210, 211, 0.4);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         @keyframes popIn {
@@ -66,10 +66,8 @@
 </head>
 <body>
 
-    <audio id="tts-audio-player" preload="auto"></audio>
-
     <div id="ai-container">
-        <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Bot Avatar">
+        <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Avatar">
         <div class="content">
             <span id="bot-name">Son Goku</span>
             <div id="bot-text">Hello Stream!</div>
@@ -83,27 +81,71 @@
         const avatar = document.getElementById('avatar');
         const botName = document.getElementById('bot-name');
         const botText = document.getElementById('bot-text');
-        const player = document.getElementById('tts-audio-player');
 
         let hideTimeout = null;
+        let audioContext = null;
+        let globalAudio = null;
+
+        // Force Unlock Audio in OBS Chromium
+        function unlockAudioEngine() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume();
+                }
+            } catch(e) {}
+        }
+        window.addEventListener('click', unlockAudioEngine);
+        unlockAudioEngine();
+
+        function playSoundWithFallback(primaryUrl, fallbackUrl, playbackRate) {
+            unlockAudioEngine();
+
+            if (globalAudio) {
+                try { globalAudio.pause(); globalAudio.currentTime = 0; } catch(e) {}
+                globalAudio = null;
+            }
+
+            globalAudio = new Audio();
+            globalAudio.crossOrigin = "anonymous";
+            globalAudio.volume = 1.0;
+            globalAudio.playbackRate = playbackRate || 1.0;
+            globalAudio.src = primaryUrl;
+
+            const playPromise = globalAudio.play();
+
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    // Fallback to Secondary Direct Cloud TTS Engine
+                    if (fallbackUrl) {
+                        globalAudio = new Audio(fallbackUrl);
+                        globalAudio.volume = 1.0;
+                        globalAudio.playbackRate = playbackRate || 1.0;
+                        globalAudio.play().catch(err => console.error("All audio fallbacks failed:", err));
+                    }
+                });
+            }
+        }
 
         function speakCloudTTS(text, gender, pitch, rate) {
-            const voice = (gender === 'female') ? 'Aditi' : 'Brian';
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return;
 
-            const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(cleanText.slice(0, 250))}`;
+            // Engine 1: StreamElements Cloud Voice
+            const voice = (gender === 'female') ? 'Aditi' : 'Brian';
+            const primaryUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(cleanText.slice(0, 220))}`;
 
-            player.pause();
-            player.src = url;
+            // Engine 2: Google Instant Translate TTS (Guaranteed Autoplay in OBS)
+            const lang = (gender === 'female') ? 'hi' : 'en';
+            const fallbackUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(cleanText.slice(0, 200))}`;
 
             const p = parseFloat(pitch) || 1.0;
             const r = parseFloat(rate) || 1.0;
-            player.playbackRate = Math.max(0.6, Math.min(1.8, p * r));
+            const calcSpeed = Math.max(0.7, Math.min(1.6, p * r));
 
-            player.play().catch(err => {
-                console.log("Autoplay retry fallback:", err);
-            });
+            playSoundWithFallback(primaryUrl, fallbackUrl, calcSpeed);
         }
 
         socket.on('ai-speak', (data) => {
