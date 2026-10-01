@@ -451,7 +451,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA WITH 1-CLICK GOOGLE LOGIN -->
+        <!-- TAB 6: AI PERSONA WITH 1-CLICK GOOGLE LOGIN & BULLETPROOF TTS -->
         <div id="tab-ai" class="tab-content">
             
             <!-- 🔗 1-CLICK GOOGLE / YOUTUBE ACCOUNT CONNECT -->
@@ -504,7 +504,7 @@
                 <input type="password" id="ai-groq-key" placeholder="gsk_... (Optional)" style="font-size:11px;">
             </div>
 
-            <!-- CHARACTER AVATAR -->
+            <!-- CHARACTER AVATAR & BULLETPROOF TTS VOICE -->
             <div class="card">
                 <div class="section-title">🎭 Character Avatar & Speech</div>
 
@@ -536,14 +536,14 @@
 
                 <label style="font-size:10px; color:var(--text-dim);">Voice Gender</label>
                 <select id="ai-voice-gender">
-                    <option value="male">👨 Male (Deep / Energetic)</option>
                     <option value="female">👩 Female (Soft / Sweet)</option>
+                    <option value="male">👨 Male (Deep / Energetic)</option>
                 </select>
 
                 <div class="grid-2">
                     <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Voice Pitch (<span id="val-pitch">1.1</span>)</label>
-                        <input type="range" id="ai-pitch" min="0.5" max="1.8" step="0.1" value="1.1" oninput="document.getElementById('val-pitch').innerText=this.value">
+                        <label style="font-size:10px; color:var(--text-dim);">Voice Pitch (<span id="val-pitch">1.4</span>)</label>
+                        <input type="range" id="ai-pitch" min="0.5" max="1.8" step="0.1" value="1.4" oninput="document.getElementById('val-pitch').innerText=this.value">
                     </div>
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Speed (<span id="val-rate">1.0</span>)</label>
@@ -567,7 +567,7 @@
 
                 <div class="grid-2">
                     <button class="btn-gold" onclick="saveAISettings()">💾 Save AI Settings</button>
-                    <button style="background: #e67e22;" onclick="socket.emit('admin-test-ai')">🔊 Test Voice</button>
+                    <button style="background: #e67e22;" onclick="testVoiceDirectly()">🔊 Test Voice</button>
                 </div>
             </div>
         </div>
@@ -744,6 +744,48 @@
             const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 'coins': 4, 'ai': 5, 'commands': 6, 'customizer': 7, 'add': 8 };
             document.querySelectorAll('.nav-btn')[tabMap[tabName]].classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // ==========================================
+        // 🔊 BULLETPROOF CLOUD TTS ENGINE
+        // ==========================================
+        let currentAudio = null;
+
+        function playCloudTTS(text, gender, rate) {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+            }
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+            // Aditi = Indian English/Hindi female, Brian = British classic streamer male
+            const voice = (gender === 'female') ? 'Aditi' : 'Brian';
+            const cleanText = text.replace(/[*_#~]/g, '').trim();
+            const url = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(cleanText.slice(0, 250))}`;
+
+            currentAudio = new Audio(url);
+            currentAudio.playbackRate = rate || 1.0;
+            currentAudio.play().catch(e => {
+                // Secondary fallback
+                if ('speechSynthesis' in window) {
+                    const u = new SpeechSynthesisUtterance(cleanText);
+                    u.rate = rate || 1.0;
+                    window.speechSynthesis.speak(u);
+                }
+            });
+        }
+
+        function testVoiceDirectly() {
+            const name = document.getElementById('ai-name').value.trim() || 'Son Goku';
+            const gender = document.getElementById('ai-voice-gender').value;
+            const rate = parseFloat(document.getElementById('ai-rate').value) || 1.0;
+            const testMsg = `Yo! Audio aur Speech bubble bilkul ready hain! Main hoon ${name}!`;
+
+            // Play in current Dashboard speaker
+            playCloudTTS(testMsg, gender, rate);
+
+            // Also broadcast to OBS overlay
+            socket.emit('admin-test-ai');
         }
 
         // --- 1-CLICK GOOGLE OAUTH FUNCTIONS ---
@@ -964,7 +1006,6 @@
             if (data.googleClientId) document.getElementById('google-client-id').value = data.googleClientId;
             if (data.googleClientSecret) document.getElementById('google-client-secret').value = data.googleClientSecret;
 
-            // Google OAuth Live State Switcher
             const loggedInBox = document.getElementById('google-logged-in-box');
             const loggedOutBox = document.getElementById('google-logged-out-box');
             const statusBadge = document.getElementById('google-status-badge');
