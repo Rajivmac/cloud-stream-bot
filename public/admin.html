@@ -294,7 +294,7 @@
         <div class="sidebar-brand">⚡ Stream Deck</div>
         <button class="nav-btn active" onclick="switchTab('deck')"><span>🎮</span> Live Deck</button>
         <button class="nav-btn" onclick="switchTab('counter')"><span>💀</span> Deaths</button>
-        <button class="nav-btn" onclick="switchTab('timer')"><span>⏱️</span> Playtime</button>
+        <button class="nav-btn" onclick="switchTab('timer')"><span>⏱️️</span> Playtime</button>
         <button class="nav-btn" onclick="switchTab('bet')"><span>🎲</span> Predictions</button>
         <button class="nav-btn" onclick="switchTab('coins')"><span>🪙</span> Mac-Coins</button>
         <button class="nav-btn" onclick="switchTab('ai')"><span>🤖</span> AI Persona</button>
@@ -451,7 +451,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA (WITH AVATAR & GOOGLE 2.5 FLASH VERIFIER) -->
+        <!-- TAB 6: AI PERSONA (DYNAMIC AUTO-RESOLVER VERIFIER) -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
                 <div class="section-title">
@@ -716,47 +716,74 @@
             }
         }
 
-        // Updated Gemini 2.5 Flash Verifier
+        // Smart Dynamic Model Discovery & Verifier
         async function verifyGeminiKey() {
             const key = document.getElementById('ai-key').value.trim();
             const badge = document.getElementById('api-key-status');
             if (!key) return alert('Pehle Gemini API Key paste karein!');
 
-            badge.innerText = '⏳ Verifying with Google...';
+            badge.innerText = '⏳ Discovering Google Models...';
             badge.style.color = 'var(--orange)';
 
-            try {
-                // Testing gemini-2.5-flash with automatic fallback to gemini-2.0-flash
-                let res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] })
-                });
+            let activeModel = 'gemini-2.5-flash';
+            let connected = false;
 
-                if (!res.ok) {
-                    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+            // 1. Auto-discover available models from Google
+            try {
+                const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+                if (listRes.ok) {
+                    const listData = await listRes.json();
+                    if (listData.models && listData.models.length > 0) {
+                        const valid = listData.models.filter(m => 
+                            m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')
+                        );
+                        const match = valid.find(m => m.name.includes('gemini-2.5-flash'))
+                                   || valid.find(m => m.name.includes('flash'))
+                                   || valid[0];
+                        if (match) activeModel = match.name.replace('models/', '');
+                    }
+                }
+            } catch(e) {}
+
+            // 2. Test generateContent on dynamic endpoints
+            const testUrls = [
+                `https://generativelanguage.googleapis.com/v1/models/${activeModel}:generateContent?key=${key}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${key}`,
+                `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${key}`,
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`
+            ];
+
+            let lastError = '';
+            for (const url of testUrls) {
+                try {
+                    const res = await fetch(url, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] })
                     });
+                    const data = await res.json();
+                    if (data.candidates && data.candidates[0].content) {
+                        connected = true;
+                        break;
+                    } else if (data.error) {
+                        lastError = data.error.message;
+                    }
+                } catch(e) {
+                    lastError = e.message;
                 }
+            }
 
-                const data = await res.json();
-                if (data.candidates && data.candidates[0].content) {
-                    badge.innerText = '🟢 Key Verified & Working!';
-                    badge.style.color = 'var(--green)';
-                    localStorage.setItem('geminiApiKey', key);
-                    saveAISettings();
-                    alert('✅ Google Gemini API Key successfully connected aur verified!');
-                } else {
-                    badge.innerText = '🔴 Invalid Key';
-                    badge.style.color = 'var(--red)';
-                    alert('❌ API Key galat hai ya quota limit hai: ' + (data.error ? data.error.message : 'Unknown error'));
-                }
-            } catch(e) {
+            if (connected) {
+                badge.innerText = `🟢 Connected (${activeModel})!`;
+                badge.style.color = 'var(--green)';
+                localStorage.setItem('geminiApiKey', key);
+                localStorage.setItem('geminiModel', activeModel);
+                saveAISettings();
+                alert(`✅ Google Gemini API successfully connected!\nActive Model: ${activeModel}`);
+            } else {
                 badge.innerText = '🔴 Connection Error';
                 badge.style.color = 'var(--red)';
-                alert('❌ Error: ' + e.message);
+                alert('❌ Error: ' + (lastError || 'Could not connect to Google Gemini API'));
             }
         }
 
@@ -923,6 +950,7 @@
         function saveAISettings() {
             const key = document.getElementById('ai-key').value.trim() || localStorage.getItem('geminiApiKey') || '';
             const img = document.getElementById('ai-image-url').value.trim() || localStorage.getItem('characterImage') || '';
+            const model = localStorage.getItem('geminiModel') || 'gemini-2.5-flash';
 
             if (key) localStorage.setItem('geminiApiKey', key);
             if (img) localStorage.setItem('characterImage', img);
@@ -934,6 +962,7 @@
                 ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
                 ttsRate: parseFloat(document.getElementById('ai-rate').value),
                 geminiApiKey: key,
+                geminiModel: model,
                 characterName: document.getElementById('ai-name').value.trim(),
                 characterImage: img,
                 characterPersona: document.getElementById('ai-persona').value.trim(),
@@ -1141,11 +1170,16 @@
             switchTab('deck');
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        socket.on('connect', () => {
             const localKey = localStorage.getItem('geminiApiKey');
-            if (localKey && !document.getElementById('ai-key').value) {
-                document.getElementById('ai-key').value = localKey;
-                updateKeyStatusBadge();
+            const localImg = localStorage.getItem('characterImage');
+            const localModel = localStorage.getItem('geminiModel');
+            if (localKey || localImg || localModel) {
+                socket.emit('admin-sync-local', {
+                    geminiApiKey: localKey || '',
+                    characterImage: localImg || '',
+                    geminiModel: localModel || 'gemini-2.5-flash'
+                });
             }
         });
     </script>
