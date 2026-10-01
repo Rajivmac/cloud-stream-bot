@@ -2,52 +2,49 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>OBS AI Speech & Alerts Overlay</title>
+    <title>OBS AI Speech & Smart Alerts Overlay</title>
     <style>
         body {
             margin: 0;
-            padding: 20px;
+            padding: 24px;
             background: transparent;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
-        #ai-container {
-            display: none;
-            align-items: flex-start;
-            gap: 16px;
-            background: rgba(14, 18, 28, 0.95);
-            border: 2px solid #00d2d3;
-            border-radius: 16px;
-            padding: 16px 20px;
-            max-width: 550px;
-            box-shadow: 0 8px 30px rgba(0, 210, 211, 0.4);
-            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            margin-bottom: 12px;
-        }
-
-        /* 🌟 SUPER CHAT & MEMBER GOLDEN ALERT BANNER */
+        /* 🌟 ALERT BANNER (SuperChat, Members, Subscribers) */
         #alert-box {
             display: none;
             flex-direction: column;
             gap: 6px;
-            background: linear-gradient(135deg, rgba(241, 196, 15, 0.95), rgba(230, 126, 34, 0.95));
-            border: 3px solid #ffffff;
             border-radius: 16px;
-            padding: 16px 22px;
-            max-width: 500px;
+            padding: 16px 24px;
+            max-width: 520px;
+            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.6);
+            animation: alertPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin-bottom: 12px;
+        }
+
+        .alert-superchat {
+            background: linear-gradient(135deg, #f1c40f, #e67e22);
+            border: 3px solid #ffffff;
             color: #000;
-            box-shadow: 0 0 35px rgba(241, 196, 15, 0.8);
-            animation: alertPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .alert-member {
+            background: linear-gradient(135deg, #00d2d3, #2ecc71);
+            border: 3px solid #ffffff;
+            color: #000;
+        }
+
+        .alert-sub {
+            background: linear-gradient(135deg, #ff4757, #c0392b);
+            border: 3px solid #ffffff;
+            color: #fff;
         }
 
         @keyframes alertPop {
-            0% { transform: scale(0.6) translateY(-30px); opacity: 0; }
-            100% { transform: scale(1) translateY(0); opacity: 1; }
-        }
-
-        @keyframes popIn {
-            0% { transform: scale(0.7) translateY(20px); opacity: 0; }
+            0% { transform: scale(0.6) translateY(-25px); opacity: 0; }
             100% { transform: scale(1) translateY(0); opacity: 1; }
         }
 
@@ -55,26 +52,44 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 17px;
+            font-size: 16px;
             font-weight: 900;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
-        .alert-amount {
-            background: #000;
-            color: #f1c40f;
+        .alert-badge {
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
             padding: 4px 10px;
             border-radius: 8px;
-            font-size: 15px;
-            font-weight: 900;
+            font-size: 14px;
+            font-weight: 800;
         }
 
         .alert-body {
             font-size: 15px;
             font-weight: 700;
-            color: #111;
-            line-height: 1.3;
+            line-height: 1.35;
+        }
+
+        /* 💬 AI CHARACTER SPEECH BUBBLE */
+        #ai-container {
+            display: none;
+            align-items: flex-start;
+            gap: 16px;
+            background: rgba(14, 18, 28, 0.96);
+            border: 2px solid #00d2d3;
+            border-radius: 16px;
+            padding: 16px 20px;
+            max-width: 550px;
+            box-shadow: 0 8px 30px rgba(0, 210, 211, 0.4);
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: scale(0.7) translateY(20px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
         }
 
         #avatar {
@@ -115,16 +130,16 @@
 
     <audio id="tts-audio" style="display:none;"></audio>
 
-    <!-- SUPER CHAT & MEMBER BANNER -->
+    <!-- ALERT BANNER -->
     <div id="alert-box">
         <div class="alert-header">
             <span id="alert-title">🎉 SUPER CHAT!</span>
-            <span id="alert-val" class="alert-amount">₹500</span>
+            <span id="alert-badge" class="alert-badge">₹500</span>
         </div>
         <div class="alert-body" id="alert-msg">Rahul Gamer: Keep grinding boss!</div>
     </div>
 
-    <!-- AI BUBBLE OVERLAY -->
+    <!-- AI SPEECH BUBBLE -->
     <div id="ai-container">
         <img id="avatar" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar">
         <div class="content">
@@ -144,11 +159,16 @@
 
         const alertBox = document.getElementById('alert-box');
         const alertTitle = document.getElementById('alert-title');
-        const alertVal = document.getElementById('alert-val');
+        const alertBadge = document.getElementById('alert-badge');
         const alertMsg = document.getElementById('alert-msg');
 
-        let hideTimeout = null;
-        let alertTimeout = null;
+        // ==========================================
+        // 🔄 SMART FIFO QUEUE ENGINE
+        // ==========================================
+        const eventQueue = [];
+        let isProcessing = false;
+        let safetyTimeout = null;
+
         let audioCtx = null;
         let bassFilter = null;
         let trebleFilter = null;
@@ -179,9 +199,86 @@
             } catch(e) {}
         }
 
-        function playVoice(text, voice, pitch, rate) {
+        function enqueueEvent(item) {
+            // Anti-flooding: Maximum 6 items in queue
+            if (eventQueue.length >= 6) return;
+            eventQueue.push(item);
+            if (!isProcessing) processNextQueueItem();
+        }
+
+        function processNextQueueItem() {
+            if (eventQueue.length === 0) {
+                isProcessing = false;
+                return;
+            }
+
+            isProcessing = true;
+            const current = eventQueue.shift();
+
+            if (current.type === 'alert') {
+                handleAlertEvent(current);
+            } else if (current.type === 'speak') {
+                handleSpeakEvent(current);
+            }
+        }
+
+        function finishCurrentItem() {
+            if (safetyTimeout) clearTimeout(safetyTimeout);
+            container.style.display = 'none';
+            alertBox.style.display = 'none';
+
+            // 400ms clean delay between notifications
+            setTimeout(processNextQueueItem, 400);
+        }
+
+        function handleAlertEvent(data) {
+            alertBox.className = '';
+            if (data.alertType === 'superchat') {
+                alertBox.classList.add('alert-superchat');
+                alertTitle.innerText = `💰 SUPER CHAT: @${data.user}`;
+                alertBadge.innerText = data.amount;
+                alertBadge.style.display = 'inline-block';
+                alertMsg.innerText = data.msg || 'Thank you for supporting the stream!';
+            } else if (data.alertType === 'member') {
+                alertBox.classList.add('alert-member');
+                alertTitle.innerText = `👑 NEW MEMBER: @${data.user}`;
+                alertBadge.innerText = 'MEMBER';
+                alertBadge.style.display = 'inline-block';
+                alertMsg.innerText = 'Welcome to the channel family!';
+            } else if (data.alertType === 'subscriber') {
+                alertBox.classList.add('alert-sub');
+                alertTitle.innerText = `🔴 NEW SUBSCRIBER!`;
+                alertBadge.innerText = `@${data.user}`;
+                alertBadge.style.display = 'inline-block';
+                alertMsg.innerText = 'Just subscribed to the channel! Welcome!';
+            }
+
+            alertBox.style.display = 'flex';
+
+            // Alert stays on screen for 6.5 seconds, then advances queue
+            safetyTimeout = setTimeout(finishCurrentItem, 6500);
+        }
+
+        function handleSpeakEvent(data) {
+            if (data.enableBubble) {
+                avatar.src = data.characterImage || 'https://images3.alphacoders.com/134/1344406.jpeg';
+                botName.innerText = data.characterName || 'Bot';
+                botText.innerText = data.text;
+                container.style.display = 'flex';
+            }
+
+            if (data.enableTTS) {
+                playVoiceWithCallback(data.text, data.voice, data.pitch, data.rate, () => {
+                    finishCurrentItem();
+                });
+            } else {
+                safetyTimeout = setTimeout(finishCurrentItem, 6000);
+            }
+        }
+
+        function playVoiceWithCallback(text, voice, pitch, rate, onComplete) {
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
-            if (!cleanText) return;
+            if (!cleanText) return onComplete();
 
             initToneEqualizer();
 
@@ -190,7 +287,7 @@
             const p = parseFloat(pitch) || 1.0;
             currentRate = Math.max(0.6, Math.min(1.8, parseFloat(rate) || 1.0));
 
-            // TONE EQUALIZER: Alters bass/treble resonance without touching speed
+            // Independent Tone Equalizer
             if (bassFilter && trebleFilter) {
                 if (p < 1.0) {
                     bassFilter.gain.value = (1.0 - p) * 28;
@@ -216,54 +313,47 @@
             audioPlayer.onplay = applySpeed;
             audioPlayer.onplaying = applySpeed;
 
+            let completed = false;
+            const done = () => {
+                if (!completed) {
+                    completed = true;
+                    onComplete();
+                }
+            };
+
+            audioPlayer.onended = done;
+            // Safety fallback if audio fails to trigger end event
+            safetyTimeout = setTimeout(done, 9000);
+
             audioPlayer.src = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
             audioPlayer.volume = 1.0;
 
             const playPromise = audioPlayer.play();
             if (playPromise !== undefined) {
-                playPromise.then(() => {
-                    applySpeed();
-                }).catch(err => {
-                    console.error("Audio play error:", err);
+                playPromise.then(applySpeed).catch(err => {
+                    done();
                 });
             }
         }
 
+        // ==========================================
+        // 📡 SOCKET EVENT LISTENERS
+        // ==========================================
         socket.on('ai-speak', (data) => {
-            if (data.enableBubble) {
-                avatar.src = data.characterImage || 'https://images3.alphacoders.com/134/1344406.jpeg';
-                botName.innerText = data.characterName || 'Bot';
-                botText.innerText = data.text;
-                container.style.display = 'flex';
-
-                if (hideTimeout) clearTimeout(hideTimeout);
-                hideTimeout = setTimeout(() => {
-                    container.style.display = 'none';
-                }, 8500);
-            }
-
-            if (data.enableTTS) {
-                playVoice(data.text, data.voice, data.pitch, data.rate);
-            }
+            enqueueEvent({
+                type: 'speak',
+                ...data
+            });
         });
 
-        // 🌟 ON-SCREEN ALERT LISTENER
         socket.on('stream-alert', (data) => {
-            if (data.type === 'superchat') {
-                alertTitle.innerText = `💰 SUPER CHAT: @${data.user}`;
-                alertVal.innerText = data.amount;
-                alertMsg.innerText = data.msg || 'Thanks for supporting the stream!';
-            } else if (data.type === 'member') {
-                alertTitle.innerText = `👑 NEW MEMBER: @${data.user}`;
-                alertVal.innerText = 'MEMBER';
-                alertMsg.innerText = 'Welcome to the channel family!';
-            }
-
-            alertBox.style.display = 'flex';
-            if (alertTimeout) clearTimeout(alertTimeout);
-            alertTimeout = setTimeout(() => {
-                alertBox.style.display = 'none';
-            }, 8000);
+            enqueueEvent({
+                type: 'alert',
+                alertType: data.type,
+                user: data.user,
+                amount: data.amount,
+                msg: data.msg
+            });
         });
     </script>
 </body>
