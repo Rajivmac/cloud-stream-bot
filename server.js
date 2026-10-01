@@ -102,34 +102,42 @@ let streamData = {
     ]
 };
 
+// DYNAMIC MULTI-OPTION PREDICTION / POLL STATE
 let activeBet = {
     isOpen: false,
     locked: false,
     title: "",
-    option1: "Win",
-    option2: "Lose",
-    pool1: 0,
-    pool2: 0,
-    bets: {}
+    options: [], // [ { id: 1, name: "Kazuya", pool: 0, votes: 0 }, ... ]
+    bets: {}     // { "username": { optionId: 1, amount: 50 } }
 };
 
 function getCalculatedBetData() {
-    let votes1 = 0, votes2 = 0;
-    for (const b of Object.values(activeBet.bets)) {
-        if (b.option === 1) votes1++;
-        if (b.option === 2) votes2++;
-    }
-    const totalPool = activeBet.pool1 + activeBet.pool2;
-    const totalVotes = votes1 + votes2;
-    let pct1 = 50, pct2 = 50;
-    if (totalPool > 0) {
-        pct1 = Math.round((activeBet.pool1 / totalPool) * 100);
-        pct2 = 100 - pct1;
-    } else if (totalVotes > 0) {
-        pct1 = Math.round((votes1 / totalVotes) * 100);
-        pct2 = 100 - pct1;
-    }
-    return { ...activeBet, votes1, votes2, totalVotes, totalPool, pct1, pct2 };
+    let totalPool = 0;
+    let totalVotes = 0;
+
+    activeBet.options.forEach(opt => {
+        totalPool += (opt.pool || 0);
+        totalVotes += (opt.votes || 0);
+    });
+
+    const calculatedOptions = activeBet.options.map(opt => {
+        let pct = 0;
+        if (totalPool > 0) {
+            pct = Math.round(((opt.pool || 0) / totalPool) * 100);
+        } else if (totalVotes > 0) {
+            pct = Math.round(((opt.votes || 0) / totalVotes) * 100);
+        } else {
+            pct = activeBet.options.length > 0 ? Math.round(100 / activeBet.options.length) : 0;
+        }
+        return { ...opt, pct };
+    });
+
+    return {
+        ...activeBet,
+        totalPool,
+        totalVotes,
+        options: calculatedOptions
+    };
 }
 
 if (fs.existsSync(DATA_FILE)) {
@@ -264,7 +272,7 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // Passive Coin Earning
+    // 1. Passive Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -285,7 +293,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Owner Add Coins
+    // 2. Owner Grant Coins
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
         if (!isOwner) return;
         const parts = rawText.split(' ');
@@ -312,7 +320,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // P2P Transfer
+    // 3. P2P Transfer
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -342,7 +350,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Meme/SFX Redeem
+    // 4. Meme/SFX Redeem
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
@@ -378,7 +386,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Custom Commands with Coins
+    // 5. Custom Commands with Coins
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const cost = parseInt(matchedCustom.cost) || 0;
@@ -418,34 +426,57 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Betting (!bet 1 <amount> / !bet 2 <amount>)
-    if (message.startsWith('!bet ')) {
+    // 6. Dynamic Betting / Voting (!bet 1 <amount> or !vote 1)
+    if (message.startsWith('!bet ') || message.startsWith('!vote ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
-        if (parts.length >= 3) {
+        if (parts.length >= 2) {
             const optionChoice = parseInt(parts[1]);
-            const betAmount = parseInt(parts[2]);
-            if ((optionChoice === 1 || optionChoice === 2) && !isNaN(betAmount) && betAmount > 0) {
-                const userBalance = streamData.userCoins[userKey] || 0;
-                if (userBalance >= betAmount) {
-                    streamData.userCoins[userKey] -= betAmount;
-                    if (!activeBet.bets[userKey]) {
-                        activeBet.bets[userKey] = { option: optionChoice, amount: betAmount };
-                    } else {
-                        activeBet.bets[userKey].amount += betAmount;
-                    }
-                    if (optionChoice === 1) activeBet.pool1 += betAmount;
-                    else activeBet.pool2 += betAmount;
+            const betAmount = parts[2] ? parseInt(parts[2]) : 0;
 
-                    saveDataToDisk();
-                    broadcastState();
+            const targetOption = activeBet.options.find(o => o.id === optionChoice);
+            if (!targetOption) return;
+
+            if (betAmount > 0) {
+                const userBalance = streamData.userCoins[userKey] || 0;
+                if (userBalance < betAmount) {
+                    io.emit('ai-speak', {
+                        characterName: streamData.characterName,
+                        characterImage: streamData.characterImage,
+                        text: `@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance} ${cName} hain!`,
+                        enableBubble: streamData.enableBubble,
+                        enableTTS: false
+                    });
+                    return;
                 }
+                streamData.userCoins[userKey] -= betAmount;
+                targetOption.pool = (targetOption.pool || 0) + betAmount;
             }
+
+            targetOption.votes = (targetOption.votes || 0) + 1;
+
+            if (!activeBet.bets[userKey]) {
+                activeBet.bets[userKey] = { optionId: optionChoice, amount: betAmount };
+            } else {
+                activeBet.bets[userKey].amount += betAmount;
+                activeBet.bets[userKey].optionId = optionChoice;
+            }
+
+            saveDataToDisk();
+            broadcastState();
+
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: false
+            });
             return;
         }
     }
 
-    // Manual TTS
+    // 7. Manual TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -461,7 +492,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Questions
+    // 8. AI Questions
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -503,7 +534,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Deaths
+    // 9. Deaths
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -572,23 +603,32 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
-    // Betting
-    socket.on('admin-start-bet', ({ title, option1, option2 }) => {
+    // START DYNAMIC MULTI-OPTION POLL
+    socket.on('admin-start-bet', ({ title, options }) => {
+        const parsedOptions = (options && options.length > 0) ? options.map((optName, index) => ({
+            id: index + 1,
+            name: optName.trim(),
+            pool: 0,
+            votes: 0
+        })) : [
+            { id: 1, name: "Option 1", pool: 0, votes: 0 },
+            { id: 2, name: "Option 2", pool: 0, votes: 0 }
+        ];
+
         activeBet = {
             isOpen: true,
             locked: false,
             title: title || "Who will win?",
-            option1: option1 || "Option 1",
-            option2: option2 || "Option 2",
-            pool1: 0,
-            pool2: 0,
+            options: parsedOptions,
             bets: {}
         };
         broadcastState();
+
+        const optionsText = parsedOptions.map(o => `[${o.id}: ${o.name}]`).join(' vs ');
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `🚨 PREDICTION OPEN: "${activeBet.title}" 👉 [1: ${activeBet.option1}] vs [2: ${activeBet.option2}]. Command: !bet 1 <amount> ya !bet 2 <amount>`,
+            text: `🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote with: !bet <number> <amount> or !vote <number>`,
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS,
             pitch: streamData.ttsPitch,
@@ -602,24 +642,30 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
-    socket.on('admin-resolve-bet', ({ winningOption }) => {
+    // DECLARE WINNER & DISTRIBUTE POOL
+    socket.on('admin-resolve-bet', ({ winningOptionId }) => {
         if (!activeBet.isOpen) return;
-        const totalPool = activeBet.pool1 + activeBet.pool2;
-        const winningPool = winningOption === 1 ? activeBet.pool1 : activeBet.pool2;
-        const winningName = winningOption === 1 ? activeBet.option1 : activeBet.option2;
+        const totalPool = activeBet.options.reduce((sum, o) => sum + (o.pool || 0), 0);
+        const winningOption = activeBet.options.find(o => o.id === parseInt(winningOptionId));
+        if (!winningOption) return;
+
+        const winningPool = winningOption.pool || 0;
 
         if (winningPool > 0) {
             for (const [user, bet] of Object.entries(activeBet.bets)) {
-                if (bet.option === winningOption) {
+                if (bet.optionId === winningOption.id && bet.amount > 0) {
                     const payout = Math.floor((bet.amount / winningPool) * totalPool);
                     streamData.userCoins[user] = (streamData.userCoins[user] || 0) + payout;
                 }
             }
         }
+
+        io.emit('bet-winner', { winnerName: winningOption.name, winnerId: winningOption.id, totalPool });
+
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `🏆 RESULT: "${winningName}" JEET GAYA! 🪙 ${totalPool} Mac-Coins ka pool distribute ho gaya!`,
+            text: `🏆 RESULT: "${winningOption.name}" JEET GAYA! Total 🪙 ${totalPool} Mac-Coins distribute ho gaye!`,
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS,
             pitch: streamData.ttsPitch,
@@ -627,17 +673,21 @@ io.on('connection', (socket) => {
             gender: streamData.ttsGender
         });
 
-        activeBet = { isOpen: false, locked: false, title: "", option1: "Option 1", option2: "Option 2", pool1: 0, pool2: 0, bets: {} };
-        saveDataToDisk();
-        broadcastState();
+        setTimeout(() => {
+            activeBet = { isOpen: false, locked: false, title: "", options: [], bets: {} };
+            saveDataToDisk();
+            broadcastState();
+        }, 12000);
     });
 
-    socket.on('admin-cancel-bet', () => {
-        if (!activeBet.isOpen) return;
+    // END / CLOSE POLL (Instant Stop & Hide)
+    socket.on('admin-end-bet', () => {
         for (const [user, bet] of Object.entries(activeBet.bets)) {
-            streamData.userCoins[user] = (streamData.userCoins[user] || 0) + bet.amount;
+            if (bet.amount > 0) {
+                streamData.userCoins[user] = (streamData.userCoins[user] || 0) + bet.amount;
+            }
         }
-        activeBet = { isOpen: false, locked: false, title: "", option1: "Option 1", option2: "Option 2", pool1: 0, pool2: 0, bets: {} };
+        activeBet = { isOpen: false, locked: false, title: "", options: [], bets: {} };
         saveDataToDisk();
         broadcastState();
     });
