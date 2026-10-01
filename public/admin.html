@@ -450,7 +450,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA (CUSTOM SETUP - ZERO PRESETS) -->
+        <!-- TAB 6: AI PERSONA (1 FEMALE & 1 MALE ONLY) -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -502,7 +502,7 @@
             </div>
 
             <div class="card">
-                <div class="section-title">🎭 Character Setup & Real Voice</div>
+                <div class="section-title">🎭 Character Setup & Voice</div>
 
                 <div class="avatar-preview-box">
                     <img id="avatar-preview" class="avatar-preview-img" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3233/3233514.png'">
@@ -521,28 +521,22 @@
                     <input type="checkbox" id="ai-tts" checked>
                 </div>
 
-                <!-- 4 INDIAN ACCENT VOICES -->
-                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Indian AI Voice</label>
+                <!-- ONLY 1 FEMALE & 1 MALE OPTION -->
+                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Select Voice</label>
                 <select id="ai-voice-select">
-                    <optgroup label="👩 FEMALE VOICES (Indian)">
-                        <option value="female_hi" selected>👩 Swara (Indian Hindi - Natural Female)</option>
-                        <option value="female_en">👩 Neerja (Indian English/Hinglish - Natural Female)</option>
-                    </optgroup>
-                    <optgroup label="👨 MALE VOICES (Indian)">
-                        <option value="male_hi">👨 Madhur (Indian Hindi - Deep Male)</option>
-                        <option value="male_en">👨 Prabhat (Indian English/Hinglish - Male)</option>
-                    </optgroup>
+                    <option value="female" selected>👩 Female (Natural Indian Voice)</option>
+                    <option value="male">👨 Male (Deep Energetic Voice)</option>
                 </select>
 
                 <div class="grid-2" style="margin-top:6px;">
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Voice Tone / Pitch (<span id="val-pitch">1.0</span>)</label>
                         <input type="range" id="ai-pitch" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-pitch').innerText=this.value">
-                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Deep Heavy Tone | Sharp Anime Tone →</small>
+                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Deep Tone | Sharp Tone →</small>
                     </div>
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
-                        <input type="range" id="ai-rate" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
+                        <input type="range" id="ai-rate" min="0.6" max="1.6" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
                         <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow | Fast →</small>
                     </div>
                 </div>
