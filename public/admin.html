@@ -123,10 +123,10 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             font-size: 13px;
         }
-        .row-toggle input[type="checkbox"] { width: 20px; height: 20px; margin: 0; }
+        .row-toggle input[type="checkbox"] { width: 18px; height: 18px; margin: 0; }
 
         .avatar-preview-box {
             display: flex;
@@ -145,7 +145,6 @@
             border: 2px solid var(--cyan);
         }
 
-        /* Custom Commands Table/List */
         .cmd-item {
             display: flex;
             align-items: center;
@@ -167,6 +166,28 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
+        }
+
+        /* Voice Sliders */
+        .slider-box {
+            background: #1a1e2e;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .slider-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #a4b0be;
+            margin-bottom: 4px;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--cyan);
+            margin: 0;
+            padding: 0;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -235,22 +256,40 @@
             </div>
         </div>
 
-        <!-- TAB 4: AI BOT SETTINGS -->
+        <!-- TAB 4: AI BOT & VOICE SETUP -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
-                <div class="section-title">🤖 AI Character & Voice Setup</div>
+                <div class="section-title">🎙️ Output Destination & Quota Control</div>
                 
                 <div class="row-toggle">
-                    <span>Enable AI Character</span>
-                    <input type="checkbox" id="ai-enabled" checked>
+                    <span>Show OBS Screen Bubble</span>
+                    <input type="checkbox" id="ai-bubble" checked>
                 </div>
                 <div class="row-toggle">
-                    <span>TTS Voice (Screen Speech)</span>
+                    <span>Play TTS Voice on Stream</span>
                     <input type="checkbox" id="ai-tts" checked>
+                </div>
+                <div class="row-toggle">
+                    <span style="color:#f39c12;">Post to YouTube Chat Box (Uses 50 Units)</span>
+                    <input type="checkbox" id="ai-yt-chat">
                 </div>
                 <div class="row-toggle">
                     <span>Auto-Welcome New Viewers</span>
                     <input type="checkbox" id="ai-welcome" checked>
+                </div>
+
+                <div class="slider-box">
+                    <div class="slider-row">
+                        <span>Voice Pitch (Aawaz patli/bhaari)</span>
+                        <span id="pitch-val">1.1</span>
+                    </div>
+                    <input type="range" id="ai-pitch" min="0.5" max="1.8" step="0.1" value="1.1" oninput="document.getElementById('pitch-val').innerText=this.value">
+
+                    <div class="slider-row" style="margin-top:8px;">
+                        <span>Speaking Speed</span>
+                        <span id="rate-val">1.0</span>
+                    </div>
+                    <input type="range" id="ai-rate" min="0.6" max="1.6" step="0.05" value="1.0" oninput="document.getElementById('rate-val').innerText=this.value">
                 </div>
 
                 <label style="font-size:11px; color:#8c93a8;">Google Gemini API Key</label>
@@ -258,18 +297,17 @@
 
                 <label style="font-size:11px; color:#8c93a8;">Choose Character Preset</label>
                 <select id="persona-presets" onchange="applyPresetPersona()">
-                    <option value="goku">🔥 Son Goku (Dragon Ball)</option>
-                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen)</option>
-                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8)</option>
-                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses)</option>
-                    <option value="custom">✏️ Custom Character</option>
+                    <option value="goku">🔥 Son Goku (Dragon Ball - Energetic High Pitch)</option>
+                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen - Playful Natural)</option>
+                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8 - Deep Menacing)</option>
+                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses - Deep Royal)</option>
                 </select>
 
                 <div class="avatar-preview-box">
                     <img id="avatar-preview" class="avatar-preview-img" src="https://images2.alphacoders.com/131/1312384.png" alt="Preview">
                     <div>
                         <span style="font-size: 13px; font-weight: 700;" id="preview-name">Son Goku</span><br>
-                        <small style="font-size: 11px; color: #8c93a8;">Active Character Overlay</small>
+                        <small style="font-size: 11px; color: #8c93a8;">Active Character Portrait</small>
                     </div>
                 </div>
 
@@ -291,18 +329,18 @@
                 <textarea id="ai-persona" rows="3"></textarea>
 
                 <div class="grid-2" style="margin-top: 5px;">
-                    <button class="btn-ai-save" onclick="saveAISettings()">💾 Save Character</button>
-                    <button style="background: #e67e22;" onclick="socket.emit('admin-test-ai')">🧪 Test Bubble</button>
+                    <button class="btn-ai-save" onclick="saveAISettings()">💾 Save Settings</button>
+                    <button style="background: #e67e22;" onclick="socket.emit('admin-test-ai')">🔊 Test Voice</button>
                 </div>
             </div>
         </div>
 
-        <!-- ================= TAB 5: CUSTOM CHAT COMMANDS MANAGER ================= -->
+        <!-- TAB 5: CUSTOM COMMANDS -->
         <div id="tab-commands" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Chat Command</div>
-                <input type="text" id="new-cmd-name" placeholder="Command trigger (e.g. !specs, !rank, !rules)">
-                <textarea id="new-cmd-reply" placeholder="What should the bot say in chat & screen bubble?" rows="2"></textarea>
+                <input type="text" id="new-cmd-name" placeholder="Trigger (e.g. !specs, !rank)">
+                <textarea id="new-cmd-reply" placeholder="Bot response text" rows="2"></textarea>
                 
                 <div class="row-toggle">
                     <span style="font-size:12px;">Speak with TTS Voice also?</span>
@@ -314,9 +352,7 @@
 
             <div class="card">
                 <div class="section-title">📋 Active Chat Commands</div>
-                <div id="custom-commands-list">
-                    <!-- Dynamic Commands will load here -->
-                </div>
+                <div id="custom-commands-list"></div>
             </div>
         </div>
 
@@ -389,25 +425,33 @@
                 name: "Son Goku",
                 cmd: "!goku",
                 image: "https://images2.alphacoders.com/131/1312384.png",
-                prompt: "You are Son Goku from Dragon Ball. Cheerful, super energetic, loves food and challenges. Talk about Tekken fights like martial arts tournaments. Reply in 1-2 punchy sentences in the user's language."
+                pitch: 1.3,
+                rate: 1.1,
+                prompt: "You are Son Goku from Dragon Ball. Cheerful, super energetic, love food and intense Tekken battles. Reply in 1-2 punchy sentences in the viewer's language."
             },
             gojo: {
                 name: "Gojo Satoru",
                 cmd: "!gojo",
                 image: "https://images8.alphacoders.com/134/1344405.jpeg",
-                prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and untouchable. Reply in 1-2 punchy sentences in the user's language."
+                pitch: 1.0,
+                rate: 1.0,
+                prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
             },
             kazuya: {
                 name: "Kazuya Mishima",
                 cmd: "!kazuya",
                 image: "https://images3.alphacoders.com/134/1347311.jpeg",
-                prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp, menacing sentences in the user's language."
+                pitch: 0.7,
+                rate: 0.95,
+                prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, power-hungry, and arrogant. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
             },
             sukuna: {
                 name: "Ryomen Sukuna",
                 cmd: "!sukuna",
                 image: "https://images3.alphacoders.com/134/1344406.jpeg",
-                prompt: "You are the King of Curses, Sukuna. Proud, condescending, and merciless. Treat viewers like mere insects. Reply in 1-2 royal sentences."
+                pitch: 0.8,
+                rate: 0.9,
+                prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
             }
         };
 
@@ -425,24 +469,30 @@
                 document.getElementById('ai-persona').value = presets[val].prompt;
                 document.getElementById('avatar-preview').src = presets[val].image;
                 document.getElementById('preview-name').innerText = presets[val].name;
+                document.getElementById('ai-pitch').value = presets[val].pitch;
+                document.getElementById('pitch-val').innerText = presets[val].pitch;
+                document.getElementById('ai-rate').value = presets[val].rate;
+                document.getElementById('rate-val').innerText = presets[val].rate;
             }
         }
 
         function saveAISettings() {
             socket.emit('admin-change-styles', {
-                aiEnabled: document.getElementById('ai-enabled').checked,
+                enableBubble: document.getElementById('ai-bubble').checked,
                 enableTTS: document.getElementById('ai-tts').checked,
+                postToYTChat: document.getElementById('ai-yt-chat').checked,
                 welcomeNewChatters: document.getElementById('ai-welcome').checked,
+                ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
+                ttsRate: parseFloat(document.getElementById('ai-rate').value),
                 geminiApiKey: document.getElementById('ai-key').value.trim(),
                 characterName: document.getElementById('ai-name').value.trim(),
                 characterImage: document.getElementById('ai-image-url').value.trim(),
                 characterPersona: document.getElementById('ai-persona').value.trim(),
                 aiCommand: document.getElementById('ai-cmd').value.trim()
             });
-            alert('Character saved!');
+            alert('Voice & Character settings saved!');
         }
 
-        // --- CUSTOM COMMANDS HANDLER ---
         function addCustomCommand() {
             let cmd = document.getElementById('new-cmd-name').value.trim();
             const reply = document.getElementById('new-cmd-reply').value.trim();
@@ -495,9 +545,18 @@
             }
             if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
             if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
-            if (data.aiEnabled !== undefined) document.getElementById('ai-enabled').checked = data.aiEnabled;
+            if (data.enableBubble !== undefined) document.getElementById('ai-bubble').checked = data.enableBubble;
             if (data.enableTTS !== undefined) document.getElementById('ai-tts').checked = data.enableTTS;
+            if (data.postToYTChat !== undefined) document.getElementById('ai-yt-chat').checked = data.postToYTChat;
             if (data.welcomeNewChatters !== undefined) document.getElementById('ai-welcome').checked = data.welcomeNewChatters;
+            if (data.ttsPitch) {
+                document.getElementById('ai-pitch').value = data.ttsPitch;
+                document.getElementById('pitch-val').innerText = data.ttsPitch;
+            }
+            if (data.ttsRate) {
+                document.getElementById('ai-rate').value = data.ttsRate;
+                document.getElementById('rate-val').innerText = data.ttsRate;
+            }
             if (data.customCommands) renderCustomCommands(data.customCommands);
         });
 
