@@ -63,8 +63,12 @@ let streamData = {
     timerFont: 'Orbitron',
     themeColor: '#ff4757',
     
+    // MULTI-PROVIDER AI CONFIGURATION
     geminiApiKey: process.env.GEMINI_API_KEY || '',
-    geminiModel: 'gemini-3.8-flash',
+    groqApiKey: process.env.GROQ_API_KEY || '',
+    openrouterApiKey: process.env.OPENROUTER_API_KEY || '',
+    aiProvider: 'auto', // 'auto', 'gemini', 'groq', 'openrouter'
+
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
@@ -147,9 +151,9 @@ if (fs.existsSync(DATA_FILE)) {
     }
 }
 
-if (process.env.GEMINI_API_KEY && !streamData.geminiApiKey) {
-    streamData.geminiApiKey = process.env.GEMINI_API_KEY;
-}
+if (process.env.GEMINI_API_KEY && !streamData.geminiApiKey) streamData.geminiApiKey = process.env.GEMINI_API_KEY;
+if (process.env.GROQ_API_KEY && !streamData.groqApiKey) streamData.groqApiKey = process.env.GROQ_API_KEY;
+if (process.env.OPENROUTER_API_KEY && !streamData.openrouterApiKey) streamData.openrouterApiKey = process.env.OPENROUTER_API_KEY;
 
 const saveDataToDisk = () => {
     try {
@@ -188,13 +192,122 @@ setInterval(() => {
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// Updated askGemini for gemini-3.8-flash
-async function askGemini(userPrompt, username, userRole) {
-    const key = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
-    if (!key) return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
+// --- MULTI-PROVIDER AI DRIVERS ---
 
-    const model = streamData.geminiModel || 'gemini-3.8-flash';
+// 1. Google Gemini Driver (Multi-Model Resilience against 503 Spikes)
+async function callGeminiDriver(key, systemText, userText, history) {
+    const contents = [];
+    if (history && history.length) {
+        history.slice(-6).forEach(entry => {
+            contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] });
+        });
+    }
+    contents.push({ role: "user", parts: [{ text: userText }] });
 
+    const models = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-pro"];
+
+    for (const model of models) {
+        const urls = [
+            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+            `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`
+        ];
+        for (const url of urls) {
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system_instruction: { parts: [{ text: systemText }] },
+                        contents: contents
+                    })
+                });
+                const data = await res.json();
+                if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
+                    return { success: true, text: data.candidates[0].content.parts[0].text.trim(), model: `Gemini (${model})` };
+                }
+            } catch (e) {}
+        }
+    }
+    return { success: false, error: "Gemini models busy" };
+}
+
+// 2. Groq Cloud Driver (Llama 3.3 - 0.2s ultra fast, 0% high demand)
+async function callGroqDriver(key, systemText, userText, history) {
+    const messages = [{ role: "system", content: systemText }];
+    if (history && history.length) {
+        history.slice(-6).forEach(h => {
+            messages.push({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text });
+        });
+    }
+    messages.push({ role: "user", content: userText });
+
+    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant", "mixtral-8x7b-32768"];
+    for (const m of models) {
+        try {
+            const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${key}`,
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    model: m,
+                    messages: messages,
+                    max_tokens: 150,
+                    temperature: 0.7
+                })
+            });
+            const data = await res.json();
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+                return { success: true, text: data.choices[0].message.content.trim(), model: `Groq (${m})` };
+            }
+        } catch (e) {}
+    }
+    return { success: false, error: "Groq models busy" };
+}
+
+// 3. OpenRouter Driver (Free DeepSeek & Llama)
+async function callOpenRouterDriver(key, systemText, userText, history) {
+    const messages = [{ role: "system", content: systemText }];
+    if (history && history.length) {
+        history.slice(-6).forEach(h => {
+            messages.push({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text });
+        });
+    }
+    messages.push({ role: "user", content: userText });
+
+    const models = [
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-r1:free",
+        "google/gemini-2.0-flash-exp:free"
+    ];
+    for (const m of models) {
+        try {
+            const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    "Authorization": `Bearer ${key}`,
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://stream-bot-hqlh.onrender.com",
+                    "X-Title": "Stream Deck Bot"
+                },
+                body: JSON.stringify({
+                    model: m,
+                    messages: messages,
+                    max_tokens: 150
+                })
+            });
+            const data = await res.json();
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+                return { success: true, text: data.choices[0].message.content.trim(), model: `OpenRouter (${m})` };
+            }
+        } catch (e) {}
+    }
+    return { success: false, error: "OpenRouter busy" };
+}
+
+// Multi-Provider Failover Router
+async function askAI(userPrompt, username, userRole) {
     let roleInstructions = "";
     if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
     else if (userRole === 'mod') roleInstructions = `CRITICAL: The person talking is a MODERATOR. Call them 'Moderator ji' or 'Mod Sahab'.`;
@@ -203,41 +316,51 @@ async function askGemini(userPrompt, username, userRole) {
     const systemInstructionText = `${streamData.characterPersona}\n${roleInstructions}\nKeep answers short (1-2 sentences) for stream speech bubble.`;
     const history = streamData.userHistories[username] || [];
 
-    const contents = [];
-    history.slice(-6).forEach(entry => contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] }));
-    contents.push({ role: "user", parts: [{ text: userPrompt }] });
+    // Order of execution based on configured mode
+    let queue = [];
+    if (streamData.aiProvider === 'groq') queue = ['groq', 'gemini', 'openrouter'];
+    else if (streamData.aiProvider === 'openrouter') queue = ['openrouter', 'groq', 'gemini'];
+    else if (streamData.aiProvider === 'gemini') queue = ['gemini', 'groq', 'openrouter'];
+    else queue = ['groq', 'gemini', 'openrouter']; // 'auto' mode
 
-    const endpoints = [
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-        `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`,
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${key}`
-    ];
-
-    try {
-        let res;
-        for (const url of endpoints) {
-            res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ system_instruction: { parts: [{ text: systemInstructionText }] }, contents })
-            });
-            if (res.ok) break;
+    for (const p of queue) {
+        if (p === 'groq' && (streamData.groqApiKey || process.env.GROQ_API_KEY)) {
+            const key = streamData.groqApiKey || process.env.GROQ_API_KEY;
+            const res = await callGroqDriver(key, systemInstructionText, userPrompt, history);
+            if (res.success) {
+                recordHistory(username, userPrompt, res.text);
+                return res.text;
+            }
         }
-
-        const data = await res.json();
-        if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
-            const aiReply = data.candidates[0].content.parts[0].text.trim();
-            if (!streamData.userHistories[username]) streamData.userHistories[username] = [];
-            streamData.userHistories[username].push({ role: 'user', text: userPrompt });
-            streamData.userHistories[username].push({ role: 'model', text: aiReply });
-            if (streamData.userHistories[username].length > 8) streamData.userHistories[username] = streamData.userHistories[username].slice(-8);
-            saveDataToDisk();
-            return aiReply;
+        if (p === 'gemini' && (streamData.geminiApiKey || process.env.GEMINI_API_KEY)) {
+            const key = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
+            const res = await callGeminiDriver(key, systemInstructionText, userPrompt, history);
+            if (res.success) {
+                recordHistory(username, userPrompt, res.text);
+                return res.text;
+            }
         }
-        return "Lagta hai power level bohot high ho gaya, samajh nahi aaya!";
-    } catch (err) {
-        return "AI connect nahi ho paaya, try again!";
+        if (p === 'openrouter' && (streamData.openrouterApiKey || process.env.OPENROUTER_API_KEY)) {
+            const key = streamData.openrouterApiKey || process.env.OPENROUTER_API_KEY;
+            const res = await callOpenRouterDriver(key, systemInstructionText, userPrompt, history);
+            if (res.success) {
+                recordHistory(username, userPrompt, res.text);
+                return res.text;
+            }
+        }
     }
+
+    return "AI models abhi busy hain, kuch der baad dobara pucho!";
+}
+
+function recordHistory(username, userPrompt, aiReply) {
+    if (!streamData.userHistories[username]) streamData.userHistories[username] = [];
+    streamData.userHistories[username].push({ role: 'user', text: userPrompt });
+    streamData.userHistories[username].push({ role: 'model', text: aiReply });
+    if (streamData.userHistories[username].length > 8) {
+        streamData.userHistories[username] = streamData.userHistories[username].slice(-8);
+    }
+    saveDataToDisk();
 }
 
 // YouTube Chat Engine
@@ -303,7 +426,6 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Owner Add Coins
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
         if (!isOwner) return;
         const parts = rawText.split(' ');
@@ -330,7 +452,6 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // P2P Transfer
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -360,7 +481,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Meme/SFX Redeem (Owner = Free, Others = Pay)
+    // Meme Redeem (Streamer = 100% Free, Mods & Viewers = Pay Coins)
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
@@ -484,7 +605,6 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Manual TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -500,7 +620,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Question
+    // AI Question (Multi-Provider Resilient)
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -527,7 +647,7 @@ liveChat.on("chat", async (chatItem) => {
             broadcastState();
         }
 
-        const aiAnswer = await askGemini(question, username, userRole);
+        const aiAnswer = await askAI(question, username, userRole);
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
@@ -541,7 +661,6 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Death counter
     if (isOwner || isMod) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -568,22 +687,61 @@ io.on('connection', (socket) => {
 
     socket.on('admin-sync-local', (localData) => {
         let changed = false;
-        if (!streamData.geminiApiKey && localData.geminiApiKey) {
-            streamData.geminiApiKey = localData.geminiApiKey;
-            changed = true;
-        }
-        if (localData.geminiModel) {
-            streamData.geminiModel = localData.geminiModel;
-            changed = true;
-        }
-        if (!streamData.characterImage && localData.characterImage) {
-            streamData.characterImage = localData.characterImage;
-            changed = true;
-        }
+        if (!streamData.geminiApiKey && localData.geminiApiKey) { streamData.geminiApiKey = localData.geminiApiKey; changed = true; }
+        if (!streamData.groqApiKey && localData.groqApiKey) { streamData.groqApiKey = localData.groqApiKey; changed = true; }
+        if (!streamData.openrouterApiKey && localData.openrouterApiKey) { streamData.openrouterApiKey = localData.openrouterApiKey; changed = true; }
+        if (localData.aiProvider) { streamData.aiProvider = localData.aiProvider; changed = true; }
+        if (!streamData.characterImage && localData.characterImage) { streamData.characterImage = localData.characterImage; changed = true; }
         if (changed) {
             saveDataToDisk();
             broadcastState();
         }
+    });
+
+    // SERVER-SIDE MULTI-PROVIDER AI VERIFIER
+    socket.on('admin-verify-ai', async ({ geminiKey, groqKey, openrouterKey, provider }) => {
+        const results = [];
+        let anySuccess = false;
+
+        if (groqKey) {
+            const r = await callGroqDriver(groqKey, "You are a helpful assistant.", "hi", []);
+            if (r.success) {
+                results.push(`🟢 Groq: Ready (${r.model})`);
+                anySuccess = true;
+            } else {
+                results.push(`🔴 Groq: Failed`);
+            }
+        }
+
+        if (geminiKey) {
+            const r = await callGeminiDriver(geminiKey, "You are a helpful assistant.", "hi", []);
+            if (r.success) {
+                results.push(`🟢 Google Gemini: Ready (${r.model})`);
+                anySuccess = true;
+            } else {
+                results.push(`🔴 Google Gemini: High demand / busy`);
+            }
+        }
+
+        if (openrouterKey) {
+            const r = await callOpenRouterDriver(openrouterKey, "You are a helpful assistant.", "hi", []);
+            if (r.success) {
+                results.push(`🟢 OpenRouter: Ready (${r.model})`);
+                anySuccess = true;
+            } else {
+                results.push(`🔴 OpenRouter: Failed`);
+            }
+        }
+
+        if (!geminiKey && !groqKey && !openrouterKey) {
+            socket.emit('admin-ai-verify-result', { success: false, message: "Kam se kam ek API Key daalna zaroori hai!" });
+            return;
+        }
+
+        socket.emit('admin-ai-verify-result', {
+            success: anySuccess,
+            message: anySuccess ? `✅ Connection Successful!\n${results.join('\n')}` : `❌ Saare models busy hain:\n${results.join('\n')}`
+        });
     });
 
     socket.on('admin-death-add', () => { streamData.deathCount++; broadcastState(); });
