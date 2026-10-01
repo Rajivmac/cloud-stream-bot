@@ -255,6 +255,15 @@
             font-size: 13px;
             font-weight: 700;
         }
+        .guide-box {
+            background: rgba(0, 210, 211, 0.08);
+            border: 1px dashed var(--cyan);
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
     </style>
 </head>
 <body>
@@ -337,7 +346,7 @@
             </div>
         </div>
 
-        <!-- TAB 4: PREDICTIONS / BETTING -->
+        <!-- TAB 4: PREDICTIONS / BETTING WITH INSTRUCTIONS -->
         <div id="tab-bet" class="tab-content">
             <div class="card">
                 <div class="section-title">🎲 Live Match Betting</div>
@@ -358,7 +367,15 @@
                     <button style="background:#2e384e; width:100%; margin-top:5px; padding:6px; font-size:11px;" onclick="socket.emit('admin-cancel-bet')">❌ Cancel & Refund</button>
                 </div>
 
-                <div class="section-title" style="margin-top:12px;">➕ Launch Custom Prediction</div>
+                <!-- Clear Chat Instructions Box -->
+                <div class="guide-box">
+                    <b style="color:var(--cyan);">📖 Live Chat Voting Commands:</b><br>
+                    • <code>!bet 1 50</code> ➔ Option 1 par 50 Mac-Coins lagana<br>
+                    • <code>!bet 2 100</code> ➔ Option 2 par 100 Mac-Coins lagana<br>
+                    • <code>!coins</code> ➔ Apna balance check karna
+                </div>
+
+                <div class="section-title" style="margin-top:14px;">➕ Launch Custom Prediction</div>
                 <input type="text" id="bet-new-title" placeholder="Question (e.g. Kaun Jeetega?)">
                 <div class="grid-2">
                     <input type="text" id="bet-new-opt1" placeholder="Option 1 (e.g. Kazuya)" value="Win">
@@ -408,10 +425,10 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA -->
+        <!-- TAB 6: AI PERSONA & FULL TTS ENGINE -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
-                <div class="section-title">🎙️ Audio & Voice Output</div>
+                <div class="section-title">🎙️ Audio & Voice Engine</div>
                 <div class="row-toggle">
                     <span>Show Screen Bubble</span>
                     <input type="checkbox" id="ai-bubble" checked>
@@ -419,6 +436,23 @@
                 <div class="row-toggle">
                     <span>Play TTS Voice</span>
                     <input type="checkbox" id="ai-tts" checked>
+                </div>
+
+                <label style="font-size:10px; color:var(--text-dim);">Voice Gender</label>
+                <select id="ai-voice-gender">
+                    <option value="male">👨 Male (Deep / Energetic)</option>
+                    <option value="female">👩 Female (Soft / Sweet)</option>
+                </select>
+
+                <div class="grid-2">
+                    <div>
+                        <label style="font-size:10px; color:var(--text-dim);">Voice Pitch (<span id="val-pitch">1.1</span>)</label>
+                        <input type="range" id="ai-pitch" min="0.5" max="1.8" step="0.1" value="1.1" oninput="document.getElementById('val-pitch').innerText=this.value">
+                    </div>
+                    <div>
+                        <label style="font-size:10px; color:var(--text-dim);">Speed (<span id="val-rate">1.0</span>)</label>
+                        <input type="range" id="ai-rate" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
+                    </div>
                 </div>
 
                 <label style="font-size:10px; color:var(--text-dim);">Gemini API Key</label>
@@ -439,7 +473,7 @@
                 <textarea id="ai-persona" rows="2"></textarea>
 
                 <div class="grid-2">
-                    <button class="btn-gold" onclick="saveAISettings()">💾 Save AI</button>
+                    <button class="btn-gold" onclick="saveAISettings()">💾 Save AI Settings</button>
                     <button style="background: #e67e22;" onclick="socket.emit('admin-test-ai')">🔊 Test Voice</button>
                 </div>
             </div>
@@ -689,6 +723,9 @@
             socket.emit('admin-change-styles', {
                 enableBubble: document.getElementById('ai-bubble').checked,
                 enableTTS: document.getElementById('ai-tts').checked,
+                ttsGender: document.getElementById('ai-voice-gender').value,
+                ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
+                ttsRate: parseFloat(document.getElementById('ai-rate').value),
                 geminiApiKey: document.getElementById('ai-key').value.trim(),
                 characterName: document.getElementById('ai-name').value.trim(),
                 characterPersona: document.getElementById('ai-persona').value.trim(),
@@ -702,6 +739,15 @@
             if (data.characterName) document.getElementById('ai-name').value = data.characterName;
             if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
             if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
+            if (data.ttsGender) document.getElementById('ai-voice-gender').value = data.ttsGender;
+            if (data.ttsPitch) {
+                document.getElementById('ai-pitch').value = data.ttsPitch;
+                document.getElementById('val-pitch').innerText = data.ttsPitch;
+            }
+            if (data.ttsRate) {
+                document.getElementById('ai-rate').value = data.ttsRate;
+                document.getElementById('val-rate').innerText = data.ttsRate;
+            }
             if (data.coinSettings) {
                 document.getElementById('coin-per-msg').value = data.coinSettings.coinsPerMsg;
                 document.getElementById('coin-cooldown').value = data.coinSettings.cooldownSeconds;
@@ -752,7 +798,7 @@
                 const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
                 const { inputMuted } = await obs.call('GetInputMute', { inputName: micName });
                 micBtn.className = inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
+                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙️️ MIC IS LIVE';
             } catch (e) {}
         }
 
@@ -802,7 +848,6 @@
             }
         });
 
-        // Dynamic Triggers with Coin Cost Badge & Direct Delete Option
         socket.on('load-triggers', (triggers) => {
             scenesContainer.innerHTML = '';
             triggersContainer.innerHTML = '';
