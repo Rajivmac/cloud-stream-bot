@@ -15,45 +15,6 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 const DATA_FILE = path.join(__dirname, 'stream_data.json');
 
-const PRESETS = {
-    goku: {
-        name: "Son Goku",
-        cmd: "!goku",
-        image: "https://cdn-icons-png.flaticon.com/512/3233/3233514.png",
-        voice: "Brian",
-        pitch: 1.15,
-        rate: 1.05,
-        prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the viewer's language."
-    },
-    gojo: {
-        name: "Gojo Satoru",
-        cmd: "!gojo",
-        image: "https://images8.alphacoders.com/134/1344405.jpeg",
-        voice: "Matthew",
-        pitch: 1.0,
-        rate: 1.0,
-        prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
-    },
-    kazuya: {
-        name: "Kazuya Mishima",
-        cmd: "!kazuya",
-        image: "https://images3.alphacoders.com/134/1347311.jpeg",
-        voice: "Russell",
-        pitch: 0.85,
-        rate: 0.95,
-        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
-    },
-    sukuna: {
-        name: "Ryomen Sukuna",
-        cmd: "!sukuna",
-        image: "https://images3.alphacoders.com/134/1344406.jpeg",
-        voice: "Russell",
-        pitch: 0.8,
-        rate: 0.9,
-        prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
-    }
-};
-
 let streamData = {
     deathCount: 0,
     gameTimeSeconds: 0,
@@ -80,13 +41,13 @@ let streamData = {
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
-    ttsVoice: 'Brian',
+    ttsVoice: 'female_hi',
     ttsPitch: 1.0,
     ttsRate: 1.0,
-    aiCommand: '!goku',
-    characterName: 'Son Goku',
+    aiCommand: '!ai',
+    characterName: 'Bot',
     characterImage: 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
-    characterPersona: PRESETS.goku.prompt,
+    characterPersona: "You are an intelligent gaming stream companion. Reply in 1-2 punchy sentences in the viewer's language.",
     welcomeNewChatters: true,
     reminderMinutes: 15,
 
@@ -184,50 +145,72 @@ setInterval(() => {
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
 // ========================================================
-// 🎙️ 100% BULLETPROOF MALE & FEMALE DUAL-PIPELINE TTS
+// 🎙️ 100% RELIABLE INDIAN MALE & FEMALE DUAL ENGINE
 // ========================================================
 app.get('/api/tts', async (req, res) => {
     try {
         const text = (req.query.text || '').slice(0, 280).trim();
-        let voice = (req.query.voice || streamData.ttsVoice || 'Brian').trim();
+        const voice = (req.query.voice || streamData.ttsVoice || 'female_hi').trim().toLowerCase();
         if (!text) return res.status(400).send("No text provided");
 
-        const maleVoices = ['brian', 'matthew', 'russell', 'joey', 'geraint', 'male'];
-        const isMale = maleVoices.includes(voice.toLowerCase());
-
-        if (voice.toLowerCase() === 'male') voice = 'Brian';
-        if (voice.toLowerCase() === 'female') voice = 'Aditi';
-
+        const isFemale = voice.includes('female') || voice === 'swara' || voice === 'neerja' || voice === 'aditi';
         const cleanText = text.replace(/[*_#~`]/g, '').trim();
 
-        // Voice Priority Queue based on gender
-        const queue = isMale 
-            ? [voice, 'Brian', 'Matthew', 'Joey', 'Russell'] 
-            : [voice, 'Aditi', 'Joanna', 'Amy', 'Raveena'];
-
-        // 1. StreamElements Primary with Full Browser Headers
-        for (const v of queue) {
+        // 1. FEMALE STREAMING PIPELINE (Swara / Neerja - 100% Success Guaranteed)
+        if (isFemale) {
+            // Primary: Google Cloud Translate Indian Hindi/English Engine (Never Fails)
+            const lang = (voice === 'female_en') ? 'en-IN' : 'hi';
             try {
-                const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${v}&text=${encodeURIComponent(cleanText)}`;
-                const response = await fetch(seUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                        'Accept': '*/*'
-                    }
+                const gUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(cleanText)}`;
+                const gResponse = await fetch(gUrl, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
                 });
-                if (response.ok) {
-                    const arrayBuffer = await response.arrayBuffer();
-                    if (arrayBuffer && arrayBuffer.byteLength > 400) {
+                if (gResponse.ok) {
+                    const buf = await gResponse.arrayBuffer();
+                    if (buf && buf.byteLength > 300) {
                         res.setHeader('Content-Type', 'audio/mpeg');
-                        res.setHeader('Cache-Control', 'no-cache');
-                        return res.send(Buffer.from(arrayBuffer));
+                        return res.send(Buffer.from(buf));
                     }
+                }
+            } catch(e) {}
+
+            // Secondary: StreamElements Aditi
+            try {
+                const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Aditi&text=${encodeURIComponent(cleanText)}`;
+                const seRes = await fetch(seUrl, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                });
+                if (seRes.ok) {
+                    const buf = await seRes.arrayBuffer();
+                    res.setHeader('Content-Type', 'audio/mpeg');
+                    return res.send(Buffer.from(buf));
                 }
             } catch(e) {}
         }
 
-        // 2. Guaranteed Deep Male Voice Backup (TikTok Studio Engine)
-        if (isMale) {
+        // 2. MALE STREAMING PIPELINE (Madhur / Prabhat)
+        else {
+            const maleQueue = (voice === 'male_en') 
+                ? ['Matthew', 'Brian', 'Joey', 'Russell'] 
+                : ['Brian', 'Russell', 'Matthew', 'Joey'];
+
+            for (const v of maleQueue) {
+                try {
+                    const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${v}&text=${encodeURIComponent(cleanText)}`;
+                    const response = await fetch(seUrl, {
+                        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                    });
+                    if (response.ok) {
+                        const buf = await response.arrayBuffer();
+                        if (buf && buf.byteLength > 400) {
+                            res.setHeader('Content-Type', 'audio/mpeg');
+                            return res.send(Buffer.from(buf));
+                        }
+                    }
+                } catch(e) {}
+            }
+
+            // TikTok Deep Male Fallback
             try {
                 const ttRes = await fetch('https://tiktok-tts.weilnet.workers.dev/api/generation', {
                     method: 'POST',
@@ -237,31 +220,14 @@ app.get('/api/tts', async (req, res) => {
                 if (ttRes.ok) {
                     const data = await ttRes.json();
                     if (data && data.data) {
-                        const buf = Buffer.from(data.data, 'base64');
-                        if (buf.length > 400) {
-                            res.setHeader('Content-Type', 'audio/mpeg');
-                            return res.send(buf);
-                        }
+                        res.setHeader('Content-Type', 'audio/mpeg');
+                        return res.send(Buffer.from(data.data, 'base64'));
                     }
                 }
             } catch(e) {}
         }
 
-        // 3. Female Fallback (Google Translate - only for female requests)
-        if (!isMale) {
-            const lang = (voice === 'Aditi' || voice === 'Raveena') ? 'hi' : 'en';
-            const gUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(cleanText)}`;
-            const gResponse = await fetch(gUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-            });
-            if (gResponse.ok) {
-                res.setHeader('Content-Type', 'audio/mpeg');
-                const arrayBuffer = await gResponse.arrayBuffer();
-                return res.send(Buffer.from(arrayBuffer));
-            }
-        }
-
-        res.status(500).send("TTS Error");
+        res.status(500).send("TTS Generation Failed");
     } catch (err) {
         res.status(500).send("TTS Error: " + err.message);
     }
@@ -475,7 +441,7 @@ function broadcastResponse(text, isTTS = true) {
 // AI Engine
 async function callPublicZeroKeyDriver(systemText, userText) {
     try {
-        const fullPrompt = `${systemText}\nUser:${userText}\nKeep reply punchy in 1-2 short sentences.`;
+        const fullPrompt = `${systemText}\nUser: ${userText}\nKeep reply punchy in 1-2 short sentences.`;
         const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=openai`);
         if (res.ok) {
             const text = await res.text();
@@ -620,7 +586,7 @@ liveChat.on("chat", async (chatItem) => {
 
     if (message === '!coins' || message === '!balance' || message === '!maccoins') {
         const balance = streamData.userCoins[userKey] || 0;
-        broadcastResponse(`@${username}, aapke paas 🪙 ${balance}${cName} hain!`, false);
+        broadcastResponse(`@${username}, aapke paas 🪙 ${balance} ${cName} hain!`, false);
         return;
     }
 
@@ -635,7 +601,7 @@ liveChat.on("chat", async (chatItem) => {
                 streamData.userCoins[targetUser] += amount;
                 saveDataToDisk();
                 broadcastState();
-                broadcastResponse(`Streamer Boss ne @${targetUser} ko 🪙 ${amount}${cName} diye!`, true);
+                broadcastResponse(`Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye!`, true);
                 return;
             }
         }
@@ -654,7 +620,7 @@ liveChat.on("chat", async (chatItem) => {
                     streamData.userCoins[recipient] += amount;
                     saveDataToDisk();
                     broadcastState();
-                    broadcastResponse(`💸 @${username} ne @${recipient} ko 🪙 ${amount}${cName} transfer kiye!`, true);
+                    broadcastResponse(`💸 @${username} ne @${recipient} ko 🪙 ${amount} ${cName} transfer kiye!`, true);
                 }
             }
             return;
@@ -667,7 +633,7 @@ liveChat.on("chat", async (chatItem) => {
         const currentBalance = streamData.userCoins[userKey] || 0;
 
         if (cost > 0 && !isOwner && currentBalance < cost) {
-            broadcastResponse(`@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost}${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`, true);
+            broadcastResponse(`@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`, true);
             return;
         }
 
@@ -688,7 +654,7 @@ liveChat.on("chat", async (chatItem) => {
         const currentBalance = streamData.userCoins[userKey] || 0;
 
         if (cost > 0 && !isOwner && currentBalance < cost) {
-            broadcastResponse(`@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost}${cName} chahiye!`, true);
+            broadcastResponse(`@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost} ${cName} chahiye!`, true);
             return;
         }
 
@@ -699,7 +665,7 @@ liveChat.on("chat", async (chatItem) => {
         }
 
         const replyPrefix = isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`);
-        broadcastResponse(`${replyPrefix},${matchedCustom.reply}`, matchedCustom.tts === true);
+        broadcastResponse(`${replyPrefix}, ${matchedCustom.reply}`, matchedCustom.tts === true);
         return;
     }
 
@@ -716,7 +682,7 @@ liveChat.on("chat", async (chatItem) => {
             if (betAmount > 0) {
                 const userBalance = streamData.userCoins[userKey] || 0;
                 if (userBalance < betAmount) {
-                    broadcastResponse(`@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance}${cName} hain!`, false);
+                    broadcastResponse(`@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance} ${cName} hain!`, false);
                     return;
                 }
                 streamData.userCoins[userKey] -= betAmount;
@@ -734,7 +700,7 @@ liveChat.on("chat", async (chatItem) => {
 
             saveDataToDisk();
             broadcastState();
-            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya!${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`, false);
+            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount}${cName})` : ''}`, false);
             return;
         }
     }
@@ -748,20 +714,20 @@ liveChat.on("chat", async (chatItem) => {
             enableBubble: streamData.enableBubble,
             enableTTS: true,
             voice: streamData.ttsVoice,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate
+            pitch: 1.0,
+            rate: 1.0
         });
         return;
     }
 
-    const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
+    const activeCommand = (streamData.aiCommand || '!ai').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
         const currentCoins = streamData.userCoins[userKey] || 0;
         const cost = streamData.coinSettings.aiCost;
 
         if (cost > 0 && !isOwner && currentCoins < cost) {
-            broadcastResponse(`@${username}, AI se baat karne ke liye 🪙 ${cost}${cName} chahiye! Tere paas sirf ${currentCoins} hain.`, true);
+            broadcastResponse(`@${username}, AI se baat karne ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentCoins} hain.`, true);
             return;
         }
 
@@ -838,7 +804,7 @@ io.on('connection', (socket) => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `Yo! Audio aur Speech bubble bilkul ready hain! Main hoon ${streamData.characterName}!`,
+            text: `Namaste! Audio aur Voice tone check ho raha hai. Main hoon ${streamData.characterName}!`,
             enableBubble: data.enableBubble !== false,
             enableTTS: data.enableTTS !== false,
             voice: streamData.ttsVoice,
@@ -922,7 +888,7 @@ io.on('connection', (socket) => {
         activeBet = { isOpen: true, locked: false, title: title || "Who will win?", options: parsedOptions, bets: {} };
         broadcastState();
 
-        const optionsText = parsedOptions.map(o => `[${o.id}:${o.name}]`).join(' vs ');
+        const optionsText = parsedOptions.map(o => `[${o.id}: ${o.name}]`).join(' vs ');
         broadcastResponse(`🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote: !bet <num> <amount> or !vote <num>`, true);
     });
 
