@@ -81,8 +81,7 @@ let streamData = {
         currencyName: "Mac-Coins",
         coinsPerMsg: 5,
         cooldownSeconds: 30,
-        aiCost: 50,
-        freeForMods: true
+        aiCost: 50
     },
 
     userCoins: {},
@@ -102,13 +101,12 @@ let streamData = {
     ]
 };
 
-// DYNAMIC MULTI-OPTION PREDICTION / POLL STATE
 let activeBet = {
     isOpen: false,
     locked: false,
     title: "",
-    options: [], // [ { id: 1, name: "Kazuya", pool: 0, votes: 0 }, ... ]
-    bets: {}     // { "username": { optionId: 1, amount: 50 } }
+    options: [],
+    bets: {}
 };
 
 function getCalculatedBetData() {
@@ -272,7 +270,7 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // 1. Passive Earning
+    // 1. Passive Earning (Har chat par Mac-Coins)
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -293,7 +291,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 2. Owner Grant Coins
+    // 2. Owner Grant Coins (!givecoins @user 50)
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
         if (!isOwner) return;
         const parts = rawText.split(' ');
@@ -320,7 +318,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 3. P2P Transfer
+    // 3. P2P Transfer (!pay @user 25)
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -350,18 +348,18 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 4. Meme/SFX Redeem
+    // 4. MEME & SFX REDEEM (Streamer = 100% FREE, Mods & Viewers = PAY COINS)
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
-        const isFree = isModOrOwner && streamData.coinSettings.freeForMods;
         const currentBalance = streamData.userCoins[userKey] || 0;
 
-        if (cost > 0 && !isFree && currentBalance < cost) {
+        // ONLY OWNER IS FREE (Mods and viewers must pay)
+        if (cost > 0 && !isOwner && currentBalance < cost) {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
-                text: `@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} hain.`,
+                text: `@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`,
                 enableBubble: streamData.enableBubble,
                 enableTTS: streamData.enableTTS,
                 pitch: streamData.ttsPitch,
@@ -371,7 +369,8 @@ liveChat.on("chat", async (chatItem) => {
             return;
         }
 
-        if (cost > 0 && !isFree) {
+        // Deduct coins only if user is NOT Owner
+        if (cost > 0 && !isOwner) {
             streamData.userCoins[userKey] -= cost;
             saveDataToDisk();
             broadcastState();
@@ -386,14 +385,13 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 5. Custom Commands with Coins
+    // 5. CUSTOM COMMANDS WITH COINS (Streamer = FREE, Mods & Viewers = PAY COINS)
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const cost = parseInt(matchedCustom.cost) || 0;
-        const isFree = isModOrOwner && streamData.coinSettings.freeForMods;
         const currentBalance = streamData.userCoins[userKey] || 0;
 
-        if (cost > 0 && !isFree && currentBalance < cost) {
+        if (cost > 0 && !isOwner && currentBalance < cost) {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
@@ -407,7 +405,7 @@ liveChat.on("chat", async (chatItem) => {
             return;
         }
 
-        if (cost > 0 && !isFree) {
+        if (cost > 0 && !isOwner) {
             streamData.userCoins[userKey] -= cost;
             saveDataToDisk();
             broadcastState();
@@ -426,7 +424,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 6. Dynamic Betting / Voting (!bet 1 <amount> or !vote 1)
+    // 6. DYNAMIC BETTING (!bet 1 <amount> or !vote 1)
     if (message.startsWith('!bet ') || message.startsWith('!vote ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -468,7 +466,7 @@ liveChat.on("chat", async (chatItem) => {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
-                text: `🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`,
+                text: `🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount}${cName})` : ''}`,
                 enableBubble: streamData.enableBubble,
                 enableTTS: false
             });
@@ -492,15 +490,14 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 8. AI Questions
+    // 8. AI Questions (Streamer = FREE, Mods & Viewers = PAY COINS)
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
-        const isFree = isModOrOwner && streamData.coinSettings.freeForMods;
         const currentCoins = streamData.userCoins[userKey] || 0;
         const cost = streamData.coinSettings.aiCost;
 
-        if (!isFree && currentCoins < cost) {
+        if (cost > 0 && !isOwner && currentCoins < cost) {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
@@ -514,7 +511,7 @@ liveChat.on("chat", async (chatItem) => {
             return;
         }
 
-        if (!isFree) {
+        if (cost > 0 && !isOwner) {
             streamData.userCoins[userKey] -= cost;
             saveDataToDisk();
             broadcastState();
@@ -603,7 +600,7 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
-    // START DYNAMIC MULTI-OPTION POLL
+    // Start Custom Multi-Option Poll
     socket.on('admin-start-bet', ({ title, options }) => {
         const parsedOptions = (options && options.length > 0) ? options.map((optName, index) => ({
             id: index + 1,
@@ -628,7 +625,7 @@ io.on('connection', (socket) => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote with: !bet <number> <amount> or !vote <number>`,
+            text: `🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote: !bet <num> <amount> or !vote <num>`,
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS,
             pitch: streamData.ttsPitch,
@@ -642,7 +639,7 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
-    // DECLARE WINNER & DISTRIBUTE POOL
+    // Declare Winner & Payout
     socket.on('admin-resolve-bet', ({ winningOptionId }) => {
         if (!activeBet.isOpen) return;
         const totalPool = activeBet.options.reduce((sum, o) => sum + (o.pool || 0), 0);
@@ -680,7 +677,7 @@ io.on('connection', (socket) => {
         }, 12000);
     });
 
-    // END / CLOSE POLL (Instant Stop & Hide)
+    // End / Stop Poll (Hide immediately and refund)
     socket.on('admin-end-bet', () => {
         for (const [user, bet] of Object.entries(activeBet.bets)) {
             if (bet.amount > 0) {
@@ -716,6 +713,7 @@ io.on('connection', (socket) => {
         });
     });
 
+    // Streamer clicks button on Live Deck -> Free 0 coins!
     socket.on('admin-play-meme', (data) => {
         io.emit('play-meme', { mediaUrl: data.mediaUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" });
     });
