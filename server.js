@@ -66,7 +66,6 @@ let streamData = {
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     groqApiKey: process.env.GROQ_API_KEY || '',
 
-    // Google OAuth 2.0 Credentials
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     ytAccessToken: '',
@@ -169,6 +168,7 @@ let isTimerRunning = false;
 let seenChatters = new Set();
 let lastEarnedTime = {};
 
+// Independent Playtime Timer
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -177,6 +177,7 @@ setInterval(() => {
     }
 }, 1000);
 
+// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -185,7 +186,45 @@ setInterval(() => {
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// --- GOOGLE OAUTH 2.0 WITH LOCAL VAULT SYNC ---
+// ========================================================
+// 🔊 DEDICATED SERVER-SIDE TTS AUDIO STREAM (NO CORS BLOCK)
+// ========================================================
+app.get('/api/tts', async (req, res) => {
+    try {
+        const text = (req.query.text || '').slice(0, 250).trim();
+        const voice = req.query.voice || 'Brian';
+        if (!text) return res.status(400).send("No text provided");
+
+        // Primary: StreamElements Cloud Voice
+        try {
+            const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(text)}`;
+            const response = await fetch(seUrl);
+            if (response.ok) {
+                res.setHeader('Content-Type', 'audio/mpeg');
+                const arrayBuffer = await response.arrayBuffer();
+                return res.send(Buffer.from(arrayBuffer));
+            }
+        } catch(e) {}
+
+        // Fallback: Google Voice Engine
+        const lang = (voice === 'Aditi') ? 'hi' : 'en';
+        const gUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(text)}`;
+        const gResponse = await fetch(gUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+        });
+        if (gResponse.ok) {
+            res.setHeader('Content-Type', 'audio/mpeg');
+            const arrayBuffer = await gResponse.arrayBuffer();
+            return res.send(Buffer.from(arrayBuffer));
+        }
+
+        res.status(500).send("TTS Generation Failed");
+    } catch (err) {
+        res.status(500).send("TTS Error: " + err.message);
+    }
+});
+
+// OAuth Routes
 const REDIRECT_URI = "https://stream-bot-hqlh.onrender.com/oauth2callback";
 
 app.get('/auth/google', (req, res) => {
@@ -242,7 +281,6 @@ app.get('/oauth2callback', async (req, res) => {
             saveDataToDisk();
             broadcastState();
 
-            // Permanent Browser Vault Redirection
             const params = new URLSearchParams({
                 auth: 'success',
                 account: streamData.ytAccountName,
@@ -391,7 +429,7 @@ function broadcastResponse(text, isTTS = true) {
     }
 }
 
-// --- AI FALLBACK SYSTEM ---
+// AI Engine
 async function callPublicZeroKeyDriver(systemText, userText) {
     try {
         const fullPrompt = `${systemText}\nUser:${userText}\nKeep reply punchy in 1-2 short sentences.`;
@@ -721,7 +759,6 @@ io.on('connection', (socket) => {
     socket.emit('bet-update', getCalculatedBetData());
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
 
-    // LocalStorage Auto-Sync: Restores tokens if server restarted
     socket.on('admin-sync-local', (local) => {
         let changed = false;
         if (local.googleClientId && !streamData.googleClientId) { streamData.googleClientId = local.googleClientId; changed = true; }
@@ -748,7 +785,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Directly tests current slider voice values on OBS
     socket.on('admin-test-voice-preview', (data) => {
         streamData.characterName = data.characterName || streamData.characterName;
         streamData.characterImage = data.characterImage || streamData.characterImage;
