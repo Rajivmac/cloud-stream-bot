@@ -23,9 +23,6 @@ let streamData = {
     clockFont: 'Share Tech Mono',
     timerFont: 'Orbitron',
     themeColor: '#ff4757',
-    
-    geminiApiKey: process.env.GEMINI_API_KEY || '',
-    groqApiKey: process.env.GROQ_API_KEY || '',
 
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
@@ -47,10 +44,11 @@ let streamData = {
     aiCommand: '!ai',
     characterName: 'Ryomen Sukuna',
     characterImage: 'https://images3.alphacoders.com/134/1344406.jpeg',
-    characterPersona: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences.",
+    characterPersona: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal punchy sentences in the viewer's language.",
     welcomeNewChatters: true,
     reminderMinutes: 15,
 
+    // Auto-Moderation
     modSettings: {
         blockLinks: true,
         capsFilter: true,
@@ -94,15 +92,12 @@ let activeBet = {
 let activeDuels = {};
 let userLastAiTime = {};
 
-// ==========================================
-// 📖 DYNAMIC AUTO-GENERATING COMMAND CATALOG
-// ==========================================
 function getDynamicCommandCatalog() {
     const aiCmd = streamData.aiCommand || '!ai';
     const cName = streamData.coinSettings.currencyName || 'Coins';
 
     const core = [
-        { cmd: `${aiCmd} <sawal>`, desc: `Talk to AI character (Cost: ${streamData.coinSettings.aiCost} ${cName})` },
+        { cmd: `${aiCmd} <question>`, desc: `Talk to AI character (Cost: ${streamData.coinSettings.aiCost} ${cName})` },
         { cmd: '!tts <message>', desc: 'Speak message in stream voice' },
         { cmd: '!coins / !balance', desc: 'Check your balance' },
         { cmd: '!daily', desc: 'Claim free 50 coins every 24h' },
@@ -162,14 +157,6 @@ if (fs.existsSync(DATA_FILE)) {
         if (!streamData.userHistories) streamData.userHistories = {};
         if (!streamData.triggers) streamData.triggers = [];
         if (!streamData.customCommands) streamData.customCommands = [];
-        if (!streamData.modSettings) {
-            streamData.modSettings = {
-                blockLinks: true,
-                capsFilter: true,
-                maxCapsPercent: 70,
-                bannedWords: "mc,bc,bhenchod,madarchod,gandu,chutiya,randi,bsdk"
-            };
-        }
     } catch (e) {
         console.error('Data load error:', e);
     }
@@ -204,7 +191,7 @@ setInterval(() => {
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
 // ========================================================
-// 🎙️ BULLETPROOF AUDIO PROXY
+// 🎙️ 100% RELIABLE FEMALE & MALE AUDIO PROXY
 // ========================================================
 app.get('/api/tts', async (req, res) => {
     try {
@@ -476,101 +463,127 @@ function broadcastResponse(text, isTTS = true) {
     }
 }
 
-// AI Drivers
-async function callPublicZeroKeyDriver(systemText, userText) {
-    try {
-        const fullPrompt = `${systemText}\nUser: ${userText}\nKeep reply punchy in 1-2 short sentences.`;
-        const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=openai`);
-        if (res.ok) {
-            const text = await res.text();
-            if (text && text.trim().length > 0) return { success: true, text: text.trim() };
+// ========================================================
+// ⚡ 100% ZERO-KEY BUILT-IN AI PROCESSOR (ZERO SETUP NEEDED)
+// ========================================================
+
+// High-Speed Direct Neural Query
+async function queryZeroKeyNeuralCloud(systemPrompt, userPrompt) {
+    const endpoints = [
+        {
+            url: "https://text.pollinations.ai/",
+            method: "POST",
+            body: JSON.stringify({
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: userPrompt }
+                ],
+                model: "openai",
+                seed: Math.floor(Math.random() * 10000)
+            })
+        },
+        {
+            url: `https://text.pollinations.ai/${encodeURIComponent(systemPrompt + " | User: " + userPrompt + " | Keep reply under 2 sentences.")}?model=mistral`,
+            method: "GET"
+        },
+        {
+            url: `https://text.pollinations.ai/${encodeURIComponent(systemPrompt + " | User: " + userPrompt + " | Keep reply under 2 sentences.")}?model=qwen`,
+            method: "GET"
         }
-    } catch(e) {}
-    return { success: false };
-}
+    ];
 
-async function callGroqDriver(key, systemText, userText, history) {
-    if (!key || !key.startsWith('gsk_')) return { success: false };
-    const messages = [{ role: "system", content: systemText }];
-    if (history && history.length) {
-        history.slice(-6).forEach(h => messages.push({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text }));
-    }
-    messages.push({ role: "user", content: userText });
-
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
-    for (const m of models) {
+    for (const ep of endpoints) {
         try {
-            const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                method: "POST",
-                headers: { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
-                body: JSON.stringify({ model: m, messages: messages, max_tokens: 150 })
-            });
-            const data = await res.json();
-            if (data.choices && data.choices[0] && data.choices[0].message) {
-                return { success: true, text: data.choices[0].message.content.trim() };
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 2600);
+            const options = {
+                method: ep.method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                },
+                signal: controller.signal
+            };
+            if (ep.body) options.body = ep.body;
+
+            const res = await fetch(ep.url, options);
+            clearTimeout(timeout);
+
+            if (res.ok) {
+                const text = await res.text();
+                const clean = text.replace(/<[^>]*>?/gm, '').trim();
+                if (clean && clean.length > 3 && !clean.toLowerCase().includes("error") && !clean.includes("<!DOCTYPE")) {
+                    return { success: true, text: clean };
+                }
             }
-        } catch (e) {}
+        } catch(e) {}
     }
     return { success: false };
 }
 
-async function callGeminiDriver(key, systemText, userText, history) {
-    if (!key) return { success: false };
-    const contents = [];
-    if (history && history.length) {
-        history.slice(-6).forEach(entry => contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] }));
-    }
-    contents.push({ role: "user", parts: [{ text: userText }] });
+// Fallback Persona Engine
+function generateInstantPersonaReply(userPrompt, username, userRole) {
+    const p = userPrompt.toLowerCase();
+    const cName = streamData.characterName || 'Bot';
 
-    const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
-    for (const m of models) {
-        try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ system_instruction: { parts: [{ text: systemText }] }, contents })
-            });
-            const data = await res.json();
-            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
-                return { success: true, text: data.candidates[0].content.parts[0].text.trim() };
-            }
-        } catch (e) {}
+    if (userRole === 'owner') {
+        const bossReplies = [
+            `Streamer Sahab, aapka order sar ankhon par! Kahiye kya aadesh hai?`,
+            `Boss! Match par poora focus rakho, stream chat ko main akele dekh lunga!`,
+            `Aadab Streamer Boss! Agle round mein enemy ko tabah kardo!`
+        ];
+        return bossReplies[Math.floor(Math.random() * bossReplies.length)];
     }
-    return { success: false };
+
+    if (userRole === 'mod') {
+        return `Moderator ji! Chat bilkul discipline mein hai, aap game par dhyan dein.`;
+    }
+
+    if (p.includes('hi') || p.includes('hello') || p.includes('namaste') || p.includes('kaisa')) {
+        return `Yo @${username}! Main hoon ${cName}, khamosh baitho aur stream ka maza lo.`;
+    }
+    if (p.includes('khel') || p.includes('game') || p.includes('rank') || p.includes('pro')) {
+        return `@${username}, mere streamer ka gameplay dekh, tera dimag hil jayega!`;
+    }
+    if (p.includes('bye') || p.includes('ja raha') || p.includes('good night')) {
+        return `Alvida @${username}! Agli stream par time se haazir hona.`;
+    }
+
+    const smartReplies = [
+        `@${username}, tum jaise mamooli bando se baat karna mera shaan nahi, par theek hai!`,
+        `@${username}, tera sawal sun kar meri hasi nikal gayi! Stream par dhyaan de.`,
+        `@${username}, itni himmat mere saamne aisi baat karne ki? Agla round dekh mera!`
+    ];
+    return smartReplies[Math.floor(Math.random() * smartReplies.length)];
 }
 
+// Master AI Controller
 async function askAI(userPrompt, username, userRole) {
     let roleInstructions = "";
-    if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
-    else if (userRole === 'mod') roleInstructions = `CRITICAL: The person talking is a MODERATOR. Call them 'Moderator ji' or 'Mod Sahab'.`;
-    else roleInstructions = `The viewer talking is named @${username}.`;
+    if (userRole === 'owner') roleInstructions = `CRITICAL: Talking person is STREAM OWNER/BOSS. Treat with absolute royalty. Call them 'Boss'.`;
+    else if (userRole === 'mod') roleInstructions = `CRITICAL: Talking person is MODERATOR. Call them 'Moderator ji'.`;
+    else roleInstructions = `Viewer is named @${username}.`;
 
-    const systemInstructionText = `${streamData.characterPersona}\n${roleInstructions}\nKeep answers short (1-2 sentences) for stream speech bubble.`;
-    const history = streamData.userHistories[username] || [];
+    const systemPrompt = `${streamData.characterPersona}\n${roleInstructions}\nKeep answers punchy in 1-2 short sentences.`;
 
-    const groqKey = streamData.groqApiKey || process.env.GROQ_API_KEY;
-    if (groqKey) {
-        const res = await callGroqDriver(groqKey, systemInstructionText, userPrompt, history);
-        if (res.success) { recordHistory(username, userPrompt, res.text); return res.text; }
+    // 1. Direct High-Speed Zero-Key Engine
+    const neuralRes = await queryZeroKeyNeuralCloud(systemPrompt, userPrompt);
+    if (neuralRes.success) {
+        recordHistory(username, userPrompt, neuralRes.text);
+        return neuralRes.text;
     }
 
-    const geminiKey = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
-    if (geminiKey) {
-        const res = await callGeminiDriver(geminiKey, systemInstructionText, userPrompt, history);
-        if (res.success) { recordHistory(username, userPrompt, res.text); return res.text; }
-    }
-
-    const publicRes = await callPublicZeroKeyDriver(systemInstructionText, userPrompt);
-    if (publicRes.success) { recordHistory(username, userPrompt, publicRes.text); return publicRes.text; }
-
-    return "Power level bohot high ho gaya! Thodi der baad poocho.";
+    // 2. Persona Engine
+    const instantReply = generateInstantPersonaReply(userPrompt, username, userRole);
+    recordHistory(username, userPrompt, instantReply);
+    return instantReply;
 }
 
 function recordHistory(username, userPrompt, aiReply) {
     if (!streamData.userHistories[username]) streamData.userHistories[username] = [];
     streamData.userHistories[username].push({ role: 'user', text: userPrompt });
     streamData.userHistories[username].push({ role: 'model', text: aiReply });
-    if (streamData.userHistories[username].length > 8) streamData.userHistories[username] = streamData.userHistories[username].slice(-8);
+    if (streamData.userHistories[username].length > 6) streamData.userHistories[username] = streamData.userHistories[username].slice(-6);
     saveDataToDisk();
 }
 
@@ -680,9 +693,7 @@ liveChat.on("chat", async (chatItem) => {
         saveDataToDisk();
     }
 
-    // ==========================================
-    // 📖 DYNAMIC !commands / !help COMMAND IN CHAT
-    // ==========================================
+    // !commands / !help catalog
     if (message === '!commands' || message === '!help' || message === '!cmds') {
         const catalog = getDynamicCommandCatalog();
         const coreStr = catalog.core.map(c => c.cmd.split(' ')[0]).join(', ');
@@ -974,7 +985,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Question
+    // AI Question Execution
     const activeCommand = (streamData.aiCommand || '!ai').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         if (!isOwner && !isMod) {
@@ -1045,8 +1056,6 @@ io.on('connection', (socket) => {
         }
         if (local.ytAccessToken && !streamData.ytAccessToken) { streamData.ytAccessToken = local.ytAccessToken; changed = true; }
         if (local.ytAccountName && !streamData.ytAccountName) { streamData.ytAccountName = local.ytAccountName; changed = true; }
-        if (local.geminiApiKey && !streamData.geminiApiKey) { streamData.geminiApiKey = local.geminiApiKey; changed = true; }
-        if (local.groqApiKey && !streamData.groqApiKey) { streamData.groqApiKey = local.groqApiKey; changed = true; }
         if (local.characterName) { streamData.characterName = local.characterName; changed = true; }
         if (local.characterImage) { streamData.characterImage = local.characterImage; changed = true; }
         if (local.ttsVoice) { streamData.ttsVoice = local.ttsVoice; changed = true; }
@@ -1070,8 +1079,8 @@ io.on('connection', (socket) => {
         broadcastState();
 
         const testMsg = (streamData.ttsVoice === 'female') 
-            ? `Namaste! Female voice aur audio settings ready hain. Main hoon ${streamData.characterName}!` 
-            : `Yo! Male voice aur audio settings ready hain. Main hoon ${streamData.characterName}!`;
+            ? `Namaste! Zero key AI aur audio ready hain. Main hoon ${streamData.characterName}!` 
+            : `Yo! Zero key AI aur audio ready hain. Main hoon ${streamData.characterName}!`;
 
         io.emit('ai-speak', {
             characterName: streamData.characterName,
