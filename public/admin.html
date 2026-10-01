@@ -270,6 +270,26 @@
         }
         .opt-input-row input { margin-bottom: 0; }
         .btn-icon-del { background: #e74c3c; width: 36px; min-width: 36px; padding: 0; font-size: 14px; }
+
+        /* Character Avatar Preview Box */
+        .avatar-preview-box {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: #171d2b;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border);
+        }
+        .avatar-preview-img {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--cyan);
+            box-shadow: 0 0 10px rgba(0, 210, 211, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -306,7 +326,7 @@
         <div id="tab-deck" class="tab-content active">
             <div class="card">
                 <div class="section-title">🎙️ Audio Controls</div>
-                <button id="mic-btn" class="btn-mic mic-unmuted" onclick="toggleMic()">🎙️️ MIC IS LIVE</button>
+                <button id="mic-btn" class="btn-mic mic-unmuted" onclick="toggleMic()">🎙 MIC IS LIVE</button>
             </div>
             <div class="card">
                 <div class="section-title">🎬 OBS Scenes</div>
@@ -362,9 +382,7 @@
 
                 <div class="bet-box">
                     <h4 id="bet-title-display" style="margin:2px 0 8px 0; font-size:15px; color:#fff;">No active poll</h4>
-                    <div id="active-options-list">
-                        <!-- Dynamic Options Loaded Here -->
-                    </div>
+                    <div id="active-options-list"></div>
 
                     <div class="grid-2" style="margin-top:10px;">
                         <button style="background:var(--orange); font-size:12px;" onclick="socket.emit('admin-lock-bet')">🔒 Lock Voting</button>
@@ -384,10 +402,10 @@
                 
                 <div id="poll-custom-options-container">
                     <div class="opt-input-row">
-                        <input type="text" class="custom-opt-input" placeholder="Option 1 (e.g. Kazuya)" value="Win">
+                        <input type="text" class="custom-opt-input" placeholder="Option 1" value="Win">
                     </div>
                     <div class="opt-input-row">
-                        <input type="text" class="custom-opt-input" placeholder="Option 2 (e.g. Jin)" value="Lose">
+                        <input type="text" class="custom-opt-input" placeholder="Option 2" value="Lose">
                     </div>
                 </div>
 
@@ -438,7 +456,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA & LIVE GEMINI STATUS -->
+        <!-- TAB 6: AI PERSONA (WITH AVATAR URL & PRESETS) -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
                 <div class="section-title">
@@ -451,7 +469,27 @@
                     <button style="background:var(--blue); min-width:85px; font-size:11px;" onclick="verifyGeminiKey()">⚡ Verify</button>
                 </div>
 
-                <div class="section-title" style="margin-top:10px;">🎙️ Audio & Voice Engine</div>
+                <div class="section-title" style="margin-top:10px;">🎭 Character & Voice Setup</div>
+
+                <!-- 1-Click Character Presets Dropdown -->
+                <label style="font-size:10px; color:var(--text-dim);">Load Character Preset</label>
+                <select id="persona-presets" onchange="applyPresetPersona()">
+                    <option value="goku">🔥 Son Goku (Dragon Ball - Energetic High Pitch)</option>
+                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen - Playful Natural)</option>
+                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8 - Deep Menacing)</option>
+                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses - Deep Royal)</option>
+                    <option value="custom">✏️ Custom Character</option>
+                </select>
+
+                <!-- Live Avatar Preview & Image URL -->
+                <div class="avatar-preview-box">
+                    <img id="avatar-preview" class="avatar-preview-img" src="https://images2.alphacoders.com/131/1312384.png" alt="Avatar">
+                    <div style="flex:1;">
+                        <label style="font-size:10px; color:var(--text-dim); margin-bottom:3px; display:block;">Character Portrait Image URL</label>
+                        <input type="text" id="ai-image-url" placeholder="Direct Image URL (PNG/JPG)" style="margin-bottom:0; font-size:11px;" oninput="updateImagePreview()">
+                    </div>
+                </div>
+
                 <div class="row-toggle">
                     <span>Show Screen Bubble</span>
                     <input type="checkbox" id="ai-bubble" checked>
@@ -604,6 +642,68 @@
         const customOptionsContainer = document.getElementById('poll-custom-options-container');
         const micBtn = document.getElementById('mic-btn');
 
+        const presets = {
+            goku: {
+                name: "Son Goku",
+                cmd: "!goku",
+                image: "https://images2.alphacoders.com/131/1312384.png",
+                gender: "male",
+                pitch: 1.3,
+                rate: 1.1,
+                prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the viewer's language."
+            },
+            gojo: {
+                name: "Gojo Satoru",
+                cmd: "!gojo",
+                image: "https://images8.alphacoders.com/134/1344405.jpeg",
+                gender: "male",
+                pitch: 1.0,
+                rate: 1.0,
+                prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
+            },
+            kazuya: {
+                name: "Kazuya Mishima",
+                cmd: "!kazuya",
+                image: "https://images3.alphacoders.com/134/1347311.jpeg",
+                gender: "male",
+                pitch: 0.7,
+                rate: 0.95,
+                prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
+            },
+            sukuna: {
+                name: "Ryomen Sukuna",
+                cmd: "!sukuna",
+                image: "https://images3.alphacoders.com/134/1344406.jpeg",
+                gender: "male",
+                pitch: 0.8,
+                rate: 0.9,
+                prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
+            }
+        };
+
+        function updateImagePreview() {
+            const url = document.getElementById('ai-image-url').value.trim();
+            if (url) {
+                document.getElementById('avatar-preview').src = url;
+            }
+        }
+
+        function applyPresetPersona() {
+            const val = document.getElementById('persona-presets').value;
+            if (presets[val]) {
+                document.getElementById('ai-name').value = presets[val].name;
+                document.getElementById('ai-cmd').value = presets[val].cmd;
+                document.getElementById('ai-image-url').value = presets[val].image;
+                document.getElementById('avatar-preview').src = presets[val].image;
+                document.getElementById('ai-voice-gender').value = presets[val].gender;
+                document.getElementById('ai-pitch').value = presets[val].pitch;
+                document.getElementById('val-pitch').innerText = presets[val].pitch;
+                document.getElementById('ai-rate').value = presets[val].rate;
+                document.getElementById('val-rate').innerText = presets[val].rate;
+                document.getElementById('ai-persona').value = presets[val].prompt;
+            }
+        }
+
         function switchTab(tabName) {
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -750,8 +850,7 @@
             socket.emit('admin-save-coins', {
                 coinsPerMsg: parseInt(document.getElementById('coin-per-msg').value) || 5,
                 cooldownSeconds: parseInt(document.getElementById('coin-cooldown').value) || 30,
-                aiCost: parseInt(document.getElementById('coin-ai-cost').value) || 50,
-                freeForMods: document.getElementById('coin-free-mods').checked
+                aiCost: parseInt(document.getElementById('coin-ai-cost').value) || 50
             });
             alert('Coin Rules Saved!');
         }
@@ -823,7 +922,10 @@
 
         function saveAISettings() {
             const key = document.getElementById('ai-key').value.trim() || localStorage.getItem('geminiApiKey') || '';
+            const img = document.getElementById('ai-image-url').value.trim() || localStorage.getItem('characterImage') || '';
+
             if (key) localStorage.setItem('geminiApiKey', key);
+            if (img) localStorage.setItem('characterImage', img);
 
             socket.emit('admin-change-styles', {
                 enableBubble: document.getElementById('ai-bubble').checked,
@@ -833,6 +935,7 @@
                 ttsRate: parseFloat(document.getElementById('ai-rate').value),
                 geminiApiKey: key,
                 characterName: document.getElementById('ai-name').value.trim(),
+                characterImage: img,
                 characterPersona: document.getElementById('ai-persona').value.trim(),
                 aiCommand: document.getElementById('ai-cmd').value.trim()
             });
@@ -842,6 +945,8 @@
 
         socket.on('update-styles', (data) => {
             const savedLocalKey = localStorage.getItem('geminiApiKey');
+            const savedLocalImg = localStorage.getItem('characterImage');
+
             if (data.geminiApiKey) {
                 document.getElementById('ai-key').value = data.geminiApiKey;
                 localStorage.setItem('geminiApiKey', data.geminiApiKey);
@@ -849,6 +954,15 @@
                 document.getElementById('ai-key').value = savedLocalKey;
             }
             updateKeyStatusBadge();
+
+            if (data.characterImage) {
+                document.getElementById('ai-image-url').value = data.characterImage;
+                document.getElementById('avatar-preview').src = data.characterImage;
+                localStorage.setItem('characterImage', data.characterImage);
+            } else if (savedLocalImg) {
+                document.getElementById('ai-image-url').value = savedLocalImg;
+                document.getElementById('avatar-preview').src = savedLocalImg;
+            }
 
             if (data.characterName) document.getElementById('ai-name').value = data.characterName;
             if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
@@ -866,7 +980,6 @@
                 document.getElementById('coin-per-msg').value = data.coinSettings.coinsPerMsg;
                 document.getElementById('coin-cooldown').value = data.coinSettings.cooldownSeconds;
                 document.getElementById('coin-ai-cost').value = data.coinSettings.aiCost;
-                document.getElementById('coin-free-mods').checked = data.coinSettings.freeForMods;
             }
             if (data.userCoins) renderCoinBalances(data.userCoins);
             if (data.customCommands) renderCustomCommands(data.customCommands);
@@ -912,7 +1025,7 @@
                 const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
                 const { inputMuted } = await obs.call('GetInputMute', { inputName: micName });
                 micBtn.className = inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
+                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙 MIC IS LIVE';
             } catch (e) {}
         }
 
@@ -943,7 +1056,7 @@
             const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
             const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${h}h ${m}m ${s}s`;
+            return `${h}h ${m}s`;
         }
 
         socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
@@ -1029,11 +1142,15 @@
             switchTab('deck');
         }
 
-        window.addEventListener('DOMContentLoaded', () => {
+        // On Socket Connect: Auto restore key & image from localStorage if server restarted
+        socket.on('connect', () => {
             const localKey = localStorage.getItem('geminiApiKey');
-            if (localKey && !document.getElementById('ai-key').value) {
-                document.getElementById('ai-key').value = localKey;
-                updateKeyStatusBadge();
+            const localImg = localStorage.getItem('characterImage');
+            if (localKey || localImg) {
+                socket.emit('admin-sync-local', {
+                    geminiApiKey: localKey || '',
+                    characterImage: localImg || ''
+                });
             }
         });
     </script>
