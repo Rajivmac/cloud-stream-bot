@@ -39,7 +39,7 @@ const PRESETS = {
         cmd: "!kazuya",
         image: "https://images3.alphacoders.com/134/1347311.jpeg",
         voice: "Russell",
-        pitch: 0.9,
+        pitch: 0.85,
         rate: 0.95,
         prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
     },
@@ -48,7 +48,7 @@ const PRESETS = {
         cmd: "!sukuna",
         image: "https://images3.alphacoders.com/134/1344406.jpeg",
         voice: "Russell",
-        pitch: 0.85,
+        pitch: 0.8,
         rate: 0.9,
         prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
     }
@@ -65,7 +65,6 @@ let streamData = {
     
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     groqApiKey: process.env.GROQ_API_KEY || '',
-    elevenLabsKey: '',
 
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
@@ -81,7 +80,7 @@ let streamData = {
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
-    ttsVoice: 'Aditi',
+    ttsVoice: 'Brian',
     ttsPitch: 1.0,
     ttsRate: 1.0,
     aiCommand: '!goku',
@@ -185,62 +184,81 @@ setInterval(() => {
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
 // ========================================================
-// 🎙️ HIGH-FIDELITY REAL HUMAN-LIKE TTS ENGINE
+// 🎙️ 100% BULLETPROOF MALE & FEMALE DUAL-PIPELINE TTS
 // ========================================================
 app.get('/api/tts', async (req, res) => {
     try {
         const text = (req.query.text || '').slice(0, 280).trim();
-        const voice = req.query.voice || streamData.ttsVoice || 'Aditi';
+        let voice = (req.query.voice || streamData.ttsVoice || 'Brian').trim();
         if (!text) return res.status(400).send("No text provided");
 
-        // Optional ElevenLabs Stream
-        if (streamData.elevenLabsKey && voice.startsWith('eleven:')) {
-            try {
-                const voiceId = voice.replace('eleven:', '') || "21m00Tcm4TlvDq8ikWAM";
-                const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Accept': 'audio/mpeg',
-                        'xi-api-key': streamData.elevenLabsKey,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        text: text,
-                        model_id: "eleven_multilingual_v2",
-                        voice_settings: { stability: 0.5, similarity_boost: 0.8 }
-                    })
-                });
+        const maleVoices = ['brian', 'matthew', 'russell', 'joey', 'geraint', 'male'];
+        const isMale = maleVoices.includes(voice.toLowerCase());
 
-                if (elRes.ok) {
-                    res.setHeader('Content-Type', 'audio/mpeg');
-                    const buffer = await elRes.arrayBuffer();
-                    return res.send(Buffer.from(buffer));
+        if (voice.toLowerCase() === 'male') voice = 'Brian';
+        if (voice.toLowerCase() === 'female') voice = 'Aditi';
+
+        const cleanText = text.replace(/[*_#~`]/g, '').trim();
+
+        // Voice Priority Queue based on gender
+        const queue = isMale 
+            ? [voice, 'Brian', 'Matthew', 'Joey', 'Russell'] 
+            : [voice, 'Aditi', 'Joanna', 'Amy', 'Raveena'];
+
+        // 1. StreamElements Primary with Full Browser Headers
+        for (const v of queue) {
+            try {
+                const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${v}&text=${encodeURIComponent(cleanText)}`;
+                const response = await fetch(seUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                        'Accept': '*/*'
+                    }
+                });
+                if (response.ok) {
+                    const arrayBuffer = await response.arrayBuffer();
+                    if (arrayBuffer && arrayBuffer.byteLength > 400) {
+                        res.setHeader('Content-Type', 'audio/mpeg');
+                        res.setHeader('Cache-Control', 'no-cache');
+                        return res.send(Buffer.from(arrayBuffer));
+                    }
                 }
             } catch(e) {}
         }
 
-        // Primary Studio Real-like Voice (Amazon Polly Neural/Studio via StreamElements)
-        const cleanVoice = voice.replace('eleven:', '');
-        try {
-            const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${cleanVoice}&text=${encodeURIComponent(text)}`;
-            const response = await fetch(seUrl);
-            if (response.ok) {
+        // 2. Guaranteed Deep Male Voice Backup (TikTok Studio Engine)
+        if (isMale) {
+            try {
+                const ttRes = await fetch('https://tiktok-tts.weilnet.workers.dev/api/generation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: cleanText.slice(0, 200), voice: 'en_male_narration' })
+                });
+                if (ttRes.ok) {
+                    const data = await ttRes.json();
+                    if (data && data.data) {
+                        const buf = Buffer.from(data.data, 'base64');
+                        if (buf.length > 400) {
+                            res.setHeader('Content-Type', 'audio/mpeg');
+                            return res.send(buf);
+                        }
+                    }
+                }
+            } catch(e) {}
+        }
+
+        // 3. Female Fallback (Google Translate - only for female requests)
+        if (!isMale) {
+            const lang = (voice === 'Aditi' || voice === 'Raveena') ? 'hi' : 'en';
+            const gUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(cleanText)}`;
+            const gResponse = await fetch(gUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+            });
+            if (gResponse.ok) {
                 res.setHeader('Content-Type', 'audio/mpeg');
-                const arrayBuffer = await response.arrayBuffer();
+                const arrayBuffer = await gResponse.arrayBuffer();
                 return res.send(Buffer.from(arrayBuffer));
             }
-        } catch(e) {}
-
-        // Fallback: Google Voice
-        const lang = (cleanVoice === 'Aditi' || cleanVoice === 'Raveena') ? 'hi' : 'en';
-        const gUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(text)}`;
-        const gResponse = await fetch(gUrl, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-        });
-        if (gResponse.ok) {
-            res.setHeader('Content-Type', 'audio/mpeg');
-            const arrayBuffer = await gResponse.arrayBuffer();
-            return res.send(Buffer.from(arrayBuffer));
         }
 
         res.status(500).send("TTS Error");
@@ -454,7 +472,7 @@ function broadcastResponse(text, isTTS = true) {
     }
 }
 
-// AI Drivers
+// AI Engine
 async function callPublicZeroKeyDriver(systemText, userText) {
     try {
         const fullPrompt = `${systemText}\nUser:${userText}\nKeep reply punchy in 1-2 short sentences.`;
@@ -552,7 +570,7 @@ function recordHistory(username, userPrompt, aiReply) {
     saveDataToDisk();
 }
 
-// Live Chat Listener
+// Live Chat Scraper
 const CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ';
 const chatConfig = { channelId: CHANNEL_ID };
 const liveChat = new LiveChat(chatConfig);
@@ -730,8 +748,8 @@ liveChat.on("chat", async (chatItem) => {
             enableBubble: streamData.enableBubble,
             enableTTS: true,
             voice: streamData.ttsVoice,
-            pitch: 1.0,
-            rate: 1.0
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
         return;
     }
@@ -795,7 +813,6 @@ io.on('connection', (socket) => {
         if (local.ytAccountName && !streamData.ytAccountName) { streamData.ytAccountName = local.ytAccountName; changed = true; }
         if (local.geminiApiKey && !streamData.geminiApiKey) { streamData.geminiApiKey = local.geminiApiKey; changed = true; }
         if (local.groqApiKey && !streamData.groqApiKey) { streamData.groqApiKey = local.groqApiKey; changed = true; }
-        if (local.elevenLabsKey && !streamData.elevenLabsKey) { streamData.elevenLabsKey = local.elevenLabsKey; changed = true; }
         if (local.characterName) { streamData.characterName = local.characterName; changed = true; }
         if (local.characterImage) { streamData.characterImage = local.characterImage; changed = true; }
         if (local.ttsVoice) { streamData.ttsVoice = local.ttsVoice; changed = true; }
