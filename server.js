@@ -65,12 +65,16 @@ let streamData = {
     
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     groqApiKey: process.env.GROQ_API_KEY || '',
-    openrouterApiKey: process.env.OPENROUTER_API_KEY || '',
 
-    // YouTube Live Chat API Posting Settings
-    enableYTChatSend: false,
-    ytAccessToken: process.env.YT_ACCESS_TOKEN || '',
+    // Google OAuth 2.0 Credentials & Auto-Refresh State
+    googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+    googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    ytAccessToken: '',
+    ytRefreshToken: '',
+    ytTokenExpiresAt: 0,
+    ytAccountName: '',
     ytLiveChatId: '',
+    enableYTChatSend: false,
     ytMessagesSentToday: 0,
     ytQuotaExhausted: false,
 
@@ -130,13 +134,9 @@ function getCalculatedBetData() {
 
     const calculatedOptions = activeBet.options.map(opt => {
         let pct = 0;
-        if (totalPool > 0) {
-            pct = Math.round(((opt.pool || 0) / totalPool) * 100);
-        } else if (totalVotes > 0) {
-            pct = Math.round(((opt.votes || 0) / totalVotes) * 100);
-        } else {
-            pct = activeBet.options.length > 0 ? Math.round(100 / activeBet.options.length) : 0;
-        }
+        if (totalPool > 0) pct = Math.round(((opt.pool || 0) / totalPool) * 100);
+        else if (totalVotes > 0) pct = Math.round(((opt.votes || 0) / totalVotes) * 100);
+        else pct = activeBet.options.length > 0 ? Math.round(100 / activeBet.options.length) : 0;
         return { ...opt, pct };
     });
 
@@ -178,7 +178,7 @@ setInterval(() => {
     }
 }, 1000);
 
-// Auto Stream Reminders
+// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -187,13 +187,151 @@ setInterval(() => {
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// --- YOUTUBE LIVE CHAT MESSAGE SENDER WITH QUOTA ANNOUNCEMENT ---
+// ==========================================
+// 🔐 GOOGLE OAUTH 2.0 & AUTO REFRESH ENGINE
+// ==========================================
+const REDIRECT_URI = "https://stream-bot-hqlh.onrender.com/oauth2callback";
+
+// 1. Google Login Initiate Route
+app.get('/auth/google', (req, res) => {
+    const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    if (!clientId) {
+        return res.send("<script>alert('Pehle Dashboard mein Google Client ID daal kar Save karein!'); window.location.href='/admin.html';</script>");
+    }
+
+    const scope = encodeURIComponent("https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.profile");
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+    res.redirect(authUrl);
+});
+
+// 2. Google Callback & Token Exchange
+app.get('/oauth2callback', async (req, res) => {
+    const code = req.query.code;
+    const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = streamData.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+    if (!code) return res.send("Authorization failed!");
+
+    try {
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                code: code,
+                client_id: clientId,
+                client_secret: clientSecret,
+                redirect_uri: REDIRECT_URI,
+                grant_type: "authorization_code"
+            })
+        });
+
+        const tokenData = await tokenRes.json();
+
+        if (tokenData.access_token) {
+            streamData.ytAccessToken = tokenData.access_token;
+            if (tokenData.refresh_token) streamData.ytRefreshToken = tokenData.refresh_token;
+            streamData.ytTokenExpiresAt = Date.now() + ((tokenData.expires_in || 3600) * 1000);
+            streamData.enableYTChatSend = true;
+            streamData.ytQuotaExhausted = false;
+
+            // Fetch Channel/User Profile Name
+            try {
+                const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+                    headers: { Authorization: `Bearer ${tokenData.access_token}` }
+                });
+                const userData = await userRes.json();
+                streamData.ytAccountName = userData.name || "YouTube Channel Connected";
+            } catch (e) {
+                streamData.ytAccountName = "Connected";
+            }
+
+            // Auto-fetch Live Chat ID
+            await fetchActiveLiveChatId();
+
+            saveDataToDisk();
+            broadcastState();
+
+            res.send(`
+                <html>
+                <body style="background:#0b0e14; color:#2ecc71; font-family:sans-serif; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh;">
+                    <h2>✅ Google & YouTube Account Successfully Connected!</h2>
+                    <p style="color:#ffffff;">Refresh token saved permanently. Auto-redirecting to dashboard...</p>
+                    <script>setTimeout(() => { window.location.href = '/admin.html'; }, 2000);</script>
+                </body>
+                </html>
+            `);
+        } else {
+            res.send("Token Exchange Error: " + JSON.stringify(tokenData));
+        }
+    } catch (err) {
+        res.send("OAuth Error: " + err.message);
+    }
+});
+
+// 3. Auto-Refresh Token when expired
+async function ensureValidAccessToken() {
+    if (!streamData.ytRefreshToken) return false;
+
+    // Check if token expires in less than 5 minutes
+    if (Date.now() > (streamData.ytTokenExpiresAt - 300000)) {
+        try {
+            const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
+            const clientSecret = streamData.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+            const res = await fetch("https://oauth2.googleapis.com/token", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    refresh_token: streamData.ytRefreshToken,
+                    grant_type: "refresh_token"
+                })
+            });
+
+            const data = await res.json();
+            if (data.access_token) {
+                streamData.ytAccessToken = data.access_token;
+                streamData.ytTokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
+                saveDataToDisk();
+                return true;
+            }
+        } catch (e) {
+            console.error("Auto token refresh failed:", e);
+            return false;
+        }
+    }
+    return true;
+}
+
+// 4. Auto-Detect Active Stream LiveChatId
+async function fetchActiveLiveChatId() {
+    if (!streamData.ytAccessToken) return;
+    try {
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/liveBroadcasts?broadcastStatus=active&broadcastType=all&part=snippet`, {
+            headers: { Authorization: `Bearer ${streamData.ytAccessToken}` }
+        });
+        const data = await res.json();
+        if (data.items && data.items.length > 0 && data.items[0].snippet.liveChatId) {
+            streamData.ytLiveChatId = data.items[0].snippet.liveChatId;
+            saveDataToDisk();
+        }
+    } catch (e) {}
+}
+
+// Automatically poll live chat ID every 2 minutes
+setInterval(() => {
+    if (streamData.enableYTChatSend && streamData.ytAccessToken) fetchActiveLiveChatId();
+}, 120000);
+
+// Post Message to Live Chat with 403 Quota Handler
 async function postToYouTubeChat(messageText) {
     if (!streamData.enableYTChatSend || streamData.ytQuotaExhausted) return;
-    if (!streamData.ytAccessToken || !streamData.ytLiveChatId) return;
+    const hasToken = await ensureValidAccessToken();
+    if (!hasToken || !streamData.ytAccessToken || !streamData.ytLiveChatId) return;
 
     if (streamData.ytMessagesSentToday >= 180) {
-        handleQuotaExceeded("Daily limit reach ho gayi (180 messages)");
+        handleQuotaExceeded("Daily Limit Reached (180 messages)");
         return;
     }
 
@@ -208,17 +346,14 @@ async function postToYouTubeChat(messageText) {
                 snippet: {
                     liveChatId: streamData.ytLiveChatId,
                     type: 'textMessageEvent',
-                    textMessageDetails: {
-                        messageText: messageText.slice(0, 195)
-                    }
+                    textMessageDetails: { messageText: messageText.slice(0, 195) }
                 }
             })
         });
 
         const data = await res.json();
-
         if (res.status === 403 || (data.error && data.error.errors && data.error.errors[0].reason === 'quotaExceeded')) {
-            handleQuotaExceeded(data.error ? data.error.message : "Quota exceeded");
+            handleQuotaExceeded();
             return;
         }
 
@@ -228,11 +363,11 @@ async function postToYouTubeChat(messageText) {
             broadcastState();
         }
     } catch (err) {
-        console.error("YouTube chat post error:", err);
+        console.error("YouTube Post Error:", err);
     }
 }
 
-function handleQuotaExceeded(reason) {
+function handleQuotaExceeded() {
     if (streamData.ytQuotaExhausted) return;
     streamData.ytQuotaExhausted = true;
     saveDataToDisk();
@@ -251,9 +386,7 @@ function handleQuotaExceeded(reason) {
     });
 }
 
-// Master Response Broadcaster (Screen Bubble + TTS Voice + YouTube Chat Box)
 function broadcastResponse(text, isTTS = true) {
-    // 1. OBS Screen Bubble & TTS Voice (Always unlimited, 0 tokens)
     io.emit('ai-speak', {
         characterName: streamData.characterName,
         characterImage: streamData.characterImage,
@@ -265,27 +398,26 @@ function broadcastResponse(text, isTTS = true) {
         gender: streamData.ttsGender
     });
 
-    // 2. Post to YouTube Live Chat Box (if quota active)
     if (streamData.enableYTChatSend && !streamData.ytQuotaExhausted) {
         postToYouTubeChat(text);
     }
 }
 
-// --- MULTI-PROVIDER AI DRIVERS ---
+// --- MULTI-PROVIDER AI LOGIC ---
 async function callPublicZeroKeyDriver(systemText, userText) {
     try {
         const fullPrompt = `${systemText}\nUser: ${userText}\nKeep reply punchy in 1-2 short sentences.`;
         const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=openai`);
         if (res.ok) {
             const text = await res.text();
-            if (text && text.trim().length > 0) return { success: true, text: text.trim(), model: "Public Free AI" };
+            if (text && text.trim().length > 0) return { success: true, text: text.trim() };
         }
     } catch(e) {}
-    return { success: false, error: "Public AI unreachable" };
+    return { success: false };
 }
 
 async function callGroqDriver(key, systemText, userText, history) {
-    if (!key || !key.startsWith('gsk_')) return { success: false, error: "Invalid Groq key" };
+    if (!key || !key.startsWith('gsk_')) return { success: false };
     const messages = [{ role: "system", content: systemText }];
     if (history && history.length) {
         history.slice(-6).forEach(h => messages.push({ role: h.role === 'model' ? 'assistant' : 'user', content: h.text }));
@@ -302,23 +434,23 @@ async function callGroqDriver(key, systemText, userText, history) {
             });
             const data = await res.json();
             if (data.choices && data.choices[0] && data.choices[0].message) {
-                return { success: true, text: data.choices[0].message.content.trim(), model: `Groq (${m})` };
+                return { success: true, text: data.choices[0].message.content.trim() };
             }
         } catch (e) {}
     }
-    return { success: false, error: "Groq busy" };
+    return { success: false };
 }
 
 async function callGeminiDriver(key, systemText, userText, history) {
-    if (!key) return { success: false, error: "Missing Gemini key" };
+    if (!key) return { success: false };
     const contents = [];
     if (history && history.length) {
         history.slice(-6).forEach(entry => contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] }));
     }
     contents.push({ role: "user", parts: [{ text: userText }] });
 
-    const textOnlyModels = ["gemini-2.5-flash", "gemini-1.5-flash"];
-    for (const m of textOnlyModels) {
+    const models = ["gemini-2.5-flash", "gemini-1.5-flash"];
+    for (const m of models) {
         try {
             const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
                 method: 'POST',
@@ -327,11 +459,11 @@ async function callGeminiDriver(key, systemText, userText, history) {
             });
             const data = await res.json();
             if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
-                return { success: true, text: data.candidates[0].content.parts[0].text.trim(), model: `Gemini (${m})` };
+                return { success: true, text: data.candidates[0].content.parts[0].text.trim() };
             }
         } catch (e) {}
     }
-    return { success: false, error: "Gemini quota/demand limit" };
+    return { success: false };
 }
 
 async function askAI(userPrompt, username, userRole) {
@@ -358,16 +490,14 @@ async function askAI(userPrompt, username, userRole) {
     const publicRes = await callPublicZeroKeyDriver(systemInstructionText, userPrompt);
     if (publicRes.success) { recordHistory(username, userPrompt, publicRes.text); return publicRes.text; }
 
-    return "Power level bohot high ho gaya! Kuch der baad dobara poocho.";
+    return "Power level bohot high ho gaya! Thodi der baad poocho.";
 }
 
 function recordHistory(username, userPrompt, aiReply) {
     if (!streamData.userHistories[username]) streamData.userHistories[username] = [];
     streamData.userHistories[username].push({ role: 'user', text: userPrompt });
     streamData.userHistories[username].push({ role: 'model', text: aiReply });
-    if (streamData.userHistories[username].length > 8) {
-        streamData.userHistories[username] = streamData.userHistories[username].slice(-8);
-    }
+    if (streamData.userHistories[username].length > 8) streamData.userHistories[username] = streamData.userHistories[username].slice(-8);
     saveDataToDisk();
 }
 
@@ -465,7 +595,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Meme Redeem (Streamer = Free, Others = Pay)
+    // Meme Redeem
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
@@ -509,7 +639,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Live Match Betting / Poll
+    // Betting
     if (message.startsWith('!bet ') || message.startsWith('!vote ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -561,7 +691,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Questions
+    // AI Question
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -616,38 +746,20 @@ io.on('connection', (socket) => {
         if (changed) { saveDataToDisk(); broadcastState(); }
     });
 
-    // Reset Quota Manually
+    socket.on('admin-disconnect-google', () => {
+        streamData.ytAccessToken = '';
+        streamData.ytRefreshToken = '';
+        streamData.ytAccountName = '';
+        streamData.enableYTChatSend = false;
+        saveDataToDisk();
+        broadcastState();
+    });
+
     socket.on('admin-reset-yt-quota', () => {
         streamData.ytQuotaExhausted = false;
         streamData.ytMessagesSentToday = 0;
         saveDataToDisk();
         broadcastState();
-    });
-
-    // Multi-AI Test
-    socket.on('admin-verify-ai', async ({ geminiKey, groqKey }) => {
-        const results = [];
-        let anySuccess = false;
-
-        if (groqKey && groqKey.trim()) {
-            const r = await callGroqDriver(groqKey.trim(), "Say hi.", "hi", []);
-            if (r.success) { results.push(`🟢 Groq: Ready (${r.model})`); anySuccess = true; }
-            else results.push(`🔴 Groq: ${r.error}`);
-        }
-
-        if (geminiKey && geminiKey.trim()) {
-            const r = await callGeminiDriver(geminiKey.trim(), "Say hi.", "hi", []);
-            if (r.success) { results.push(`🟢 Google Gemini: Ready (${r.model})`); anySuccess = true; }
-            else results.push(`🔴 Google Gemini: ${r.error}`);
-        }
-
-        const pub = await callPublicZeroKeyDriver("Say hi.", "hi");
-        if (pub.success) { results.push(`🟢 Public Free AI: Ready (Always active fallback)`); anySuccess = true; }
-
-        socket.emit('admin-ai-verify-result', {
-            success: anySuccess,
-            message: anySuccess ? `✅ AI Connection Successful!\n\n${results.join('\n')}` : `❌ Failed:\n${results.join('\n')}`
-        });
     });
 
     socket.on('admin-death-add', () => { streamData.deathCount++; broadcastState(); });
