@@ -15,35 +15,41 @@ const io = new Server(server, { cors: { origin: "*" } });
 
 const DATA_FILE = path.join(__dirname, 'stream_data.json');
 
-// --- PRESET CHARACTERS ---
 const PRESETS = {
     goku: {
         name: "Son Goku",
         cmd: "!goku",
         image: "https://images2.alphacoders.com/131/1312384.png",
-        prompt: "You are Son Goku from Dragon Ball. Cheerful, super energetic, love food and intense Tekken battles. Always stay in character. Reply in 1-2 punchy sentences in the viewer's language."
+        pitch: 1.3,
+        rate: 1.1,
+        prompt: "You are Son Goku from Dragon Ball. Cheerful, super energetic, love food and intense Tekken battles. Reply in 1-2 punchy sentences in the viewer's language."
     },
     gojo: {
         name: "Gojo Satoru",
         cmd: "!gojo",
         image: "https://images8.alphacoders.com/134/1344405.jpeg",
-        prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Always stay in character. Reply in 1-2 punchy sentences in the viewer's language."
+        pitch: 1.0,
+        rate: 1.0,
+        prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
     },
     kazuya: {
         name: "Kazuya Mishima",
         cmd: "!kazuya",
         image: "https://images3.alphacoders.com/134/1347311.jpeg",
-        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, power-hungry, and arrogant. Dorya! Always stay in character. Reply in 1-2 sharp sentences in the viewer's language."
+        pitch: 0.7,
+        rate: 0.95,
+        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, power-hungry, and arrogant. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
     },
     sukuna: {
         name: "Ryomen Sukuna",
         cmd: "!sukuna",
         image: "https://images3.alphacoders.com/134/1344406.jpeg",
-        prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Always stay in character. Reply in 1-2 royal sentences."
+        pitch: 0.8,
+        rate: 0.9,
+        prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
     }
 };
 
-// --- DEFAULT STATE & SETTINGS ---
 let streamData = {
     deathCount: 0,
     gameTimeSeconds: 0,
@@ -53,10 +59,14 @@ let streamData = {
     timerFont: 'Orbitron',
     themeColor: '#ff4757',
     
-    // AI SETTINGS
+    // AI & VOICE SETTINGS
     geminiApiKey: '',
     aiEnabled: true,
+    enableBubble: true,
     enableTTS: true,
+    postToYTChat: false, // Quota protection default: OFF
+    ttsPitch: 1.1,
+    ttsRate: 1.0,
     aiCommand: '!goku',
     characterName: 'Son Goku',
     characterImage: 'https://images2.alphacoders.com/131/1312384.png',
@@ -64,10 +74,8 @@ let streamData = {
     welcomeNewChatters: true,
     reminderMinutes: 15,
 
-    // MEMORY PER VIEWER: { "username": [ {role: "user", text: "..."}, {role: "model", text: "..."} ] }
     userHistories: {},
 
-    // CUSTOM CHAT COMMANDS LIST
     customCommands: [
         { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", tts: false },
         { cmd: "!rank", reply: "Tekken 8 Main: Kazuya Mishima (Tekken King Rank)!", tts: true },
@@ -75,13 +83,11 @@ let streamData = {
     ]
 };
 
-// Load saved data & chat memories from disk
 if (fs.existsSync(DATA_FILE)) {
     try {
         const loaded = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
         streamData = { ...streamData, ...loaded };
         if (!streamData.userHistories) streamData.userHistories = {};
-        console.log(`💾 Data & Chat Memories loaded for ${Object.keys(streamData.userHistories).length} viewers.`);
     } catch (e) {
         console.error('Data load error:', e);
     }
@@ -107,7 +113,6 @@ setInterval(() => {
     }
 }, 1000);
 
-// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -116,12 +121,14 @@ setInterval(() => {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
             text: reminderText,
-            enableTTS: false
+            enableBubble: streamData.enableBubble,
+            enableTTS: false,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// --- GEMINI AI WITH LONG-TERM VIEWER MEMORY & RESPECT PROTOCOL ---
 async function askGemini(userPrompt, username, userRole) {
     if (!streamData.geminiApiKey) {
         return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
@@ -129,22 +136,18 @@ async function askGemini(userPrompt, username, userRole) {
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${streamData.geminiApiKey}`;
 
-    // Persona + Special Role Recognition
     let roleInstructions = "";
     if (userRole === 'owner') {
-        roleInstructions = `CRITICAL: The person talking to you is the STREAM OWNER / BOSS / CREATOR. Treat them with highest honor, obedience, and call them 'Streamer Sahab' or 'Boss'.`;
+        roleInstructions = `CRITICAL: The person talking to you is the STREAM OWNER / BOSS / CREATOR. Treat them with highest honor and call them 'Streamer Sahab' or 'Boss'.`;
     } else if (userRole === 'mod') {
         roleInstructions = `CRITICAL: The person talking to you is a trusted MODERATOR of this stream. Address them respectfully as 'Moderator ji' or 'Mod Sahab'.`;
     } else {
-        roleInstructions = `The viewer talking is named @${username}. Be friendly or act in character towards them.`;
+        roleInstructions = `The viewer talking is named @${username}.`;
     }
 
     const systemInstructionText = `${streamData.characterPersona}\n${roleInstructions}\nKeep your answer short (1-2 sentences) so it fits in a stream speech bubble.`;
-
-    // Fetch previous conversation history for this specific user
     const history = streamData.userHistories[username] || [];
 
-    // Build multi-turn payload
     const contents = [];
     history.slice(-6).forEach(entry => {
         contents.push({
@@ -153,7 +156,6 @@ async function askGemini(userPrompt, username, userRole) {
         });
     });
 
-    // Add current question
     contents.push({
         role: "user",
         parts: [{ text: userPrompt }]
@@ -173,12 +175,10 @@ async function askGemini(userPrompt, username, userRole) {
         if (data.candidates && data.candidates[0].content.parts[0].text) {
             const aiReply = data.candidates[0].content.parts[0].text.trim();
 
-            // Save conversation into user's memory history
             if (!streamData.userHistories[username]) streamData.userHistories[username] = [];
             streamData.userHistories[username].push({ role: 'user', text: userPrompt });
             streamData.userHistories[username].push({ role: 'model', text: aiReply });
 
-            // Keep only latest 8 messages per viewer to keep file lightweight
             if (streamData.userHistories[username].length > 8) {
                 streamData.userHistories[username] = streamData.userHistories[username].slice(-8);
             }
@@ -242,20 +242,21 @@ liveChat.on("chat", async (chatItem) => {
     const isOwner = chatItem.author.isChatOwner;
     const isMod = chatItem.author.isChatModerator;
     const isModOrOwner = isOwner || isMod;
-
     const userRole = isOwner ? 'owner' : (isMod ? 'mod' : 'viewer');
 
-    // 1. CHARACTER CHANGE COMMAND (!setchar <name>) - ONLY MOD / OWNER ALLOWED!
+    // 1. CHARACTER CHANGE COMMAND
     if (message.startsWith('!setchar ') || message.startsWith('!switchchar ')) {
         const charKey = message.split(' ')[1];
 
         if (!isModOrOwner) {
-            // Normal viewer rejected
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
                 text: `Sorry @${username}, character badalne ki power sirf Moderator ji aur Streamer Boss ke paas hai! 😎`,
-                enableTTS: streamData.enableTTS
+                enableBubble: streamData.enableBubble,
+                enableTTS: streamData.enableTTS,
+                pitch: streamData.ttsPitch,
+                rate: streamData.ttsRate
             });
             return;
         }
@@ -265,6 +266,8 @@ liveChat.on("chat", async (chatItem) => {
             streamData.aiCommand = PRESETS[charKey].cmd;
             streamData.characterImage = PRESETS[charKey].image;
             streamData.characterPersona = PRESETS[charKey].prompt;
+            streamData.ttsPitch = PRESETS[charKey].pitch;
+            streamData.ttsRate = PRESETS[charKey].rate;
             broadcastState();
 
             const title = isOwner ? "Streamer Boss" : "Moderator ji";
@@ -272,21 +275,16 @@ liveChat.on("chat", async (chatItem) => {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
                 text: `${title} @${username} ke kehne par main aa gaya hoon! Command ab ${streamData.aiCommand} hai.`,
-                enableTTS: streamData.enableTTS
-            });
-            return;
-        } else {
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                characterImage: streamData.characterImage,
-                text: `Available characters: goku, gojo, kazuya, sukuna. (Use: !setchar goku)`,
-                enableTTS: false
+                enableBubble: streamData.enableBubble,
+                enableTTS: streamData.enableTTS,
+                pitch: streamData.ttsPitch,
+                rate: streamData.ttsRate
             });
             return;
         }
     }
 
-    // 2. AUTO WELCOME (Recognizes Mod/Owner vs Regular Viewers)
+    // 2. AUTO WELCOME
     if (streamData.welcomeNewChatters && !seenChatters.has(username)) {
         seenChatters.add(username);
         let welcomeMsg = `Yo @${username}, stream par swagat hai!`;
@@ -297,11 +295,14 @@ liveChat.on("chat", async (chatItem) => {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
             text: welcomeMsg,
-            enableTTS: streamData.enableTTS
+            enableBubble: streamData.enableBubble,
+            enableTTS: streamData.enableTTS,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
     }
 
-    // 3. CUSTOM CHAT COMMANDS (!specs, !rank, etc.)
+    // 3. CUSTOM CHAT COMMANDS
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const prefix = isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`);
@@ -309,24 +310,30 @@ liveChat.on("chat", async (chatItem) => {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
             text: `${prefix}, ${matchedCustom.reply}`,
-            enableTTS: matchedCustom.tts && streamData.enableTTS
+            enableBubble: streamData.enableBubble,
+            enableTTS: matchedCustom.tts && streamData.enableTTS,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
         return;
     }
 
-    // 4. TTS MANUAL COMMAND (!tts <text>)
+    // 4. TTS MANUAL COMMAND
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
             characterName: username,
             characterImage: 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
             text: ttsText,
-            enableTTS: true
+            enableBubble: streamData.enableBubble,
+            enableTTS: true,
+            pitch: 1.0,
+            rate: 1.0
         });
         return;
     }
 
-    // 5. AI PERSONA QUESTIONS WITH VIEWER MEMORY (!goku, !gojo, !ai <question>)
+    // 5. AI PERSONA QUESTIONS
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -335,7 +342,10 @@ liveChat.on("chat", async (chatItem) => {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
             text: aiAnswer,
-            enableTTS: streamData.enableTTS
+            enableBubble: streamData.enableBubble,
+            enableTTS: streamData.enableTTS,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
         return;
     }
@@ -347,7 +357,7 @@ liveChat.on("chat", async (chatItem) => {
         if (matchedTrigger.type === 'sfx') io.emit('play-sfx', { sfxUrl: matchedTrigger.url });
     }
 
-    // 7. Death Counter (Moderator / Streamer Only)
+    // 7. Death Counter
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -393,12 +403,16 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
+    // Test Voice Trigger
     socket.on('admin-test-ai', () => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `Yo! Test bubble bilkul mast kaam kar raha hai!`,
-            enableTTS: streamData.enableTTS
+            text: `Yo! Audio aur Speech bubble bilkul perfect set hai!`,
+            enableBubble: streamData.enableBubble,
+            enableTTS: streamData.enableTTS,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
         });
     });
 
