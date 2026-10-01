@@ -451,32 +451,50 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA WITH YOUTUBE LIVE CHAT & QUOTA TRACKER -->
+        <!-- TAB 6: AI PERSONA WITH 1-CLICK GOOGLE LOGIN -->
         <div id="tab-ai" class="tab-content">
+            
+            <!-- 🔗 1-CLICK GOOGLE / YOUTUBE ACCOUNT CONNECT -->
             <div class="card">
                 <div class="section-title">
-                    <span>💬 Direct YouTube Chat Post (API)</span>
-                    <span id="yt-quota-status" style="font-size:10px; color:var(--green);">0 / 180 Msgs</span>
+                    <span>🔴 YouTube Account Integration</span>
+                    <span id="google-status-badge" style="font-size:10px; color:var(--red);">Not Connected</span>
                 </div>
 
-                <div class="row-toggle">
-                    <span>Post Bot Replies directly into YouTube Live Chat</span>
-                    <input type="checkbox" id="yt-enable-chat-send">
+                <div id="google-logged-out-box">
+                    <label style="font-size:10px; color:var(--text-dim);">Google Client ID</label>
+                    <input type="text" id="google-client-id" placeholder="xxxx.apps.googleusercontent.com" style="font-size:11px;">
+
+                    <label style="font-size:10px; color:var(--text-dim);">Google Client Secret</label>
+                    <input type="password" id="google-client-secret" placeholder="GOCSPX-xxxx" style="font-size:11px;">
+
+                    <div class="grid-2">
+                        <button class="btn-submit" onclick="saveGoogleCredentials()">💾 Save IDs</button>
+                        <button style="background:linear-gradient(90deg, #ea4335, #c5221f); font-weight:800;" onclick="startGoogleLogin()">🔗 Sign in with Google</button>
+                    </div>
                 </div>
 
-                <label style="font-size:10px; color:var(--text-dim);">YouTube Live Chat ID (Required only for chat box typing)</label>
-                <input type="text" id="yt-live-chat-id" placeholder="Paste YouTube Live Chat ID" style="font-size:11px;">
-
-                <label style="font-size:10px; color:var(--text-dim);">YouTube OAuth Access Token</label>
-                <input type="password" id="yt-access-token" placeholder="Bearer ya OAuth Token" style="font-size:11px;">
-
-                <button style="background:#2f384d; font-size:11px; padding:6px; width:100%; margin-top:2px;" onclick="resetQuotaCounter()">🔄 Reset Daily Quota Counter</button>
+                <div id="google-logged-in-box" style="display:none; background:#161c2b; padding:10px; border-radius:8px; border:1px solid #2ecc71;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <span style="font-size:10px; color:#2ecc71; font-weight:800;">CONNECTED AS:</span>
+                            <div id="yt-account-display" style="font-size:13px; font-weight:700; color:#fff;">Channel Name</div>
+                            <span id="yt-quota-status" style="font-size:10px; color:var(--gold);">0 / 180 Msgs Sent Today</span>
+                        </div>
+                        <button style="background:#e74c3c; font-size:11px; padding:6px 10px;" onclick="disconnectGoogle()">Disconnect</button>
+                    </div>
+                    <div class="row-toggle" style="margin-top:10px; margin-bottom:0;">
+                        <span>Post Bot Replies directly in Live Chat</span>
+                        <input type="checkbox" id="yt-enable-chat-send" onchange="toggleYTChatSend()">
+                    </div>
+                </div>
             </div>
 
+            <!-- AI ENGINE STATUS -->
             <div class="card">
                 <div class="section-title">
-                    <span>🤖 AI Models & Keys</span>
-                    <span id="api-key-status" style="font-size:10px; color:var(--green);">🟢 Public Free AI Ready</span>
+                    <span>🤖 AI Models & Engine</span>
+                    <span style="font-size:10px; color:var(--green);">🟢 Public Free AI Active</span>
                 </div>
 
                 <label style="font-size:10px; color:var(--text-dim);">Google Gemini API Key (Optional)</label>
@@ -484,10 +502,9 @@
 
                 <label style="font-size:10px; color:var(--text-dim);">Groq API Key (Optional Fast Backup - console.groq.com)</label>
                 <input type="password" id="ai-groq-key" placeholder="gsk_... (Optional)" style="font-size:11px;">
-
-                <button style="background:linear-gradient(90deg, #0984e3, #00d2d3); width:100%; font-size:12px; font-weight:800; padding:10px; margin-top:4px;" onclick="triggerServerVerification()">⚡ Verify AI Connections</button>
             </div>
 
+            <!-- CHARACTER AVATAR -->
             <div class="card">
                 <div class="section-title">🎭 Character Avatar & Speech</div>
 
@@ -729,21 +746,35 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
-        function triggerServerVerification() {
-            const geminiKey = document.getElementById('ai-key').value.trim();
-            const groqKey = document.getElementById('ai-groq-key').value.trim();
-            socket.emit('admin-verify-ai', { geminiKey, groqKey });
+        // --- 1-CLICK GOOGLE OAUTH FUNCTIONS ---
+        function saveGoogleCredentials() {
+            const clientId = document.getElementById('google-client-id').value.trim();
+            const clientSecret = document.getElementById('google-client-secret').value.trim();
+            if (!clientId || !clientSecret) return alert("Client ID aur Client Secret dono zaroori hain!");
+
+            socket.emit('admin-change-styles', {
+                googleClientId: clientId,
+                googleClientSecret: clientSecret
+            });
+            alert("Google Client Credentials Saved!");
         }
 
-        socket.on('admin-ai-verify-result', (data) => {
-            alert(data.message);
-        });
+        function startGoogleLogin() {
+            const clientId = document.getElementById('google-client-id').value.trim();
+            if (!clientId) return alert("Pehle upar Client ID daal kar Save karein!");
+            window.location.href = "/auth/google";
+        }
 
-        function resetQuotaCounter() {
-            if (confirm("Reset YouTube daily messages quota counter?")) {
-                socket.emit('admin-reset-yt-quota');
-                alert("Quota counter reset to 0!");
+        function disconnectGoogle() {
+            if (confirm("Disconnect YouTube Account?")) {
+                socket.emit('admin-disconnect-google');
             }
+        }
+
+        function toggleYTChatSend() {
+            socket.emit('admin-change-styles', {
+                enableYTChatSend: document.getElementById('yt-enable-chat-send').checked
+            });
         }
 
         function addOptionField() {
@@ -914,9 +945,6 @@
             socket.emit('admin-change-styles', {
                 geminiApiKey: gemKey,
                 groqApiKey: groqKey,
-                enableYTChatSend: document.getElementById('yt-enable-chat-send').checked,
-                ytLiveChatId: document.getElementById('yt-live-chat-id').value.trim(),
-                ytAccessToken: document.getElementById('yt-access-token').value.trim(),
                 enableBubble: document.getElementById('ai-bubble').checked,
                 enableTTS: document.getElementById('ai-tts').checked,
                 ttsGender: document.getElementById('ai-voice-gender').value,
@@ -933,20 +961,36 @@
         socket.on('update-styles', (data) => {
             if (data.geminiApiKey) document.getElementById('ai-key').value = data.geminiApiKey;
             if (data.groqApiKey) document.getElementById('ai-groq-key').value = data.groqApiKey;
+            if (data.googleClientId) document.getElementById('google-client-id').value = data.googleClientId;
+            if (data.googleClientSecret) document.getElementById('google-client-secret').value = data.googleClientSecret;
 
-            if (data.enableYTChatSend !== undefined) document.getElementById('yt-enable-chat-send').checked = data.enableYTChatSend;
-            if (data.ytLiveChatId) document.getElementById('yt-live-chat-id').value = data.ytLiveChatId;
-            if (data.ytAccessToken) document.getElementById('yt-access-token').value = data.ytAccessToken;
+            // Google OAuth Live State Switcher
+            const loggedInBox = document.getElementById('google-logged-in-box');
+            const loggedOutBox = document.getElementById('google-logged-out-box');
+            const statusBadge = document.getElementById('google-status-badge');
 
-            // Live Quota Indicator Update
-            const quotaBadge = document.getElementById('yt-quota-status');
-            const sent = data.ytMessagesSentToday || 0;
-            if (data.ytQuotaExhausted) {
-                quotaBadge.innerText = '🔴 Quota Exhausted (TTS Active)';
-                quotaBadge.style.color = 'var(--red)';
+            if (data.ytRefreshToken || data.ytAccessToken) {
+                loggedOutBox.style.display = 'none';
+                loggedInBox.style.display = 'block';
+                statusBadge.innerText = '🟢 Connected & Auto-Refreshing';
+                statusBadge.style.color = '#2ecc71';
+                document.getElementById('yt-account-display').innerText = data.ytAccountName || "YouTube Channel Connected";
+                document.getElementById('yt-enable-chat-send').checked = data.enableYTChatSend !== false;
+
+                const quotaBadge = document.getElementById('yt-quota-status');
+                const sent = data.ytMessagesSentToday || 0;
+                if (data.ytQuotaExhausted) {
+                    quotaBadge.innerText = '🔴 Quota Exhausted (TTS Active)';
+                    quotaBadge.style.color = 'var(--red)';
+                } else {
+                    quotaBadge.innerText = `${sent} / 180 Msgs Sent Today`;
+                    quotaBadge.style.color = 'var(--gold)';
+                }
             } else {
-                quotaBadge.innerText = `🟢 ${sent} / 180 Msgs Sent`;
-                quotaBadge.style.color = 'var(--green)';
+                loggedOutBox.style.display = 'block';
+                loggedInBox.style.display = 'none';
+                statusBadge.innerText = '🔴 Not Connected';
+                statusBadge.style.color = 'var(--red)';
             }
 
             if (data.characterImage) {
