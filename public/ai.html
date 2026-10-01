@@ -69,9 +69,9 @@
     <audio id="tts-audio" style="display:none;"></audio>
 
     <div id="ai-container">
-        <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Avatar">
+        <img id="avatar" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar">
         <div class="content">
-            <span id="bot-name">Bot</span>
+            <span id="bot-name">Ryomen Sukuna</span>
             <div id="bot-text">Hello Stream!</div>
         </div>
     </div>
@@ -86,20 +86,67 @@
         const audioPlayer = document.getElementById('tts-audio');
 
         let hideTimeout = null;
+        let audioCtx = null;
+        let bassFilter = null;
+        let trebleFilter = null;
+        let sourceNode = null;
+
+        function initToneEqualizer() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    
+                    bassFilter = audioCtx.createBiquadFilter();
+                    bassFilter.type = "lowshelf";
+                    bassFilter.frequency.value = 220;
+
+                    trebleFilter = audioCtx.createBiquadFilter();
+                    trebleFilter.type = "highshelf";
+                    trebleFilter.frequency.value = 2600;
+
+                    sourceNode = audioCtx.createMediaElementSource(audioPlayer);
+                    sourceNode.connect(bassFilter);
+                    bassFilter.connect(trebleFilter);
+                    trebleFilter.connect(audioCtx.destination);
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+            } catch(e) {}
+        }
 
         function playIndianVoice(text, voice, pitch, rate) {
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return;
 
+            initToneEqualizer();
+
             const selectedVoice = voice || 'female_hi';
             const p = parseFloat(pitch) || 1.0;
             const r = parseFloat(rate) || 1.0;
 
-            const audioSrc = `/api/tts?voice=${selectedVoice}&pitch=${p}&rate=${r}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
+            // Tone Equalizer (Independent of speed)
+            if (bassFilter && trebleFilter) {
+                if (p < 1.0) {
+                    // Deep heavy tone (e.g. Sukuna / Kazuya)
+                    bassFilter.gain.value = (1.0 - p) * 30;
+                    trebleFilter.gain.value = -(1.0 - p) * 15;
+                } else if (p > 1.0) {
+                    // Sharp clear anime tone
+                    bassFilter.gain.value = -(p - 1.0) * 15;
+                    trebleFilter.gain.value = (p - 1.0) * 22;
+                } else {
+                    bassFilter.gain.value = 0;
+                    trebleFilter.gain.value = 0;
+                }
+            }
+
+            // ONLY the Speed slider controls talking speed
+            audioPlayer.preservesPitch = true;
+            audioPlayer.playbackRate = Math.max(0.6, Math.min(1.8, r));
 
             audioPlayer.pause();
-            audioPlayer.src = audioSrc;
-            audioPlayer.playbackRate = 1.0;
+            audioPlayer.src = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
             audioPlayer.volume = 1.0;
 
             audioPlayer.play().catch(err => {
@@ -109,7 +156,7 @@
 
         socket.on('ai-speak', (data) => {
             if (data.enableBubble) {
-                avatar.src = data.characterImage || 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png';
+                avatar.src = data.characterImage || 'https://images3.alphacoders.com/134/1344406.jpeg';
                 botName.innerText = data.characterName || 'Bot';
                 botText.innerText = data.text;
                 container.style.display = 'flex';
