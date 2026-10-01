@@ -22,7 +22,7 @@ const PRESETS = {
         image: "https://images2.alphacoders.com/131/1312384.png",
         pitch: 1.3,
         rate: 1.1,
-        prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the viewer's language."
+        prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the user's language."
     },
     gojo: {
         name: "Gojo Satoru",
@@ -30,7 +30,7 @@ const PRESETS = {
         image: "https://images8.alphacoders.com/134/1344405.jpeg",
         pitch: 1.0,
         rate: 1.0,
-        prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
+        prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the user's language."
     },
     kazuya: {
         name: "Kazuya Mishima",
@@ -38,7 +38,7 @@ const PRESETS = {
         image: "https://images3.alphacoders.com/134/1347311.jpeg",
         pitch: 0.7,
         rate: 0.95,
-        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
+        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, power-hungry, and arrogant. Dorya! Reply in 1-2 sharp sentences in the user's language."
     },
     sukuna: {
         name: "Ryomen Sukuna",
@@ -63,7 +63,6 @@ let streamData = {
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
-    postToYTChat: false,
     ttsPitch: 1.1,
     ttsRate: 1.0,
     aiCommand: '!goku',
@@ -85,9 +84,9 @@ let streamData = {
     userHistories: {},
 
     customCommands: [
-        { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", tts: false },
-        { cmd: "!rank", reply: "Tekken 8 Main: Kazuya Mishima (Tekken King Rank)!", tts: true },
-        { cmd: "!discord", reply: "Discord community: https://discord.gg/yourlink", tts: false }
+        { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", bubble: true, tts: false, useTokens: false },
+        { cmd: "!rank", reply: "Tekken 8 Main: Kazuya Mishima (Tekken King Rank)!", bubble: true, tts: true, useTokens: false },
+        { cmd: "!discord", reply: "Discord community: https://discord.gg/yourlink", bubble: true, tts: false, useTokens: false }
     ]
 };
 
@@ -143,11 +142,12 @@ const saveDataToDisk = () => {
     }
 };
 
-let currentStatus = 'retrying';
+let currentStatus = 'offline';
 let isTimerRunning = false;
 let seenChatters = new Set();
 let lastEarnedTime = {};
 
+// Independent Timer Engine
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -156,6 +156,7 @@ setInterval(() => {
     }
 }, 1000);
 
+// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -224,22 +225,19 @@ const startChat = async () => {
         if (ok) {
             currentStatus = 'online';
             io.emit('stream-status', { status: currentStatus });
-            isTimerRunning = true;
         }
     } catch (error) {
-        currentStatus = 'retrying';
+        currentStatus = 'offline';
         io.emit('stream-status', { status: currentStatus });
-        isTimerRunning = false;
-        setTimeout(startChat, 10000); 
+        setTimeout(startChat, 15000); 
     }
 };
 
 liveChat.on("error", () => {
     currentStatus = 'offline';
     io.emit('stream-status', { status: currentStatus });
-    isTimerRunning = false;
     liveChat.stop();
-    setTimeout(startChat, 10000);
+    setTimeout(startChat, 15000);
 });
 
 startChat();
@@ -262,7 +260,7 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // 1. Passive Earning
+    // Passive Coin Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -271,7 +269,6 @@ liveChat.on("chat", async (chatItem) => {
         saveDataToDisk();
     }
 
-    // 2. Check Balance
     if (message === '!coins' || message === '!balance' || message === '!maccoins') {
         const balance = streamData.userCoins[userKey] || 0;
         io.emit('ai-speak', {
@@ -284,18 +281,9 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 3. Owner Add Coins
+    // Owner Add Coins
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
-        if (!isOwner) {
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                characterImage: streamData.characterImage,
-                text: `Maaf kijiye @${username}, ${cName} generate karne ka haq sirf Streamer Boss ke paas hai! ❌`,
-                enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS
-            });
-            return;
-        }
+        if (!isOwner) return;
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
             const targetUser = parts[1].replace('@', '').toLowerCase();
@@ -308,7 +296,7 @@ liveChat.on("chat", async (chatItem) => {
                 io.emit('ai-speak', {
                     characterName: streamData.characterName,
                     characterImage: streamData.characterImage,
-                    text: `Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye! Naya balance: ${streamData.userCoins[targetUser]}`,
+                    text: `Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye!`,
                     enableBubble: streamData.enableBubble,
                     enableTTS: streamData.enableTTS
                 });
@@ -317,7 +305,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 4. P2P Transfer
+    // P2P Transfer
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -344,7 +332,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 5. Betting / Voting (!bet 1 50 or !bet 2 100)
+    // Betting (!bet 1 50 / !bet 2 50)
     if (message.startsWith('!bet ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -371,59 +359,20 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 6. Character Switch
-    if (message.startsWith('!setchar ') || message.startsWith('!switchchar ')) {
-        const charKey = message.split(' ')[1];
-        if (!isModOrOwner) return;
-        if (PRESETS[charKey]) {
-            streamData.characterName = PRESETS[charKey].name;
-            streamData.aiCommand = PRESETS[charKey].cmd;
-            streamData.characterImage = PRESETS[charKey].image;
-            streamData.characterPersona = PRESETS[charKey].prompt;
-            streamData.ttsPitch = PRESETS[charKey].pitch;
-            streamData.ttsRate = PRESETS[charKey].rate;
-            broadcastState();
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                characterImage: streamData.characterImage,
-                text: `${isOwner ? "Streamer Boss" : "Moderator ji"} @${username} ke kehne par main aa gaya hoon! Command: ${streamData.aiCommand}`,
-                enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS
-            });
-            return;
-        }
-    }
-
-    // 7. Auto Welcome
-    if (streamData.welcomeNewChatters && !seenChatters.has(username)) {
-        seenChatters.add(username);
-        let welcomeMsg = `Yo @${username}, stream par swagat hai! Chat karke ${cName} kamao!`;
-        if (isOwner) welcomeMsg = `Aadab Streamer Boss! Stream live aur ready hai.`;
-        else if (isMod) welcomeMsg = `Namaste Moderator ji @${username}!`;
-
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: welcomeMsg,
-            enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS
-        });
-    }
-
-    // 8. Custom Commands
+    // Custom Commands
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
             text: `${isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`)}, ${matchedCustom.reply}`,
-            enableBubble: streamData.enableBubble,
-            enableTTS: matchedCustom.tts && streamData.enableTTS
+            enableBubble: matchedCustom.bubble !== false,
+            enableTTS: matchedCustom.tts === true
         });
         return;
     }
 
-    // 9. Manual TTS
+    // Manual TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -436,7 +385,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 10. AI Questions
+    // AI Questions
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -472,14 +421,14 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 11. Memes & SFX
+    // Memes
     const matchedTrigger = triggers.find(t => t.cmd === message);
     if (matchedTrigger) {
         if (matchedTrigger.type === 'video') io.emit('play-meme', { mediaUrl: matchedTrigger.url });
         if (matchedTrigger.type === 'sfx') io.emit('play-sfx', { sfxUrl: matchedTrigger.url });
     }
 
-    // 12. Deaths
+    // Death Counter
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -491,10 +440,10 @@ const broadcastState = () => {
     io.emit('update-counter', { count: streamData.deathCount });
     io.emit('update-styles', streamData);
     io.emit('bet-update', getCalculatedBetData());
+    io.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     saveDataToDisk();
 };
 
-// Admin Sockets
 io.on('connection', (socket) => {
     socket.emit('update-counter', { count: streamData.deathCount });
     socket.emit('stream-status', { status: currentStatus });
@@ -507,9 +456,26 @@ io.on('connection', (socket) => {
     socket.on('admin-death-sub', () => { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); });
     socket.on('admin-death-reset', () => { streamData.deathCount = 0; broadcastState(); });
 
-    socket.on('admin-timer-start', () => { isTimerRunning = true; broadcastState(); });
-    socket.on('admin-timer-pause', () => { isTimerRunning = false; broadcastState(); });
-    socket.on('admin-timer-reset', () => { streamData.gameTimeSeconds = 0; broadcastState(); });
+    // Independent Timer Controls
+    socket.on('admin-timer-start', () => { 
+        isTimerRunning = true; 
+        broadcastState(); 
+    });
+    socket.on('admin-timer-pause', () => { 
+        isTimerRunning = false; 
+        broadcastState(); 
+    });
+    socket.on('admin-timer-reset', () => { 
+        streamData.gameTimeSeconds = 0; 
+        broadcastState(); 
+    });
+    socket.on('admin-timer-set', ({ hours, minutes, seconds }) => {
+        const h = parseInt(hours) || 0;
+        const m = parseInt(minutes) || 0;
+        const s = parseInt(seconds) || 0;
+        streamData.gameTimeSeconds = (h * 3600) + (m * 60) + s;
+        broadcastState();
+    });
 
     socket.on('admin-change-styles', (newSettings) => {
         streamData = { ...streamData, ...newSettings };
@@ -529,23 +495,17 @@ io.on('connection', (socket) => {
             streamData.userCoins[u] = Math.max(0, streamData.userCoins[u] + parseInt(amount));
             saveDataToDisk();
             broadcastState();
-            io.emit('ai-speak', {
-                characterName: streamData.characterName,
-                characterImage: streamData.characterImage,
-                text: `Dashboard update: @${u} ka balance 🪙 ${streamData.userCoins[u]} ${streamData.coinSettings.currencyName} ho gaya!`,
-                enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS
-            });
         }
     });
 
+    // Custom Named Betting / Prediction
     socket.on('admin-start-bet', ({ title, option1, option2 }) => {
         activeBet = {
             isOpen: true,
             locked: false,
-            title: title || "Will I win this match?",
-            option1: option1 || "Win",
-            option2: option2 || "Lose",
+            title: title || "Who will win?",
+            option1: option1 || "Option 1",
+            option2: option2 || "Option 2",
             pool1: 0,
             pool2: 0,
             bets: {}
@@ -554,7 +514,7 @@ io.on('connection', (socket) => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `🚨 PREDICTION OPEN: "${activeBet.title}" 👉 [1: ${activeBet.option1}] vs [2: ${activeBet.option2}]. Vote with !bet 1 <amount> or !bet 2 <amount>`,
+            text: `🚨 PREDICTION OPEN: "${activeBet.title}" 👉 [1: ${activeBet.option1}] vs [2: ${activeBet.option2}]. Command: !bet 1 <amount> ya !bet 2 <amount>`,
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS
         });
@@ -563,13 +523,6 @@ io.on('connection', (socket) => {
     socket.on('admin-lock-bet', () => {
         activeBet.locked = true;
         broadcastState();
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: `🔒 BETS LOCKED! Match shuru ho chuka hai. Live pool screen par lock ho gaya!`,
-            enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS
-        });
     });
 
     socket.on('admin-resolve-bet', ({ winningOption }) => {
@@ -589,12 +542,12 @@ io.on('connection', (socket) => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `🏆 RESULT: "${winningName}" JEET GAYA! Total 🪙 ${totalPool} pool winners ko banta gaya!`,
+            text: `🏆 RESULT: "${winningName}" JEET GAYA! 🪙 ${totalPool} Mac-Coins ka pool distribute ho gaya!`,
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS
         });
 
-        activeBet = { isOpen: false, locked: false, title: "", option1: "Win", option2: "Lose", pool1: 0, pool2: 0, bets: {} };
+        activeBet = { isOpen: false, locked: false, title: "", option1: "Option 1", option2: "Option 2", pool1: 0, pool2: 0, bets: {} };
         saveDataToDisk();
         broadcastState();
     });
@@ -604,7 +557,7 @@ io.on('connection', (socket) => {
         for (const [user, bet] of Object.entries(activeBet.bets)) {
             streamData.userCoins[user] = (streamData.userCoins[user] || 0) + bet.amount;
         }
-        activeBet = { isOpen: false, locked: false, title: "", option1: "Win", option2: "Lose", pool1: 0, pool2: 0, bets: {} };
+        activeBet = { isOpen: false, locked: false, title: "", option1: "Option 1", option2: "Option 2", pool1: 0, pool2: 0, bets: {} };
         saveDataToDisk();
         broadcastState();
     });
@@ -624,7 +577,7 @@ io.on('connection', (socket) => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `Yo! Audio aur Speech bubble bilkul perfect set hai!`,
+            text: `Yo! Audio aur Speech bubble test successful!`,
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS,
             pitch: streamData.ttsPitch,
