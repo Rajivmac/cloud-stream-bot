@@ -17,8 +17,8 @@
             left: 30px;
             max-width: 550px;
             background: rgba(11, 14, 22, 0.96);
-            border: 2px solid var(--theme-color, #00d2d3);
-            border-left: 6px solid var(--theme-color, #00d2d3);
+            border: 2px solid #00d2d3;
+            border-left: 6px solid #00d2d3;
             border-radius: 14px;
             padding: 14px 20px;
             box-shadow: 0 10px 35px rgba(0,0,0,0.85), 0 0 25px rgba(0, 210, 211, 0.35);
@@ -38,7 +38,7 @@
             height: 70px;
             min-width: 70px;
             border-radius: 50%;
-            border: 2px solid var(--theme-color, #00d2d3);
+            border: 2px solid #00d2d3;
             box-shadow: 0 0 15px rgba(0, 210, 211, 0.5);
             overflow: hidden;
             background: #1a1e2e;
@@ -58,7 +58,7 @@
         }
         .sender-name {
             font-size: 13px;
-            color: var(--theme-color, #00d2d3);
+            color: #00d2d3;
             text-transform: uppercase;
             letter-spacing: 1.5px;
             font-weight: 700;
@@ -83,6 +83,9 @@
         </div>
     </div>
 
+    <!-- Fallback Audio Tag for guaranteed sound in OBS -->
+    <audio id="tts-audio-fallback"></audio>
+
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
@@ -90,30 +93,78 @@
         const avatarImg = document.getElementById('ai-avatar-img');
         const charNameEl = document.getElementById('ai-character-name');
         const textEl = document.getElementById('ai-message');
+        const audioFallback = document.getElementById('tts-audio-fallback');
 
         let hideTimeout;
+        let availableVoices = [];
 
-        function speakText(text, pitch = 1.0, rate = 1.0) {
-            if (!('speechSynthesis' in window)) return;
+        function loadVoices() {
+            if ('speechSynthesis' in window) {
+                availableVoices = window.speechSynthesis.getVoices();
+            }
+        }
+        loadVoices();
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.onvoiceschanged = loadVoices;
+        }
+
+        // Dual Engine Voice Synthesizer
+        function speakText(text, pitch = 1.0, rate = 1.0, gender = 'male') {
+            if (!('speechSynthesis' in window)) {
+                playFallbackAudio(text);
+                return;
+            }
+
             window.speechSynthesis.cancel();
-            
             const utterance = new SpeechSynthesisUtterance(text);
             utterance.pitch = pitch;
             utterance.rate = rate;
-            
-            const voices = window.speechSynthesis.getVoices();
-            const preferredVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN') || v.name.includes('Google') || v.name.includes('Natural'));
-            if (preferredVoice) utterance.voice = preferredVoice;
+
+            if (availableVoices.length === 0) availableVoices = window.speechSynthesis.getVoices();
+
+            // Intelligent Male / Female Filter
+            let selectedVoice = null;
+            if (gender === 'female') {
+                selectedVoice = availableVoices.find(v => 
+                    (v.name.toLowerCase().includes('female') || 
+                     v.name.toLowerCase().includes('zira') || 
+                     v.name.toLowerCase().includes('kalpana') ||
+                     v.name.toLowerCase().includes('natural')) && 
+                    (v.lang.includes('hi') || v.lang.includes('en'))
+                );
+            } else {
+                selectedVoice = availableVoices.find(v => 
+                    (v.name.toLowerCase().includes('male') || 
+                     v.name.toLowerCase().includes('david') || 
+                     v.name.toLowerCase().includes('mark') ||
+                     v.name.toLowerCase().includes('google')) && 
+                    (v.lang.includes('hi') || v.lang.includes('en'))
+                );
+            }
+
+            if (selectedVoice) utterance.voice = selectedVoice;
+
+            utterance.onerror = () => {
+                playFallbackAudio(text);
+            };
 
             window.speechSynthesis.speak(utterance);
         }
 
+        function playFallbackAudio(text) {
+            try {
+                const encodedText = encodeURIComponent(text.slice(0, 150));
+                audioFallback.src = `https://translate.google.com/translate_tts?ie=UTF-8&tl=hi&client=tw-ob&q=${encodedText}`;
+                audioFallback.currentTime = 0;
+                audioFallback.play().catch(e => console.log('Audio autoplay prevented:', e));
+            } catch(e) {}
+        }
+
         socket.on('ai-speak', (data) => {
-            avatarImg.src = data.characterImage || 'https://api.dicebear.com/7.x/bottts/svg?seed=streamer';
+            avatarImg.src = data.characterImage || 'https://images2.alphacoders.com/131/1312384.png';
             charNameEl.innerText = data.characterName || 'AI ASSISTANT';
             textEl.innerText = data.text;
 
-            // Show Speech Bubble on OBS
             if (data.enableBubble !== false) {
                 bubble.classList.add('active');
                 clearTimeout(hideTimeout);
@@ -122,15 +173,15 @@
                 }, 9000);
             }
 
-            // Speak TTS with customized pitch and rate
             if (data.enableTTS) {
-                speakText(data.text, parseFloat(data.pitch) || 1.0, parseFloat(data.rate) || 1.0);
+                speakText(
+                    data.text,
+                    parseFloat(data.pitch) || 1.0,
+                    parseFloat(data.rate) || 1.0,
+                    data.gender || 'male'
+                );
             }
         });
-
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
-        }
     </script>
 </body>
 </html>
