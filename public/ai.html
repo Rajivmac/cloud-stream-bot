@@ -66,6 +66,8 @@
 </head>
 <body>
 
+    <audio id="tts-audio" style="display:none;"></audio>
+
     <div id="ai-container">
         <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Avatar">
         <div class="content">
@@ -81,71 +83,28 @@
         const avatar = document.getElementById('avatar');
         const botName = document.getElementById('bot-name');
         const botText = document.getElementById('bot-text');
+        const audioPlayer = document.getElementById('tts-audio');
 
         let hideTimeout = null;
-        let audioContext = null;
-        let globalAudio = null;
 
-        // Force Unlock Audio in OBS Chromium
-        function unlockAudioEngine() {
-            try {
-                if (!audioContext) {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                }
-                if (audioContext.state === 'suspended') {
-                    audioContext.resume();
-                }
-            } catch(e) {}
-        }
-        window.addEventListener('click', unlockAudioEngine);
-        unlockAudioEngine();
-
-        function playSoundWithFallback(primaryUrl, fallbackUrl, playbackRate) {
-            unlockAudioEngine();
-
-            if (globalAudio) {
-                try { globalAudio.pause(); globalAudio.currentTime = 0; } catch(e) {}
-                globalAudio = null;
-            }
-
-            globalAudio = new Audio();
-            globalAudio.crossOrigin = "anonymous";
-            globalAudio.volume = 1.0;
-            globalAudio.playbackRate = playbackRate || 1.0;
-            globalAudio.src = primaryUrl;
-
-            const playPromise = globalAudio.play();
-
-            if (playPromise !== undefined) {
-                playPromise.catch(() => {
-                    // Fallback to Secondary Direct Cloud TTS Engine
-                    if (fallbackUrl) {
-                        globalAudio = new Audio(fallbackUrl);
-                        globalAudio.volume = 1.0;
-                        globalAudio.playbackRate = playbackRate || 1.0;
-                        globalAudio.play().catch(err => console.error("All audio fallbacks failed:", err));
-                    }
-                });
-            }
-        }
-
-        function speakCloudTTS(text, gender, pitch, rate) {
+        function playDirectTTS(text, gender, pitch, rate) {
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return;
 
-            // Engine 1: StreamElements Cloud Voice
             const voice = (gender === 'female') ? 'Aditi' : 'Brian';
-            const primaryUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(cleanText.slice(0, 220))}`;
+            const audioSrc = `/api/tts?voice=${voice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
 
-            // Engine 2: Google Instant Translate TTS (Guaranteed Autoplay in OBS)
-            const lang = (gender === 'female') ? 'hi' : 'en';
-            const fallbackUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(cleanText.slice(0, 200))}`;
+            audioPlayer.pause();
+            audioPlayer.src = audioSrc;
+            audioPlayer.volume = 1.0;
 
             const p = parseFloat(pitch) || 1.0;
             const r = parseFloat(rate) || 1.0;
-            const calcSpeed = Math.max(0.7, Math.min(1.6, p * r));
+            audioPlayer.playbackRate = Math.max(0.7, Math.min(1.5, p * r));
 
-            playSoundWithFallback(primaryUrl, fallbackUrl, calcSpeed);
+            audioPlayer.play().catch(err => {
+                console.error("Audio playback error:", err);
+            });
         }
 
         socket.on('ai-speak', (data) => {
@@ -162,7 +121,7 @@
             }
 
             if (data.enableTTS) {
-                speakCloudTTS(data.text, data.gender, data.pitch, data.rate);
+                playDirectTTS(data.text, data.gender, data.pitch, data.rate);
             }
         });
     </script>
