@@ -12,7 +12,7 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
-        /* 🌟 SINGLE MERGED ALERT CARD WITH USER AVATAR */
+        /* 🌟 SINGLE MERGED ALERT CARD */
         #alert-box {
             display: none;
             align-items: center;
@@ -26,10 +26,32 @@
             box-sizing: border-box;
         }
 
-        .alert-superchat {
-            background: linear-gradient(135deg, #f1c40f, #e67e22);
-            border: 3px solid #ffffff;
-            color: #000;
+        /* 💎 DYNAMIC SUPER CHAT COLOR TIERS */
+        .tier-blue {
+            background: linear-gradient(135deg, #0984e3, #00cec9) !important;
+            border: 3px solid #74b9ff !important;
+            color: #ffffff !important;
+            box-shadow: 0 10px 30px rgba(9, 132, 227, 0.6) !important;
+        }
+
+        .tier-gold {
+            background: linear-gradient(135deg, #f1c40f, #e67e22) !important;
+            border: 3px solid #ffffff !important;
+            color: #000000 !important;
+            box-shadow: 0 10px 35px rgba(241, 196, 15, 0.7) !important;
+        }
+
+        .tier-red {
+            background: linear-gradient(135deg, #ff4757, #8e44ad) !important;
+            border: 3px solid #ffd32a !important;
+            color: #ffffff !important;
+            box-shadow: 0 0 35px rgba(255, 71, 87, 0.8), 0 0 55px rgba(142, 68, 173, 0.6) !important;
+            animation: redPulsingAlert 1s infinite alternate, alertPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        }
+
+        @keyframes redPulsingAlert {
+            0% { border-color: #ffd32a; }
+            100% { border-color: #ffffff; box-shadow: 0 0 45px rgba(255, 71, 87, 1); }
         }
 
         .alert-member {
@@ -58,6 +80,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
             flex-shrink: 0;
             background: #111;
+            transition: all 0.2s ease;
         }
 
         .alert-content-col {
@@ -92,7 +115,7 @@
             line-height: 1.35;
         }
 
-        /* 💬 AI CHARACTER SPEECH BUBBLE (FOR !ai CHAT COMMANDS ONLY) */
+        /* 💬 AI CHARACTER SPEECH BUBBLE */
         #ai-container {
             display: none;
             align-items: flex-start;
@@ -120,6 +143,25 @@
             box-shadow: 0 0 15px rgba(0, 210, 211, 0.6);
             flex-shrink: 0;
             background: #0b0e14;
+            transition: all 0.25s ease;
+        }
+
+        /* 🎙️ REFINEMENT: TALKING GLOW PULSE ANIMATION */
+        .talking-pulse {
+            animation: pulseGlow 0.85s infinite alternate !important;
+        }
+
+        @keyframes pulseGlow {
+            0% {
+                box-shadow: 0 0 10px #00d2d3, 0 0 20px rgba(0, 210, 211, 0.4);
+                border-color: #00d2d3;
+                transform: scale(1);
+            }
+            100% {
+                box-shadow: 0 0 25px #00d2d3, 0 0 45px rgba(0, 210, 211, 0.8);
+                border-color: #ffffff;
+                transform: scale(1.06);
+            }
         }
 
         .content {
@@ -185,9 +227,6 @@
         const alertBadge = document.getElementById('alert-badge');
         const alertMsg = document.getElementById('alert-msg');
 
-        // ==========================================
-        // 🔄 SMART FIFO QUEUE
-        // ==========================================
         const eventQueue = [];
         let isProcessing = false;
         let safetyTimeout = null;
@@ -222,6 +261,26 @@
             } catch(e) {}
         }
 
+        // 🔔 REFINEMENT: SOFT UI CHIME (SYNTHESIZED ZERO-DELAY TONE)
+        function playSoftChime() {
+            try {
+                initToneEqualizer();
+                if (!audioCtx) return;
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(587.33, now); // D5
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.08); // A5
+                gain.gain.setValueAtTime(0.12, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.32);
+            } catch(e) {}
+        }
+
         function enqueueEvent(item) {
             if (eventQueue.length >= 6) return;
             eventQueue.push(item);
@@ -246,20 +305,38 @@
 
         function finishCurrentItem() {
             if (safetyTimeout) clearTimeout(safetyTimeout);
+            avatar.classList.remove('talking-pulse');
+            alertUserImg.classList.remove('talking-pulse');
             container.style.display = 'none';
             alertBox.style.display = 'none';
 
-            // 400ms clean gap before next item
             setTimeout(processNextQueueItem, 400);
+        }
+
+        function parseAmountNumeric(amtStr) {
+            if (!amtStr) return 0;
+            const num = amtStr.toString().replace(/[^0-9.]/g, '');
+            return parseFloat(num) || 0;
         }
 
         // 🌟 MERGED ALERT + TTS AUDIO HANDLER
         function handleUnifiedAlert(data) {
+            playSoftChime();
             alertBox.className = '';
             alertUserImg.src = data.avatar || 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
 
             if (data.alertType === 'superchat') {
-                alertBox.classList.add('alert-superchat');
+                const numericAmount = parseAmountNumeric(data.amount);
+                
+                // DYNAMIC COLOR TIERS
+                if (numericAmount >= 500) {
+                    alertBox.classList.add('tier-red');
+                } else if (numericAmount >= 100) {
+                    alertBox.classList.add('tier-gold');
+                } else {
+                    alertBox.classList.add('tier-blue');
+                }
+
                 alertTitle.innerText = `💰 SUPER CHAT: @${data.user}`;
                 alertBadge.innerText = data.amount;
                 alertMsg.innerText = data.msg || 'Thank you for supporting the stream!';
@@ -277,15 +354,14 @@
 
             alertBox.style.display = 'flex';
 
-            // PLAY AUDIO SIMULTANEOUSLY WITH THIS BANNER
             const speechText = data.ttsText || data.msg || `${data.user} thank you!`;
-            playVoiceWithCallback(speechText, data.voice, data.pitch, data.rate, () => {
-                // Audio ended: wait 1 second so viewer can read banner, then close
+            playVoiceWithCallback(speechText, data.voice, data.pitch, data.rate, alertUserImg, () => {
                 setTimeout(finishCurrentItem, 1000);
             });
         }
 
         function handleCharacterSpeak(data) {
+            playSoftChime();
             if (data.enableBubble) {
                 avatar.src = data.characterImage || 'https://images3.alphacoders.com/134/1344406.jpeg';
                 botName.innerText = data.characterName || 'Bot';
@@ -294,7 +370,7 @@
             }
 
             if (data.enableTTS) {
-                playVoiceWithCallback(data.text, data.voice, data.pitch, data.rate, () => {
+                playVoiceWithCallback(data.text, data.voice, data.pitch, data.rate, avatar, () => {
                     finishCurrentItem();
                 });
             } else {
@@ -302,7 +378,7 @@
             }
         }
 
-        function playVoiceWithCallback(text, voice, pitch, rate, onComplete) {
+        function playVoiceWithCallback(text, voice, pitch, rate, targetImgElement, onComplete) {
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return onComplete();
 
@@ -342,6 +418,7 @@
             const done = () => {
                 if (!completed) {
                     completed = true;
+                    if (targetImgElement) targetImgElement.classList.remove('talking-pulse');
                     onComplete();
                 }
             };
@@ -354,7 +431,10 @@
 
             const playPromise = audioPlayer.play();
             if (playPromise !== undefined) {
-                playPromise.then(applySpeed).catch(err => {
+                playPromise.then(() => {
+                    applySpeed();
+                    if (targetImgElement) targetImgElement.classList.add('talking-pulse');
+                }).catch(err => {
                     done();
                 });
             }
