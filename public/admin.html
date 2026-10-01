@@ -411,7 +411,7 @@
             </div>
         </div>
 
-        <!-- TAB 5: MAC-COINS & MINI-GAMES -->
+        <!-- TAB 5: MAC-COINS -->
         <div id="tab-coins" class="tab-content">
             <div class="card">
                 <div class="section-title">👑 Direct Coin Grant</div>
@@ -445,25 +445,13 @@
                 <button class="btn-submit" onclick="saveCoinRules()">💾 Save Rates</button>
             </div>
 
-            <!-- MINI-GAMES & DAILY GUIDE -->
-            <div class="card">
-                <div class="section-title">🎰 Active Chat Commands</div>
-                <div class="guide-box" style="margin-top:0;">
-                    • <code>!daily</code> ➔ Claim free 50 Mac-Coins every 24h<br>
-                    • <code>!topcoins</code> ➔ Show richest viewers leaderboard<br>
-                    • <code>!gamble 100</code> ➔ 50/50 Coin Flip (Double or Nothing)<br>
-                    • <code>!slots 50</code> ➔ 3-Reel Slots (3 Match = 5x, 2 Match = 2x)<br>
-                    • <code>!duel @user 200</code> ➔ Duel challenge (Accept: <code>!accept</code>)
-                </div>
-            </div>
-
             <div class="card">
                 <div class="section-title">🏆 Viewer Balances</div>
                 <div class="contained-list" id="coin-balances-list"></div>
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA (1 FEMALE & 1 MALE ONLY) -->
+        <!-- TAB 6: AI PERSONA -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -574,7 +562,7 @@
             </div>
         </div>
 
-        <!-- TAB 7: 🛡️ AUTO-MOD & DYNAMIC TIER ALERTS SIMULATOR -->
+        <!-- TAB 7: AUTO-MOD -->
         <div id="tab-automod" class="tab-content">
             <div class="card">
                 <div class="section-title">🛡️ Auto-Moderation & Chat Shield</div>
@@ -594,7 +582,6 @@
                 <button class="btn-submit" onclick="saveAutoModSettings()">💾 Save Auto-Mod Shield</button>
             </div>
 
-            <!-- LIVE ALERTS TIER SIMULATOR -->
             <div class="card">
                 <div class="section-title">🎉 Live Alerts Tier Simulator</div>
                 <div class="grid-3">
@@ -609,10 +596,10 @@
             </div>
         </div>
 
-        <!-- TAB 8: CHAT COMMANDS -->
+        <!-- TAB 8: COMMANDS & AUTO-UPDATING LIVE DIRECTORY -->
         <div id="tab-commands" class="tab-content">
             <div class="card">
-                <div class="section-title">➕ Add New Command</div>
+                <div class="section-title">➕ Add New Custom Command</div>
                 <input type="text" id="new-cmd-name" placeholder="Trigger (e.g. !specs)">
                 <textarea id="new-cmd-reply" placeholder="Bot reply text" rows="2"></textarea>
                 
@@ -631,8 +618,19 @@
                 <button class="btn-submit" onclick="addCustomCommand()">Save Command</button>
             </div>
 
+            <!-- 📖 LIVE AUTO-UPDATING DIRECTORY -->
             <div class="card">
-                <div class="section-title">📋 Active Commands</div>
+                <div class="section-title">
+                    <span>📖 Live Auto-Updating Command Catalog</span>
+                    <button style="background:rgba(0, 210, 211, 0.2); color:var(--cyan); padding:3px 8px; font-size:10px; border-radius:5px;" onclick="copyCommandsToClipboard()">📋 Copy List for Description</button>
+                </div>
+                <div class="contained-list" id="auto-catalog-display" style="max-height: 220px; font-size: 11px;">
+                    <small style="color:var(--text-dim);">Loading commands...</small>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="section-title">📋 Configured Custom Commands</div>
                 <div class="contained-list" id="custom-commands-list"></div>
             </div>
         </div>
@@ -709,10 +707,13 @@
         const scenesContainer = document.getElementById('scenes-container');
         const triggersContainer = document.getElementById('triggers-container');
         const commandsContainer = document.getElementById('custom-commands-list');
+        const autoCatalogDisplay = document.getElementById('auto-catalog-display');
         const coinsListContainer = document.getElementById('coin-balances-list');
         const activeOptionsList = document.getElementById('active-options-list');
         const customOptionsContainer = document.getElementById('poll-custom-options-container');
         const micBtn = document.getElementById('mic-btn');
+
+        let rawCatalogText = "";
 
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('auth') === 'success') {
@@ -796,6 +797,50 @@
                 characterPersona: document.getElementById('ai-persona').value.trim()
             });
         });
+
+        // 📖 RENDER AUTO-GENERATED CATALOG
+        socket.on('all-commands-catalog', (cat) => {
+            let html = "";
+            let textAcc = "=== STREAM COMMANDS ===\n\n[CORE & AI]\n";
+
+            cat.core.forEach(c => {
+                html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--cyan);">${c.cmd}</b> - <span style="color:#aaa;">${c.desc}</span></div>`;
+                textAcc += `${c.cmd} - ${c.desc}\n`;
+            });
+
+            html += `<div style="margin-top:6px; font-weight:800; color:var(--gold);">[MINI-GAMES & ECONOMY]</div>`;
+            textAcc += `\n[GAMES & ECONOMY]\n`;
+            cat.games.forEach(g => {
+                html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--gold);">${g.cmd}</b> - <span style="color:#aaa;">${g.desc}</span></div>`;
+                textAcc += `${g.cmd} - ${g.desc}\n`;
+            });
+
+            html += `<div style="margin-top:6px; font-weight:800; color:var(--orange);">[MEME REDEEMS]</div>`;
+            textAcc += `\n[MEME REDEEMS]\n`;
+            if (cat.redeems.length === 0) html += `<div style="color:#777;">No redeems configured</div>`;
+            cat.redeems.forEach(r => {
+                html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--orange);">${r.cmd}</b> - <span style="color:#aaa;">${r.desc}</span></div>`;
+                textAcc += `${r.cmd} - ${r.desc}\n`;
+            });
+
+            html += `<div style="margin-top:6px; font-weight:800; color:var(--green);">[INFO COMMANDS]</div>`;
+            textAcc += `\n[INFO COMMANDS]\n`;
+            if (cat.customs.length === 0) html += `<div style="color:#777;">No custom commands</div>`;
+            cat.customs.forEach(c => {
+                html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--green);">${c.cmd}</b> - <span style="color:#aaa;">${c.desc}</span></div>`;
+                textAcc += `${c.cmd} - ${c.desc}\n`;
+            });
+
+            autoCatalogDisplay.innerHTML = html;
+            rawCatalogText = textAcc;
+        });
+
+        function copyCommandsToClipboard() {
+            if (!rawCatalogText) return;
+            navigator.clipboard.writeText(rawCatalogText).then(() => {
+                alert("📋 All active commands copied to clipboard!");
+            });
+        }
 
         function updateImagePreview() {
             const url = document.getElementById('ai-image-url').value.trim();
