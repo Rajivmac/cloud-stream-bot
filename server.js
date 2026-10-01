@@ -51,7 +51,6 @@ let streamData = {
     welcomeNewChatters: true,
     reminderMinutes: 15,
 
-    // Auto-Moderation
     modSettings: {
         blockLinks: true,
         capsFilter: true,
@@ -94,6 +93,45 @@ let activeBet = {
 
 let activeDuels = {};
 let userLastAiTime = {};
+
+// ==========================================
+// 📖 DYNAMIC AUTO-GENERATING COMMAND CATALOG
+// ==========================================
+function getDynamicCommandCatalog() {
+    const aiCmd = streamData.aiCommand || '!ai';
+    const cName = streamData.coinSettings.currencyName || 'Coins';
+
+    const core = [
+        { cmd: `${aiCmd} <sawal>`, desc: `Talk to AI character (Cost: ${streamData.coinSettings.aiCost} ${cName})` },
+        { cmd: '!tts <message>', desc: 'Speak message in stream voice' },
+        { cmd: '!coins / !balance', desc: 'Check your balance' },
+        { cmd: '!daily', desc: 'Claim free 50 coins every 24h' },
+        { cmd: '!topcoins', desc: 'Top viewers leaderboard' },
+        { cmd: '!pay @user <amt>', desc: 'Transfer coins to viewer' }
+    ];
+
+    const games = [
+        { cmd: '!gamble <amt>', desc: '50/50 Coin Flip game' },
+        { cmd: '!slots <amt>', desc: '3-Reel Slots (up to 5x win)' },
+        { cmd: '!duel @user <amt>', desc: 'Challenge viewer to duel' },
+        { cmd: '!accept', desc: 'Accept duel challenge' },
+        { cmd: '!bet <option> <amt>', desc: 'Bet on live predictions' }
+    ];
+
+    const redeems = (streamData.triggers || [])
+        .filter(t => t.cmd)
+        .map(t => ({
+            cmd: t.cmd,
+            desc: `${t.name} [Cost: ${t.cost > 0 ? t.cost + ' ' + cName : 'FREE'}]`
+        }));
+
+    const customs = (streamData.customCommands || []).map(c => ({
+        cmd: c.cmd,
+        desc: `${c.reply.slice(0, 45)}${c.reply.length > 45 ? '...' : ''} [Cost: ${c.cost > 0 ? c.cost + ' ' + cName : 'FREE'}]`
+    }));
+
+    return { core, games, redeems, customs };
+}
 
 function getCalculatedBetData() {
     let totalPool = 0;
@@ -160,7 +198,7 @@ setInterval(() => {
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
-        const reminderText = discordCmd ? discordCmd.reply : `Daily free coins ke liye !daily type karein aur chat ranks dekhne ke liye !topcoins!`;
+        const reminderText = discordCmd ? discordCmd.reply : `Saare chat commands dekhne ke liye !commands ya !help type karein!`;
         broadcastResponse(reminderText, false);
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
@@ -612,9 +650,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // ==========================================
-    // 🌟 UNIFIED SUPER CHAT ALERT WITH TIERS
-    // ==========================================
+    // Super Chat Detection
     if (chatItem.superchat || chatItem.purchaseAmount) {
         const amount = chatItem.purchaseAmount || (chatItem.superchat && chatItem.superchat.amount) || "Donation";
         const spokenText = rawText 
@@ -635,7 +671,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Cooldown Coins
+    // Cooldown Coins Accumulator
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -645,8 +681,21 @@ liveChat.on("chat", async (chatItem) => {
     }
 
     // ==========================================
-    // 🎁 REFINEMENT: !daily & !topcoins
+    // 📖 DYNAMIC !commands / !help COMMAND IN CHAT
     // ==========================================
+    if (message === '!commands' || message === '!help' || message === '!cmds') {
+        const catalog = getDynamicCommandCatalog();
+        const coreStr = catalog.core.map(c => c.cmd.split(' ')[0]).join(', ');
+        const gamesStr = "!gamble, !slots, !duel, !bet";
+        const redeemsStr = catalog.redeems.map(r => r.cmd).join(', ') || 'None';
+        const customsStr = catalog.customs.map(c => c.cmd).join(', ') || 'None';
+
+        const replyMsg = `📜 Commands 👉 [Core: ${coreStr}] | [Games: ${gamesStr}] | [Redeems: ${redeemsStr}] | [Info: ${customsStr}]`;
+        broadcastResponse(replyMsg, false);
+        return;
+    }
+
+    // Daily & Leaderboard
     if (message === '!daily' || message === '!claim') {
         if (!streamData.userDailyClaim) streamData.userDailyClaim = {};
         const lastClaim = streamData.userDailyClaim[userKey] || 0;
@@ -925,9 +974,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // ==========================================
-    // ⏱️ REFINEMENT: EXACT SECOND COOLDOWN COUNTDOWN
-    // ==========================================
+    // AI Question
     const activeCommand = (streamData.aiCommand || '!ai').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         if (!isOwner && !isMod) {
@@ -974,6 +1021,7 @@ const broadcastState = () => {
     io.emit('load-triggers', streamData.triggers);
     io.emit('bet-update', getCalculatedBetData());
     io.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
+    io.emit('all-commands-catalog', getDynamicCommandCatalog());
     saveDataToDisk();
 };
 
@@ -984,6 +1032,7 @@ io.on('connection', (socket) => {
     socket.emit('update-styles', streamData);
     socket.emit('bet-update', getCalculatedBetData());
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
+    socket.emit('all-commands-catalog', getDynamicCommandCatalog());
 
     socket.on('admin-sync-local', (local) => {
         let changed = false;
@@ -1036,7 +1085,6 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 🌟 SUPER CHAT TIER TESTS
     socket.on('admin-test-superchat-tier', (tierAmount) => {
         const amt = tierAmount || '₹500';
         io.emit('stream-alert', {
