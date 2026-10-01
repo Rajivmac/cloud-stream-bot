@@ -91,9 +91,9 @@ let streamData = {
     ],
 
     customCommands: [
-        { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", bubble: true, tts: false },
-        { cmd: "!rank", reply: "Tekken 8 Main: Kazuya Mishima (Tekken King Rank)!", bubble: true, tts: true },
-        { cmd: "!discord", reply: "Discord community: https://discord.gg/yourlink", bubble: true, tts: false }
+        { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", bubble: true, tts: false, cost: 0 },
+        { cmd: "!rank", reply: "Tekken 8 Main: Kazuya Mishima (Tekken King Rank)!", bubble: true, tts: true, cost: 0 },
+        { cmd: "!discord", reply: "Discord community: https://discord.gg/yourlink", bubble: true, tts: false, cost: 0 }
     ]
 };
 
@@ -137,6 +137,7 @@ if (fs.existsSync(DATA_FILE)) {
         if (!streamData.userCoins) streamData.userCoins = {};
         if (!streamData.userHistories) streamData.userHistories = {};
         if (!streamData.triggers) streamData.triggers = [];
+        if (!streamData.customCommands) streamData.customCommands = [];
     } catch (e) {
         console.error('Data load error:', e);
     }
@@ -261,7 +262,7 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // 1. Passive Earning
+    // 1. Passive Coin Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -333,7 +334,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 4. MEME & SFX REDEEM (Shows: Username redeemed + Item Name)
+    // 4. MEME & SFX REDEEM ENGINE
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
@@ -374,7 +375,41 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 5. Betting
+    // 5. CUSTOM CHAT COMMANDS WITH COIN REDEEM INTEGRATION
+    const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
+    if (matchedCustom) {
+        const cost = parseInt(matchedCustom.cost) || 0;
+        const isFree = isModOrOwner && streamData.coinSettings.freeForMods;
+        const currentBalance = streamData.userCoins[userKey] || 0;
+
+        if (cost > 0 && !isFree && currentBalance < cost) {
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `@${username}, '${matchedCustom.cmd}' command ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: streamData.enableTTS
+            });
+            return;
+        }
+
+        if (cost > 0 && !isFree) {
+            streamData.userCoins[userKey] -= cost;
+            saveDataToDisk();
+            broadcastState();
+        }
+
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: `${isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`)}, ${matchedCustom.reply}`,
+            enableBubble: matchedCustom.bubble !== false,
+            enableTTS: matchedCustom.tts === true
+        });
+        return;
+    }
+
+    // 6. Betting
     if (message.startsWith('!bet ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -399,19 +434,6 @@ liveChat.on("chat", async (chatItem) => {
             }
             return;
         }
-    }
-
-    // 6. Custom Commands
-    const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
-    if (matchedCustom) {
-        io.emit('ai-speak', {
-            characterName: streamData.characterName,
-            characterImage: streamData.characterImage,
-            text: `${isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`)}, ${matchedCustom.reply}`,
-            enableBubble: matchedCustom.bubble !== false,
-            enableTTS: matchedCustom.tts === true
-        });
-        return;
     }
 
     // 7. Manual TTS
@@ -619,21 +641,12 @@ io.on('connection', (socket) => {
         });
     });
 
-    // Dashboard click triggers
     socket.on('admin-play-meme', (data) => {
-        io.emit('play-meme', {
-            mediaUrl: data.mediaUrl,
-            name: "Stream Deck",
-            redeemedBy: "Streamer Boss"
-        });
+        io.emit('play-meme', { mediaUrl: data.mediaUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" });
     });
 
     socket.on('admin-play-sfx', (data) => {
-        io.emit('play-sfx', {
-            sfxUrl: data.sfxUrl,
-            name: "Stream Deck",
-            redeemedBy: "Streamer Boss"
-        });
+        io.emit('play-sfx', { sfxUrl: data.sfxUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" });
     });
 });
 
