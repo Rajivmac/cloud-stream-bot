@@ -459,25 +459,17 @@
                     <span id="api-key-status" style="font-size:10px; color:var(--red);">🔴 Disconnected</span>
                 </div>
 
-                <label style="font-size:10px; color:var(--text-dim);">Primary Routing Mode</label>
-                <select id="ai-provider-mode">
-                    <option value="auto">⚡ Auto-Switch (Smart Failover across all keys)</option>
-                    <option value="groq">⚡ Groq Cloud (Llama 3.3 - 0.2s Fast & Free)</option>
-                    <option value="gemini">🌟 Google Gemini (Resilient Flash Cascade)</option>
-                    <option value="openrouter">🌐 OpenRouter (DeepSeek / Llama Free)</option>
-                </select>
-
                 <div style="background:#161c2b; padding:10px; border-radius:8px; margin-bottom:8px; border:1px solid var(--border);">
                     <label style="font-size:10px; color:var(--cyan); font-weight:700;">1. Google Gemini API Key</label>
                     <input type="password" id="ai-key" placeholder="Paste Google AI Studio Key" style="font-size:11px;" oninput="updateKeyStatusBadge()">
 
-                    <label style="font-size:10px; color:var(--gold); font-weight:700; margin-top:4px; display:block;">2. Groq API Key (Free & 0-lag backup - console.groq.com)</label>
-                    <input type="password" id="ai-groq-key" placeholder="gsk_... (Optional Backup)" style="font-size:11px;">
+                    <label style="font-size:10px; color:var(--gold); font-weight:700; margin-top:4px; display:block;">2. Groq API Key (Optional Backup - console.groq.com)</label>
+                    <input type="password" id="ai-groq-key" placeholder="gsk_... (Chhod sakte hain agar nahi hai)" style="font-size:11px;">
 
-                    <label style="font-size:10px; color:#a29bfe; font-weight:700; margin-top:4px; display:block;">3. OpenRouter API Key (Free backup - openrouter.ai)</label>
-                    <input type="password" id="ai-openrouter-key" placeholder="sk-or-... (Optional Backup)" style="font-size:11px;">
+                    <label style="font-size:10px; color:#a29bfe; font-weight:700; margin-top:4px; display:block;">3. OpenRouter API Key (Optional Backup - openrouter.ai)</label>
+                    <input type="password" id="ai-openrouter-key" placeholder="sk-or-... (Chhod sakte hain agar nahi hai)" style="font-size:11px;">
 
-                    <button style="background:linear-gradient(90deg, #0984e3, #00d2d3); width:100%; font-size:12px; font-weight:800; padding:10px; margin-top:4px;" onclick="triggerServerVerification()">⚡ Verify & Test All AI Connections</button>
+                    <button style="background:linear-gradient(90deg, #0984e3, #00d2d3); width:100%; font-size:12px; font-weight:800; padding:10px; margin-top:4px;" onclick="triggerServerVerification()">⚡ Verify Connections</button>
                 </div>
 
                 <div class="section-title" style="margin-top:8px;">🎭 Character & Voice Setup</div>
@@ -725,7 +717,7 @@
             const groqKey = document.getElementById('ai-groq-key').value.trim();
             const badge = document.getElementById('api-key-status');
             if (gemKey || groqKey) {
-                badge.innerText = '🟢 Keys Loaded';
+                badge.innerText = '🟢 Key Entered';
                 badge.style.color = 'var(--green)';
             } else {
                 badge.innerText = '🔴 Disconnected';
@@ -733,24 +725,22 @@
             }
         }
 
-        // Server-Side Multi-Provider Verification
         function triggerServerVerification() {
             const geminiKey = document.getElementById('ai-key').value.trim();
             const groqKey = document.getElementById('ai-groq-key').value.trim();
             const openrouterKey = document.getElementById('ai-openrouter-key').value.trim();
-            const provider = document.getElementById('ai-provider-mode').value;
             const badge = document.getElementById('api-key-status');
 
             badge.innerText = '⏳ Testing Multi-Provider Connections...';
             badge.style.color = 'var(--orange)';
 
-            socket.emit('admin-verify-ai', { geminiKey, groqKey, openrouterKey, provider });
+            socket.emit('admin-verify-ai', { geminiKey, groqKey, openrouterKey });
         }
 
         socket.on('admin-ai-verify-result', (data) => {
             const badge = document.getElementById('api-key-status');
             if (data.success) {
-                badge.innerText = '🟢 Multi-AI Active & Ready!';
+                badge.innerText = '🟢 AI Active & Ready!';
                 badge.style.color = 'var(--green)';
                 saveAISettings();
                 alert(data.message);
@@ -925,20 +915,17 @@
             const gemKey = document.getElementById('ai-key').value.trim() || localStorage.getItem('geminiApiKey') || '';
             const groqKey = document.getElementById('ai-groq-key').value.trim() || localStorage.getItem('groqApiKey') || '';
             const openrouterKey = document.getElementById('ai-openrouter-key').value.trim() || localStorage.getItem('openrouterApiKey') || '';
-            const provider = document.getElementById('ai-provider-mode').value;
             const img = document.getElementById('ai-image-url').value.trim() || localStorage.getItem('characterImage') || '';
 
             if (gemKey) localStorage.setItem('geminiApiKey', gemKey);
             if (groqKey) localStorage.setItem('groqApiKey', groqKey);
             if (openrouterKey) localStorage.setItem('openrouterApiKey', openrouterKey);
             if (img) localStorage.setItem('characterImage', img);
-            localStorage.setItem('aiProvider', provider);
 
             socket.emit('admin-change-styles', {
                 geminiApiKey: gemKey,
                 groqApiKey: groqKey,
                 openrouterApiKey: openrouterKey,
-                aiProvider: provider,
                 enableBubble: document.getElementById('ai-bubble').checked,
                 enableTTS: document.getElementById('ai-tts').checked,
                 ttsGender: document.getElementById('ai-voice-gender').value,
@@ -950,14 +937,13 @@
                 aiCommand: document.getElementById('ai-cmd').value.trim()
             });
             updateKeyStatusBadge();
-            alert('AI Persona & Provider Settings Saved!');
+            alert('AI Persona & Settings Saved!');
         }
 
         socket.on('update-styles', (data) => {
             const savedGemKey = localStorage.getItem('geminiApiKey');
             const savedGroqKey = localStorage.getItem('groqApiKey');
             const savedRouterKey = localStorage.getItem('openrouterApiKey');
-            const savedProvider = localStorage.getItem('aiProvider');
             const savedImg = localStorage.getItem('characterImage');
 
             if (data.geminiApiKey) { document.getElementById('ai-key').value = data.geminiApiKey; localStorage.setItem('geminiApiKey', data.geminiApiKey); }
@@ -968,9 +954,6 @@
 
             if (data.openrouterApiKey) { document.getElementById('ai-openrouter-key').value = data.openrouterApiKey; localStorage.setItem('openrouterApiKey', data.openrouterApiKey); }
             else if (savedRouterKey) { document.getElementById('ai-openrouter-key').value = savedRouterKey; }
-
-            if (data.aiProvider) { document.getElementById('ai-provider-mode').value = data.aiProvider; }
-            else if (savedProvider) { document.getElementById('ai-provider-mode').value = savedProvider; }
 
             updateKeyStatusBadge();
 
@@ -1052,7 +1035,7 @@
             try {
                 const res = await obs.call('ToggleInputMute', { inputName: micName });
                 micBtn.className = res.inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️️ MIC IS LIVE';
+                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
             } catch (err) { alert('OBS connect nahi hai!'); }
         }
 
@@ -1164,7 +1147,6 @@
             const localGemKey = localStorage.getItem('geminiApiKey');
             const localGroqKey = localStorage.getItem('groqApiKey');
             const localRouterKey = localStorage.getItem('openrouterApiKey');
-            const localProvider = localStorage.getItem('aiProvider');
             const localImg = localStorage.getItem('characterImage');
 
             if (localGemKey || localGroqKey || localRouterKey || localImg) {
@@ -1172,7 +1154,6 @@
                     geminiApiKey: localGemKey || '',
                     groqApiKey: localGroqKey || '',
                     openrouterApiKey: localRouterKey || '',
-                    aiProvider: localProvider || 'auto',
                     characterImage: localImg || ''
                 });
             }
