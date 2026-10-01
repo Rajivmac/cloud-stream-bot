@@ -19,7 +19,7 @@ const PRESETS = {
     goku: {
         name: "Son Goku",
         cmd: "!goku",
-        image: "https://images2.alphacoders.com/131/1312384.png",
+        image: "https://cdn-icons-png.flaticon.com/512/3233/3233514.png",
         gender: "male",
         pitch: 1.3,
         rate: 1.1,
@@ -66,7 +66,7 @@ let streamData = {
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     groqApiKey: process.env.GROQ_API_KEY || '',
 
-    // Google OAuth 2.0 Credentials & Auto-Refresh State
+    // Google OAuth 2.0 Credentials
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
     ytAccessToken: '',
@@ -86,7 +86,7 @@ let streamData = {
     ttsRate: 1.0,
     aiCommand: '!goku',
     characterName: 'Son Goku',
-    characterImage: 'https://images2.alphacoders.com/131/1312384.png',
+    characterImage: 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
     characterPersona: PRESETS.goku.prompt,
     welcomeNewChatters: true,
     reminderMinutes: 15,
@@ -169,7 +169,6 @@ let isTimerRunning = false;
 let seenChatters = new Set();
 let lastEarnedTime = {};
 
-// Independent Playtime Timer
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -178,7 +177,6 @@ setInterval(() => {
     }
 }, 1000);
 
-// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -187,12 +185,9 @@ setInterval(() => {
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// ==========================================
-// 🔐 GOOGLE OAUTH 2.0 & AUTO REFRESH ENGINE
-// ==========================================
+// --- GOOGLE OAUTH 2.0 WITH LOCAL VAULT SYNC ---
 const REDIRECT_URI = "https://stream-bot-hqlh.onrender.com/oauth2callback";
 
-// 1. Google Login Initiate Route
 app.get('/auth/google', (req, res) => {
     const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
     if (!clientId) {
@@ -204,7 +199,6 @@ app.get('/auth/google', (req, res) => {
     res.redirect(authUrl);
 });
 
-// 2. Google Callback & Token Exchange
 app.get('/oauth2callback', async (req, res) => {
     const code = req.query.code;
     const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
@@ -234,32 +228,31 @@ app.get('/oauth2callback', async (req, res) => {
             streamData.enableYTChatSend = true;
             streamData.ytQuotaExhausted = false;
 
-            // Fetch Channel/User Profile Name
             try {
                 const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
                     headers: { Authorization: `Bearer ${tokenData.access_token}` }
                 });
                 const userData = await userRes.json();
-                streamData.ytAccountName = userData.name || "YouTube Channel Connected";
+                streamData.ytAccountName = userData.name || "YouTube Account Connected";
             } catch (e) {
-                streamData.ytAccountName = "Connected";
+                streamData.ytAccountName = "Connected Account";
             }
 
-            // Auto-fetch Live Chat ID
             await fetchActiveLiveChatId();
-
             saveDataToDisk();
             broadcastState();
 
-            res.send(`
-                <html>
-                <body style="background:#0b0e14; color:#2ecc71; font-family:sans-serif; display:flex; flex-direction:column; justify-content:center; align-items:center; height:100vh;">
-                    <h2>✅ Google & YouTube Account Successfully Connected!</h2>
-                    <p style="color:#ffffff;">Refresh token saved permanently. Auto-redirecting to dashboard...</p>
-                    <script>setTimeout(() => { window.location.href = '/admin.html'; }, 2000);</script>
-                </body>
-                </html>
-            `);
+            // Permanent Browser Vault Redirection
+            const params = new URLSearchParams({
+                auth: 'success',
+                account: streamData.ytAccountName,
+                refresh: streamData.ytRefreshToken || '',
+                access: streamData.ytAccessToken || '',
+                clientId: streamData.googleClientId || '',
+                clientSecret: streamData.googleClientSecret || ''
+            });
+
+            res.redirect(`/admin.html?${params.toString()}`);
         } else {
             res.send("Token Exchange Error: " + JSON.stringify(tokenData));
         }
@@ -268,11 +261,9 @@ app.get('/oauth2callback', async (req, res) => {
     }
 });
 
-// 3. Auto-Refresh Token when expired
 async function ensureValidAccessToken() {
     if (!streamData.ytRefreshToken) return false;
 
-    // Check if token expires in less than 5 minutes
     if (Date.now() > (streamData.ytTokenExpiresAt - 300000)) {
         try {
             const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
@@ -304,7 +295,6 @@ async function ensureValidAccessToken() {
     return true;
 }
 
-// 4. Auto-Detect Active Stream LiveChatId
 async function fetchActiveLiveChatId() {
     if (!streamData.ytAccessToken) return;
     try {
@@ -319,19 +309,17 @@ async function fetchActiveLiveChatId() {
     } catch (e) {}
 }
 
-// Automatically poll live chat ID every 2 minutes
 setInterval(() => {
     if (streamData.enableYTChatSend && streamData.ytAccessToken) fetchActiveLiveChatId();
 }, 120000);
 
-// Post Message to Live Chat with 403 Quota Handler
 async function postToYouTubeChat(messageText) {
     if (!streamData.enableYTChatSend || streamData.ytQuotaExhausted) return;
     const hasToken = await ensureValidAccessToken();
     if (!hasToken || !streamData.ytAccessToken || !streamData.ytLiveChatId) return;
 
     if (streamData.ytMessagesSentToday >= 180) {
-        handleQuotaExceeded("Daily Limit Reached (180 messages)");
+        handleQuotaExceeded("Daily limit reach ho gayi (180 messages)");
         return;
     }
 
@@ -373,11 +361,11 @@ function handleQuotaExceeded() {
     saveDataToDisk();
     broadcastState();
 
-    const alertMessage = "Dhyan dein! YouTube chat quota khatam ho gaya hai. Ab se saare replies screen speech bubble aur TTS voice mein aayenge!";
+    const alertMsg = "Dhyan dein! YouTube chat quota khatam ho gaya hai. Ab se saare replies screen speech bubble aur TTS voice mein aayenge!";
     io.emit('ai-speak', {
         characterName: streamData.characterName,
         characterImage: streamData.characterImage,
-        text: alertMessage,
+        text: alertMsg,
         enableBubble: true,
         enableTTS: true,
         pitch: streamData.ttsPitch,
@@ -403,10 +391,10 @@ function broadcastResponse(text, isTTS = true) {
     }
 }
 
-// --- MULTI-PROVIDER AI LOGIC ---
+// --- AI FALLBACK SYSTEM ---
 async function callPublicZeroKeyDriver(systemText, userText) {
     try {
-        const fullPrompt = `${systemText}\nUser: ${userText}\nKeep reply punchy in 1-2 short sentences.`;
+        const fullPrompt = `${systemText}\nUser:${userText}\nKeep reply punchy in 1-2 short sentences.`;
         const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=openai`);
         if (res.ok) {
             const text = await res.text();
@@ -501,7 +489,7 @@ function recordHistory(username, userPrompt, aiReply) {
     saveDataToDisk();
 }
 
-// YouTube Chat Scraping Engine
+// YouTube Chat Engine
 const CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ';
 const TEST_STREAM_ID = ''; 
 
@@ -543,7 +531,6 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // Passive Coin Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -554,7 +541,7 @@ liveChat.on("chat", async (chatItem) => {
 
     if (message === '!coins' || message === '!balance' || message === '!maccoins') {
         const balance = streamData.userCoins[userKey] || 0;
-        broadcastResponse(`@${username}, aapke paas 🪙 ${balance} ${cName} hain!`, false);
+        broadcastResponse(`@${username}, aapke paas 🪙 ${balance}${cName} hain!`, false);
         return;
     }
 
@@ -569,7 +556,7 @@ liveChat.on("chat", async (chatItem) => {
                 streamData.userCoins[targetUser] += amount;
                 saveDataToDisk();
                 broadcastState();
-                broadcastResponse(`Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye!`, true);
+                broadcastResponse(`Streamer Boss ne @${targetUser} ko 🪙 ${amount}${cName} diye!`, true);
                 return;
             }
         }
@@ -588,21 +575,20 @@ liveChat.on("chat", async (chatItem) => {
                     streamData.userCoins[recipient] += amount;
                     saveDataToDisk();
                     broadcastState();
-                    broadcastResponse(`💸 @${username} ne @${recipient} ko 🪙 ${amount} ${cName} transfer kiye!`, true);
+                    broadcastResponse(`💸 @${username} ne @${recipient} ko 🪙 ${amount}${cName} transfer kiye!`, true);
                 }
             }
             return;
         }
     }
 
-    // Meme Redeem
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
         const currentBalance = streamData.userCoins[userKey] || 0;
 
         if (cost > 0 && !isOwner && currentBalance < cost) {
-            broadcastResponse(`@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`, true);
+            broadcastResponse(`@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost}${cName} chahiye! Tere paas sirf ${currentBalance} coins hain.`, true);
             return;
         }
 
@@ -617,14 +603,13 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Custom Commands
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const cost = parseInt(matchedCustom.cost) || 0;
         const currentBalance = streamData.userCoins[userKey] || 0;
 
         if (cost > 0 && !isOwner && currentBalance < cost) {
-            broadcastResponse(`@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost} ${cName} chahiye!`, true);
+            broadcastResponse(`@${username}, '${matchedCustom.cmd}' ke liye 🪙 ${cost}${cName} chahiye!`, true);
             return;
         }
 
@@ -635,11 +620,10 @@ liveChat.on("chat", async (chatItem) => {
         }
 
         const replyPrefix = isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`);
-        broadcastResponse(`${replyPrefix}, ${matchedCustom.reply}`, matchedCustom.tts === true);
+        broadcastResponse(`${replyPrefix},${matchedCustom.reply}`, matchedCustom.tts === true);
         return;
     }
 
-    // Betting
     if (message.startsWith('!bet ') || message.startsWith('!vote ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -653,7 +637,7 @@ liveChat.on("chat", async (chatItem) => {
             if (betAmount > 0) {
                 const userBalance = streamData.userCoins[userKey] || 0;
                 if (userBalance < betAmount) {
-                    broadcastResponse(`@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance} ${cName} hain!`, false);
+                    broadcastResponse(`@${username}, aapke paas bet ke liye sirf 🪙 ${userBalance}${cName} hain!`, false);
                     return;
                 }
                 streamData.userCoins[userKey] -= betAmount;
@@ -671,7 +655,7 @@ liveChat.on("chat", async (chatItem) => {
 
             saveDataToDisk();
             broadcastState();
-            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`, false);
+            broadcastResponse(`🎲 @${username} ne '${targetOption.name}' par vote kiya!${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`, false);
             return;
         }
     }
@@ -691,7 +675,6 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Question
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -699,7 +682,7 @@ liveChat.on("chat", async (chatItem) => {
         const cost = streamData.coinSettings.aiCost;
 
         if (cost > 0 && !isOwner && currentCoins < cost) {
-            broadcastResponse(`@${username}, AI se baat karne ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentCoins} hain.`, true);
+            broadcastResponse(`@${username}, AI se baat karne ke liye 🪙 ${cost}${cName} chahiye! Tere paas sirf ${currentCoins} hain.`, true);
             return;
         }
 
@@ -738,12 +721,53 @@ io.on('connection', (socket) => {
     socket.emit('bet-update', getCalculatedBetData());
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
 
-    socket.on('admin-sync-local', (localData) => {
+    // LocalStorage Auto-Sync: Restores tokens if server restarted
+    socket.on('admin-sync-local', (local) => {
         let changed = false;
-        if (!streamData.geminiApiKey && localData.geminiApiKey) { streamData.geminiApiKey = localData.geminiApiKey; changed = true; }
-        if (!streamData.groqApiKey && localData.groqApiKey) { streamData.groqApiKey = localData.groqApiKey; changed = true; }
-        if (!streamData.characterImage && localData.characterImage) { streamData.characterImage = localData.characterImage; changed = true; }
-        if (changed) { saveDataToDisk(); broadcastState(); }
+        if (local.googleClientId && !streamData.googleClientId) { streamData.googleClientId = local.googleClientId; changed = true; }
+        if (local.googleClientSecret && !streamData.googleClientSecret) { streamData.googleClientSecret = local.googleClientSecret; changed = true; }
+        if (local.ytRefreshToken && !streamData.ytRefreshToken) { 
+            streamData.ytRefreshToken = local.ytRefreshToken; 
+            streamData.enableYTChatSend = true;
+            changed = true; 
+        }
+        if (local.ytAccessToken && !streamData.ytAccessToken) { streamData.ytAccessToken = local.ytAccessToken; changed = true; }
+        if (local.ytAccountName && !streamData.ytAccountName) { streamData.ytAccountName = local.ytAccountName; changed = true; }
+        if (local.geminiApiKey && !streamData.geminiApiKey) { streamData.geminiApiKey = local.geminiApiKey; changed = true; }
+        if (local.groqApiKey && !streamData.groqApiKey) { streamData.groqApiKey = local.groqApiKey; changed = true; }
+        if (local.characterName) { streamData.characterName = local.characterName; changed = true; }
+        if (local.characterImage) { streamData.characterImage = local.characterImage; changed = true; }
+        if (local.ttsGender) { streamData.ttsGender = local.ttsGender; changed = true; }
+        if (local.ttsPitch) { streamData.ttsPitch = local.ttsPitch; changed = true; }
+        if (local.ttsRate) { streamData.ttsRate = local.ttsRate; changed = true; }
+        if (local.characterPersona) { streamData.characterPersona = local.characterPersona; changed = true; }
+
+        if (changed) {
+            saveDataToDisk();
+            broadcastState();
+        }
+    });
+
+    // Directly tests current slider voice values on OBS
+    socket.on('admin-test-voice-preview', (data) => {
+        streamData.characterName = data.characterName || streamData.characterName;
+        streamData.characterImage = data.characterImage || streamData.characterImage;
+        streamData.ttsGender = data.ttsGender || streamData.ttsGender;
+        streamData.ttsPitch = data.ttsPitch || streamData.ttsPitch;
+        streamData.ttsRate = data.ttsRate || streamData.ttsRate;
+        saveDataToDisk();
+        broadcastState();
+
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: `Yo! Audio aur Speech bubble bilkul ready hain! Main hoon ${streamData.characterName}!`,
+            enableBubble: data.enableBubble !== false,
+            enableTTS: data.enableTTS !== false,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate,
+            gender: streamData.ttsGender
+        });
     });
 
     socket.on('admin-disconnect-google', () => {
@@ -776,6 +800,7 @@ io.on('connection', (socket) => {
 
     socket.on('admin-change-styles', (newSettings) => {
         streamData = { ...streamData, ...newSettings };
+        saveDataToDisk();
         broadcastState();
     });
 
@@ -820,7 +845,7 @@ io.on('connection', (socket) => {
         activeBet = { isOpen: true, locked: false, title: title || "Who will win?", options: parsedOptions, bets: {} };
         broadcastState();
 
-        const optionsText = parsedOptions.map(o => `[${o.id}: ${o.name}]`).join(' vs ');
+        const optionsText = parsedOptions.map(o => `[${o.id}:${o.name}]`).join(' vs ');
         broadcastResponse(`🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote: !bet <num> <amount> or !vote <num>`, true);
     });
 
@@ -873,10 +898,6 @@ io.on('connection', (socket) => {
     socket.on('admin-del-custom-cmd', (cmdToDelete) => {
         streamData.customCommands = streamData.customCommands.filter(c => c.cmd.toLowerCase() !== cmdToDelete.toLowerCase());
         broadcastState();
-    });
-
-    socket.on('admin-test-ai', () => {
-        broadcastResponse(`Yo! Audio, Speech bubble aur Chat test successful!`, true);
     });
 
     socket.on('admin-play-meme', (data) => io.emit('play-meme', { mediaUrl: data.mediaUrl, name: "Stream Deck", redeemedBy: "Streamer Boss" }));
