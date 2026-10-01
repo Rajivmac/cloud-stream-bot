@@ -90,6 +90,7 @@
         let bassFilter = null;
         let trebleFilter = null;
         let sourceNode = null;
+        let currentRate = 1.0;
 
         function initToneEqualizer() {
             try {
@@ -115,7 +116,7 @@
             } catch(e) {}
         }
 
-        function playIndianVoice(text, voice, pitch, rate) {
+        function playVoice(text, voice, pitch, rate) {
             const cleanText = text.replace(/[*_#~`]/g, '').trim();
             if (!cleanText) return;
 
@@ -124,14 +125,16 @@
             const isFemale = (voice || 'female').toLowerCase().includes('female');
             const selectedVoice = isFemale ? 'female' : 'male';
             const p = parseFloat(pitch) || 1.0;
-            const r = Math.max(0.6, Math.min(1.8, parseFloat(rate) || 1.0));
+            currentRate = Math.max(0.6, Math.min(1.8, parseFloat(rate) || 1.0));
 
-            // TONE EQUALIZER (Independent of Speed)
+            // TONE EQUALIZER: Only alters bass/treble resonance without touching speed
             if (bassFilter && trebleFilter) {
                 if (p < 1.0) {
+                    // Deep heavy tone
                     bassFilter.gain.value = (1.0 - p) * 28;
                     trebleFilter.gain.value = -(1.0 - p) * 14;
                 } else if (p > 1.0) {
+                    // Crisp sharp tone
                     bassFilter.gain.value = -(p - 1.0) * 14;
                     trebleFilter.gain.value = (p - 1.0) * 20;
                 } else {
@@ -142,29 +145,26 @@
 
             audioPlayer.preservesPitch = true;
             audioPlayer.pause();
+            audioPlayer.crossOrigin = "anonymous";
 
-            // Set playbackRate after metadata loads (Fixes HTML5 reset bug)
-            audioPlayer.onloadedmetadata = () => {
-                audioPlayer.playbackRate = r;
+            // Enforce speed on all Chromium audio events so it never resets to 1.0
+            const applySpeed = () => {
+                try { audioPlayer.playbackRate = currentRate; } catch(e) {}
             };
 
-            const primaryUrl = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
-            audioPlayer.src = primaryUrl;
+            audioPlayer.onloadedmetadata = applySpeed;
+            audioPlayer.onplay = applySpeed;
+            audioPlayer.onplaying = applySpeed;
+
+            audioPlayer.src = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
             audioPlayer.volume = 1.0;
 
             const playPromise = audioPlayer.play();
             if (playPromise !== undefined) {
                 playPromise.then(() => {
-                    audioPlayer.playbackRate = r;
-                }).catch(() => {
-                    // Fail-safe direct client fallback
-                    const fallbackUrl = isFemale 
-                        ? `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=hi&q=${encodeURIComponent(cleanText)}`
-                        : `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(cleanText)}`;
-                    audioPlayer.src = fallbackUrl;
-                    audioPlayer.play().then(() => {
-                        audioPlayer.playbackRate = r;
-                    }).catch(e => console.error("Audio fallback failed:", e));
+                    applySpeed();
+                }).catch(err => {
+                    console.error("Audio playback error:", err);
                 });
             }
         }
@@ -183,7 +183,7 @@
             }
 
             if (data.enableTTS) {
-                playIndianVoice(data.text, data.voice, data.pitch, data.rate);
+                playVoice(data.text, data.voice, data.pitch, data.rate);
             }
         });
     </script>
