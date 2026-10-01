@@ -450,7 +450,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA WITH 4 INDIAN VOICES -->
+        <!-- TAB 6: AI PERSONA (CUSTOM CHARACTER - ZERO PRESETS) -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -502,16 +502,7 @@
             </div>
 
             <div class="card">
-                <div class="section-title">🎭 Character Avatar & Real Voice Engine</div>
-
-                <label style="font-size:10px; color:var(--text-dim);">Load Preset Character</label>
-                <select id="persona-presets" onchange="applyPresetPersona()">
-                    <option value="goku">🔥 Son Goku (Dragon Ball - Energetic Male)</option>
-                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen - Confident Male)</option>
-                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8 - Deep Ruthless Male)</option>
-                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses - Deep Monster Male)</option>
-                    <option value="custom">✏️ Custom Character</option>
-                </select>
+                <div class="section-title">🎭 Character Setup & Real Voice</div>
 
                 <div class="avatar-preview-box">
                     <img id="avatar-preview" class="avatar-preview-img" src="https://cdn-icons-png.flaticon.com/512/3233/3233514.png" alt="Avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3233/3233514.png'">
@@ -531,23 +522,23 @@
                 </div>
 
                 <!-- 4 INDIAN ACCENT VOICES -->
-                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Indian AI Voice Actor</label>
+                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Indian AI Voice</label>
                 <select id="ai-voice-select">
                     <optgroup label="👩 FEMALE VOICES (Indian)">
                         <option value="female_hi" selected>👩 Swara (Indian Hindi - Natural Female)</option>
-                        <option value="female_en">👩 Neerja (Indian English/Hinglish - Natural Female)</option>
+                        <option value="female_en">👩 Neerja (Indian English/Hinglish - Female)</option>
                     </optgroup>
                     <optgroup label="👨 MALE VOICES (Indian)">
-                        <option value="male_hi">👨 Madhur (Indian Hindi - Natural Male)</option>
-                        <option value="male_en">👨 Prabhat (Indian English/Hinglish - Natural Male)</option>
+                        <option value="male_hi">👨 Madhur (Indian Hindi - Deep Male)</option>
+                        <option value="male_en">👨 Prabhat (Indian English/Hinglish - Male)</option>
                     </optgroup>
                 </select>
 
                 <div class="grid-2" style="margin-top:6px;">
                     <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Voice Pitch / Tone (<span id="val-pitch">1.0</span>)</label>
+                        <label style="font-size:10px; color:var(--text-dim);">Voice Tone / Pitch (<span id="val-pitch">1.0</span>)</label>
                         <input type="range" id="ai-pitch" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-pitch').innerText=this.value">
-                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Heavy Bass | Sharp Voice →</small>
+                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Deep Heavy Tone | Sharp Anime Tone →</small>
                     </div>
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
@@ -559,16 +550,16 @@
                 <div class="grid-2" style="margin-top:6px;">
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Character Name</label>
-                        <input type="text" id="ai-name" value="Son Goku">
+                        <input type="text" id="ai-name" value="Bot">
                     </div>
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Command</label>
-                        <input type="text" id="ai-cmd" value="!goku">
+                        <input type="text" id="ai-cmd" value="!ai">
                     </div>
                 </div>
 
                 <label style="font-size:10px; color:var(--text-dim);">Behavior Prompt</label>
-                <textarea id="ai-persona" rows="2"></textarea>
+                <textarea id="ai-persona" rows="3" placeholder="Enter character personality... (e.g. You are a witty anime hero. Reply in 1-2 punchy sentences in viewer's language.)"></textarea>
 
                 <div class="grid-2">
                     <button class="btn-gold" onclick="saveAISettings()">💾 Save AI Settings</button>
@@ -682,45 +673,6 @@
         const customOptionsContainer = document.getElementById('poll-custom-options-container');
         const micBtn = document.getElementById('mic-btn');
 
-        const presets = {
-            goku: {
-                name: "Son Goku",
-                cmd: "!goku",
-                image: "https://cdn-icons-png.flaticon.com/512/3233/3233514.png",
-                voice: "male_hi",
-                pitch: 1.15,
-                rate: 1.05,
-                prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the viewer's language."
-            },
-            gojo: {
-                name: "Gojo Satoru",
-                cmd: "!gojo",
-                image: "https://images8.alphacoders.com/134/1344405.jpeg",
-                voice: "male_en",
-                pitch: 1.0,
-                rate: 1.0,
-                prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
-            },
-            kazuya: {
-                name: "Kazuya Mishima",
-                cmd: "!kazuya",
-                image: "https://images3.alphacoders.com/134/1347311.jpeg",
-                voice: "male_hi",
-                pitch: 0.85,
-                rate: 0.95,
-                prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
-            },
-            sukuna: {
-                name: "Ryomen Sukuna",
-                cmd: "!sukuna",
-                image: "https://images3.alphacoders.com/134/1344406.jpeg",
-                voice: "male_hi",
-                pitch: 0.8,
-                rate: 0.9,
-                prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
-            }
-        };
-
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('auth') === 'success') {
             const acc = urlParams.get('account') || '';
@@ -809,23 +761,6 @@
             if (url) document.getElementById('avatar-preview').src = url;
         }
 
-        function applyPresetPersona() {
-            const val = document.getElementById('persona-presets').value;
-            if (presets[val]) {
-                document.getElementById('ai-name').value = presets[val].name;
-                document.getElementById('ai-cmd').value = presets[val].cmd;
-                document.getElementById('ai-image-url').value = presets[val].image;
-                document.getElementById('avatar-preview').src = presets[val].image;
-                document.getElementById('ai-voice-select').value = presets[val].voice;
-                document.getElementById('ai-pitch').value = presets[val].pitch;
-                document.getElementById('val-pitch').innerText = presets[val].pitch;
-                document.getElementById('ai-rate').value = presets[val].rate;
-                document.getElementById('val-rate').innerText = presets[val].rate;
-                document.getElementById('ai-persona').value = presets[val].prompt;
-                saveAISettings(false);
-            }
-        }
-
         function switchTab(tabName) {
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -837,7 +772,7 @@
 
         function testVoiceInOBS() {
             const data = {
-                characterName: document.getElementById('ai-name').value.trim() || 'Son Goku',
+                characterName: document.getElementById('ai-name').value.trim() || 'Bot',
                 characterImage: document.getElementById('ai-image-url').value.trim() || 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
                 ttsVoice: document.getElementById('ai-voice-select').value,
                 ttsPitch: parseFloat(document.getElementById('ai-pitch').value) || 1.0,
@@ -926,7 +861,7 @@
                 aiCommand: cmd
             });
 
-            if (showAlert) alert('✅ Real Voice & AI Settings Saved!');
+            if (showAlert) alert('✅ Character & Voice Settings Saved!');
         }
 
         socket.on('update-styles', (data) => {
@@ -961,6 +896,14 @@
                     quotaBadge.style.color = 'var(--gold)';
                 }
             }
+
+            if (data.characterName) document.getElementById('ai-name').value = data.characterName;
+            if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
+            if (data.characterImage) {
+                document.getElementById('ai-image-url').value = data.characterImage;
+                document.getElementById('avatar-preview').src = data.characterImage;
+            }
+            if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
 
             if (data.ttsVoice) {
                 document.getElementById('ai-voice-select').value = data.ttsVoice;
