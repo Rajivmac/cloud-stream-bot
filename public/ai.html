@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>OBS AI Speech & Smart Alerts Overlay</title>
+    <title>OBS AI Speech & Unified Alerts Overlay</title>
     <style>
         body {
             margin: 0;
@@ -12,17 +12,18 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
-        /* 🌟 ALERT BANNER (SuperChat, Members, Subscribers) */
+        /* 🌟 SINGLE MERGED ALERT CARD WITH USER AVATAR */
         #alert-box {
             display: none;
-            flex-direction: column;
-            gap: 6px;
-            border-radius: 16px;
-            padding: 16px 24px;
-            max-width: 520px;
-            box-shadow: 0 10px 35px rgba(0, 0, 0, 0.6);
+            align-items: center;
+            gap: 16px;
+            border-radius: 18px;
+            padding: 16px 22px;
+            max-width: 540px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
             animation: alertPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             margin-bottom: 12px;
+            box-sizing: border-box;
         }
 
         .alert-superchat {
@@ -44,36 +45,54 @@
         }
 
         @keyframes alertPop {
-            0% { transform: scale(0.6) translateY(-25px); opacity: 0; }
+            0% { transform: scale(0.65) translateY(-25px); opacity: 0; }
             100% { transform: scale(1) translateY(0); opacity: 1; }
         }
 
-        .alert-header {
+        .alert-avatar-img {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #ffffff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            flex-shrink: 0;
+            background: #111;
+        }
+
+        .alert-content-col {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .alert-header-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 900;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
 
-        .alert-badge {
+        .alert-badge-tag {
             background: rgba(0, 0, 0, 0.85);
             color: #fff;
-            padding: 4px 10px;
-            border-radius: 8px;
-            font-size: 14px;
+            padding: 3px 9px;
+            border-radius: 7px;
+            font-size: 13px;
             font-weight: 800;
         }
 
-        .alert-body {
+        .alert-body-text {
             font-size: 15px;
             font-weight: 700;
             line-height: 1.35;
         }
 
-        /* 💬 AI CHARACTER SPEECH BUBBLE */
+        /* 💬 AI CHARACTER SPEECH BUBBLE (FOR !ai CHAT COMMANDS ONLY) */
         #ai-container {
             display: none;
             align-items: flex-start;
@@ -130,16 +149,19 @@
 
     <audio id="tts-audio" style="display:none;"></audio>
 
-    <!-- ALERT BANNER -->
+    <!-- 🌟 MERGED UNIFIED ALERT CARD -->
     <div id="alert-box">
-        <div class="alert-header">
-            <span id="alert-title">🎉 SUPER CHAT!</span>
-            <span id="alert-badge" class="alert-badge">₹500</span>
+        <img id="alert-user-img" class="alert-avatar-img" src="https://cdn-icons-png.flaticon.com/512/847/847969.png" alt="User">
+        <div class="alert-content-col">
+            <div class="alert-header-row">
+                <span id="alert-title">SUPER CHAT: @Rahul</span>
+                <span id="alert-badge" class="alert-badge-tag">₹500</span>
+            </div>
+            <div class="alert-body-text" id="alert-msg">Keep grinding boss!</div>
         </div>
-        <div class="alert-body" id="alert-msg">Rahul Gamer: Keep grinding boss!</div>
     </div>
 
-    <!-- AI SPEECH BUBBLE -->
+    <!-- 💬 AI SPEECH BUBBLE -->
     <div id="ai-container">
         <img id="avatar" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar">
         <div class="content">
@@ -158,12 +180,13 @@
         const audioPlayer = document.getElementById('tts-audio');
 
         const alertBox = document.getElementById('alert-box');
+        const alertUserImg = document.getElementById('alert-user-img');
         const alertTitle = document.getElementById('alert-title');
         const alertBadge = document.getElementById('alert-badge');
         const alertMsg = document.getElementById('alert-msg');
 
         // ==========================================
-        // 🔄 SMART FIFO QUEUE ENGINE
+        // 🔄 SMART FIFO QUEUE
         // ==========================================
         const eventQueue = [];
         let isProcessing = false;
@@ -200,7 +223,6 @@
         }
 
         function enqueueEvent(item) {
-            // Anti-flooding: Maximum 6 items in queue
             if (eventQueue.length >= 6) return;
             eventQueue.push(item);
             if (!isProcessing) processNextQueueItem();
@@ -216,9 +238,9 @@
             const current = eventQueue.shift();
 
             if (current.type === 'alert') {
-                handleAlertEvent(current);
+                handleUnifiedAlert(current);
             } else if (current.type === 'speak') {
-                handleSpeakEvent(current);
+                handleCharacterSpeak(current);
             }
         }
 
@@ -227,39 +249,43 @@
             container.style.display = 'none';
             alertBox.style.display = 'none';
 
-            // 400ms clean delay between notifications
+            // 400ms clean gap before next item
             setTimeout(processNextQueueItem, 400);
         }
 
-        function handleAlertEvent(data) {
+        // 🌟 MERGED ALERT + TTS AUDIO HANDLER
+        function handleUnifiedAlert(data) {
             alertBox.className = '';
+            alertUserImg.src = data.avatar || 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
+
             if (data.alertType === 'superchat') {
                 alertBox.classList.add('alert-superchat');
                 alertTitle.innerText = `💰 SUPER CHAT: @${data.user}`;
                 alertBadge.innerText = data.amount;
-                alertBadge.style.display = 'inline-block';
                 alertMsg.innerText = data.msg || 'Thank you for supporting the stream!';
             } else if (data.alertType === 'member') {
                 alertBox.classList.add('alert-member');
                 alertTitle.innerText = `👑 NEW MEMBER: @${data.user}`;
                 alertBadge.innerText = 'MEMBER';
-                alertBadge.style.display = 'inline-block';
-                alertMsg.innerText = 'Welcome to the channel family!';
+                alertMsg.innerText = data.msg || 'Welcome to the channel family!';
             } else if (data.alertType === 'subscriber') {
                 alertBox.classList.add('alert-sub');
-                alertTitle.innerText = `🔴 NEW SUBSCRIBER!`;
-                alertBadge.innerText = `@${data.user}`;
-                alertBadge.style.display = 'inline-block';
-                alertMsg.innerText = 'Just subscribed to the channel! Welcome!';
+                alertTitle.innerText = `🔴 NEW SUBSCRIBER: @${data.user}`;
+                alertBadge.innerText = 'NEW SUB';
+                alertMsg.innerText = 'Subscribed to the channel! Welcome!';
             }
 
             alertBox.style.display = 'flex';
 
-            // Alert stays on screen for 6.5 seconds, then advances queue
-            safetyTimeout = setTimeout(finishCurrentItem, 6500);
+            // PLAY AUDIO SIMULTANEOUSLY WITH THIS BANNER
+            const speechText = data.ttsText || data.msg || `${data.user} thank you!`;
+            playVoiceWithCallback(speechText, data.voice, data.pitch, data.rate, () => {
+                // Audio ended: wait 1 second so viewer can read banner, then close
+                setTimeout(finishCurrentItem, 1000);
+            });
         }
 
-        function handleSpeakEvent(data) {
+        function handleCharacterSpeak(data) {
             if (data.enableBubble) {
                 avatar.src = data.characterImage || 'https://images3.alphacoders.com/134/1344406.jpeg';
                 botName.innerText = data.characterName || 'Bot';
@@ -272,7 +298,7 @@
                     finishCurrentItem();
                 });
             } else {
-                safetyTimeout = setTimeout(finishCurrentItem, 6000);
+                safetyTimeout = setTimeout(finishCurrentItem, 5500);
             }
         }
 
@@ -287,7 +313,6 @@
             const p = parseFloat(pitch) || 1.0;
             currentRate = Math.max(0.6, Math.min(1.8, parseFloat(rate) || 1.0));
 
-            // Independent Tone Equalizer
             if (bassFilter && trebleFilter) {
                 if (p < 1.0) {
                     bassFilter.gain.value = (1.0 - p) * 28;
@@ -322,7 +347,6 @@
             };
 
             audioPlayer.onended = done;
-            // Safety fallback if audio fails to trigger end event
             safetyTimeout = setTimeout(done, 9000);
 
             audioPlayer.src = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
@@ -337,7 +361,7 @@
         }
 
         // ==========================================
-        // 📡 SOCKET EVENT LISTENERS
+        // 📡 LISTENERS
         // ==========================================
         socket.on('ai-speak', (data) => {
             enqueueEvent({
@@ -352,7 +376,12 @@
                 alertType: data.type,
                 user: data.user,
                 amount: data.amount,
-                msg: data.msg
+                avatar: data.avatar,
+                msg: data.msg,
+                ttsText: data.ttsText,
+                voice: data.voice,
+                pitch: data.pitch,
+                rate: data.rate
             });
         });
     </script>
