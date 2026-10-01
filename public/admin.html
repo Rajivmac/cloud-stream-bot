@@ -450,7 +450,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA WITH REAL STUDIO VOICES -->
+        <!-- TAB 6: AI PERSONA WITH GUARANTEED MALE & FEMALE VOICES -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -499,20 +499,17 @@
 
                 <label style="font-size:10px; color:var(--text-dim);">Groq API Key (Optional Fast Backup)</label>
                 <input type="password" id="ai-groq-key" placeholder="gsk_... (Optional)" style="font-size:11px;">
-
-                <label style="font-size:10px; color:var(--text-dim);">ElevenLabs API Key (Optional Ultra-Real Voices)</label>
-                <input type="password" id="ai-eleven-key" placeholder="Paste ElevenLabs key (Optional)" style="font-size:11px;">
             </div>
 
             <div class="card">
-                <div class="section-title">🎭 Character Avatar & Real Voice</div>
+                <div class="section-title">🎭 Character Avatar & Real Voice Engine</div>
 
                 <label style="font-size:10px; color:var(--text-dim);">Load Preset Character</label>
                 <select id="persona-presets" onchange="applyPresetPersona()">
-                    <option value="goku">🔥 Son Goku (Dragon Ball)</option>
-                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen)</option>
-                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8)</option>
-                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses)</option>
+                    <option value="goku">🔥 Son Goku (Dragon Ball - Energetic Male)</option>
+                    <option value="gojo">🕶️ Gojo Satoru (Jujutsu Kaisen - Confident Male)</option>
+                    <option value="kazuya">⚡ Kazuya Mishima (TEKKEN 8 - Deep Ruthless Male)</option>
+                    <option value="sukuna">👑 Ryomen Sukuna (King of Curses - Deep Monster Male)</option>
                     <option value="custom">✏️ Custom Character</option>
                 </select>
 
@@ -533,27 +530,33 @@
                     <input type="checkbox" id="ai-tts" checked>
                 </div>
 
-                <!-- REAL HUMAN-LIKE VOICE SELECTOR -->
-                <label style="font-size:10px; color:var(--text-dim);">Studio Real-Like Voice</label>
+                <!-- GUARANTEED MALE & FEMALE VOICE SELECTION -->
+                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Select Voice Actor</label>
                 <select id="ai-voice-select">
-                    <option value="Aditi">👩 Aditi (Indian Hindi/English - Best Natural Voice)</option>
-                    <option value="Raveena">👩 Raveena (Indian English - Smooth Female)</option>
-                    <option value="Brian">👨 Brian (UK Streamer Male - Deep & Energetic)</option>
-                    <option value="Matthew">👨 Matthew (US Studio Male - Calm & Realistic)</option>
-                    <option value="Joanna">👩 Joanna (US Studio Female - Clear & Expressive)</option>
-                    <option value="Joey">👨 Joey (US Casual Male - Youthful Gamer)</option>
-                    <option value="Amy">👩 Amy (UK Soft Female - Natural Flow)</option>
-                    <option value="Russell">⚡ Russell (AU Deep Male - Ruthless Character)</option>
+                    <optgroup label="👨 MALE VOICES (Deep / Streamer / Gaming)">
+                        <option value="Brian" selected>👨 Brian (Classic Deep UK Male - Perfect for Goku/Streamer)</option>
+                        <option value="Matthew">👨 Matthew (US Calm Realistic Male - Smooth Anime Tone)</option>
+                        <option value="Russell">⚡ Russell (Deep Rugged Male - Heavy Kazuya/Sukuna Voice)</option>
+                        <option value="Joey">👨 Joey (Youthful Energetic Gamer Male)</option>
+                    </optgroup>
+                    <optgroup label="👩 FEMALE VOICES (Indian / Soft / Clear)">
+                        <option value="Aditi">👩 Aditi (Indian Natural Hindi/English Female)</option>
+                        <option value="Raveena">👩 Raveena (Indian Soft Polite Female)</option>
+                        <option value="Joanna">👩 Joanna (US Studio Clear Female)</option>
+                        <option value="Amy">👩 Amy (UK Sweet Natural Female)</option>
+                    </optgroup>
                 </select>
 
-                <div class="grid-2">
+                <div class="grid-2" style="margin-top:6px;">
                     <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Voice Pitch (<span id="val-pitch">1.0</span>)</label>
-                        <input type="range" id="ai-pitch" min="0.7" max="1.4" step="0.05" value="1.0" oninput="document.getElementById('val-pitch').innerText=this.value">
+                        <label style="font-size:10px; color:var(--text-dim);">Voice Pitch / Tone (<span id="val-pitch">1.0</span>)</label>
+                        <input type="range" id="ai-pitch" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-pitch').innerText=this.value">
+                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Deeper Bass | Sharp Anime →</small>
                     </div>
                     <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Speed (<span id="val-rate">1.0</span>)</label>
-                        <input type="range" id="ai-rate" min="0.7" max="1.4" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
+                        <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
+                        <input type="range" id="ai-rate" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
+                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow Speech | Fast Talk →</small>
                     </div>
                 </div>
 
@@ -707,7 +710,7 @@
                 cmd: "!kazuya",
                 image: "https://images3.alphacoders.com/134/1347311.jpeg",
                 voice: "Russell",
-                pitch: 0.9,
+                pitch: 0.85,
                 rate: 0.95,
                 prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
             },
@@ -716,13 +719,12 @@
                 cmd: "!sukuna",
                 image: "https://images3.alphacoders.com/134/1344406.jpeg",
                 voice: "Russell",
-                pitch: 0.85,
+                pitch: 0.8,
                 rate: 0.9,
                 prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
             }
         };
 
-        // --- RETRIEVE FROM LOCALSTORAGE VAULT ---
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('auth') === 'success') {
             const acc = urlParams.get('account') || '';
@@ -752,9 +754,6 @@
             }
             if (localStorage.getItem('bot_groqKey')) {
                 document.getElementById('ai-groq-key').value = localStorage.getItem('bot_groqKey');
-            }
-            if (localStorage.getItem('bot_elevenKey')) {
-                document.getElementById('ai-eleven-key').value = localStorage.getItem('bot_elevenKey');
             }
             if (localStorage.getItem('bot_characterName')) {
                 document.getElementById('ai-name').value = localStorage.getItem('bot_characterName');
@@ -800,7 +799,6 @@
                 ytAccountName: localStorage.getItem('bot_ytAccountName') || '',
                 geminiApiKey: localStorage.getItem('bot_aiKey') || '',
                 groqApiKey: localStorage.getItem('bot_groqKey') || '',
-                elevenLabsKey: localStorage.getItem('bot_elevenKey') || '',
                 characterName: document.getElementById('ai-name').value.trim(),
                 characterImage: document.getElementById('ai-image-url').value.trim(),
                 ttsVoice: document.getElementById('ai-voice-select').value,
@@ -900,7 +898,6 @@
         function saveAISettings(showAlert = true) {
             const gemKey = document.getElementById('ai-key').value.trim();
             const groqKey = document.getElementById('ai-groq-key').value.trim();
-            const elevenKey = document.getElementById('ai-eleven-key').value.trim();
             const img = document.getElementById('ai-image-url').value.trim() || 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png';
             const name = document.getElementById('ai-name').value.trim();
             const cmd = document.getElementById('ai-cmd').value.trim();
@@ -911,7 +908,6 @@
 
             localStorage.setItem('bot_aiKey', gemKey);
             localStorage.setItem('bot_groqKey', groqKey);
-            localStorage.setItem('bot_elevenKey', elevenKey);
             localStorage.setItem('bot_characterImage', img);
             localStorage.setItem('bot_characterName', name);
             localStorage.setItem('bot_aiCmd', cmd);
@@ -923,7 +919,6 @@
             socket.emit('admin-change-styles', {
                 geminiApiKey: gemKey,
                 groqApiKey: groqKey,
-                elevenLabsKey: elevenKey,
                 enableBubble: document.getElementById('ai-bubble').checked,
                 enableTTS: document.getElementById('ai-tts').checked,
                 ttsVoice: voice,
@@ -969,6 +964,21 @@
                     quotaBadge.innerText = `${sent} / 180 Msgs Sent Today`;
                     quotaBadge.style.color = 'var(--gold)';
                 }
+            }
+
+            if (data.ttsVoice) {
+                document.getElementById('ai-voice-select').value = data.ttsVoice;
+                localStorage.setItem('bot_ttsVoice', data.ttsVoice);
+            }
+            if (data.ttsPitch) {
+                document.getElementById('ai-pitch').value = data.ttsPitch;
+                document.getElementById('val-pitch').innerText = data.ttsPitch;
+                localStorage.setItem('bot_ttsPitch', data.ttsPitch);
+            }
+            if (data.ttsRate) {
+                document.getElementById('ai-rate').value = data.ttsRate;
+                document.getElementById('val-rate').innerText = data.ttsRate;
+                localStorage.setItem('bot_ttsRate', data.ttsRate);
             }
 
             if (data.userCoins) renderCoinBalances(data.userCoins);
