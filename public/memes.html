@@ -2,56 +2,157 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Meme & SFX Overlay</title>
+    <title>Stream Meme & SFX Overlay</title>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700;800&family=Orbitron:wght@800;900&display=swap" rel="stylesheet">
     <style>
         body {
             background-color: transparent;
             margin: 0;
+            padding: 0;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Chakra Petch', sans-serif;
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
         }
-        #media-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-        }
-        video {
-            max-width: 650px;
-            max-height: 650px;
+
+        /* Redeem Notification Container */
+        #redeem-card {
+            background: rgba(10, 14, 24, 0.95);
+            border: 2px solid #00d2d3;
+            border-bottom: 4px solid #00d2d3;
             border-radius: 12px;
+            padding: 10px 28px;
+            text-align: center;
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85), 0 0 25px rgba(0, 210, 211, 0.4);
+            margin-bottom: 15px;
+            opacity: 0;
+            transform: translateY(-30px) scale(0.9);
+            transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+        }
+
+        #redeem-card.active {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        /* Top Line: User Name */
+        .redeem-user {
+            font-size: 24px;
+            font-weight: 800;
+            color: #ffffff;
+            letter-spacing: 1px;
+            text-transform: capitalize;
+        }
+
+        .redeem-user span {
+            color: #f1c40f;
+            text-shadow: 0 0 12px rgba(241, 196, 15, 0.6);
+        }
+
+        /* Bottom Line: Item / Meme Name */
+        .redeem-item {
+            font-size: 16px;
+            font-weight: 700;
+            color: #00d2d3;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-top: 3px;
+        }
+
+        /* Video Container */
+        #video-container {
+            max-width: 80vw;
+            max-height: 70vh;
             display: none;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.9);
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border-radius: 10px;
         }
     </style>
 </head>
 <body>
-    <div id="media-container">
-        <video id="meme-video"></video>
+
+    <!-- Notification Header -->
+    <div id="redeem-card">
+        <div class="redeem-user"><span id="user-name">Rahul</span> redeemed</div>
+        <div class="redeem-item" id="item-name">Vine Boom</div>
     </div>
+
+    <!-- Video Box -->
+    <div id="video-container">
+        <video id="meme-video" playsinline></video>
+    </div>
+
+    <!-- Hidden Audio Player -->
     <audio id="sfx-audio"></audio>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const videoElement = document.getElementById('meme-video');
-        const audioElement = document.getElementById('sfx-audio');
+        const card = document.getElementById('redeem-card');
+        const userNameEl = document.getElementById('user-name');
+        const itemNameEl = document.getElementById('item-name');
+        const videoBox = document.getElementById('video-container');
+        const video = document.getElementById('meme-video');
+        const audio = document.getElementById('sfx-audio');
 
-        // Video Meme Listener
+        let hideTimeout;
+
+        function showNotification(user, itemName) {
+            userNameEl.innerText = user;
+            itemNameEl.innerText = itemName;
+            card.classList.add('active');
+        }
+
+        function hideNotification() {
+            card.classList.remove('active');
+        }
+
+        // Play Video Meme
         socket.on('play-meme', (data) => {
-            videoElement.src = data.mediaUrl;
-            videoElement.style.display = 'block';
-            videoElement.play();
+            if (!data.mediaUrl) return;
 
-            videoElement.onended = () => {
-                videoElement.style.display = 'none';
-                videoElement.src = '';
+            showNotification(data.redeemedBy || 'Someone', data.name || 'Meme');
+
+            video.src = data.mediaUrl;
+            videoBox.style.display = 'block';
+            video.currentTime = 0;
+            video.play().catch(e => console.log('Autoplay error:', e));
+
+            video.onended = () => {
+                videoBox.style.display = 'none';
+                hideNotification();
             };
         });
 
-        // Sound Effects (SFX) Listener
+        // Play Sound Effect
         socket.on('play-sfx', (data) => {
-            audioElement.src = data.sfxUrl;
-            audioElement.currentTime = 0;
-            audioElement.play();
+            if (!data.sfxUrl) return;
+
+            showNotification(data.redeemedBy || 'Someone', data.name || 'Sound Effect');
+
+            audio.src = data.sfxUrl;
+            audio.currentTime = 0;
+            audio.play().catch(e => console.log('Audio error:', e));
+
+            clearTimeout(hideTimeout);
+            hideTimeout = setTimeout(() => {
+                hideNotification();
+            }, 5500);
         });
     </script>
 </body>
