@@ -75,17 +75,17 @@ let streamData = {
     welcomeNewChatters: true,
     reminderMinutes: 15,
 
-    // COIN ECONOMY SETTINGS
+    // MAC-COINS ECONOMY
     coinSettings: {
-        coinsPerMsg: 5,        // Har message par kitne coins milenge
-        cooldownSeconds: 30,   // Har 30 sec me max 1 baar hi coin earn honge (anti-spam)
-        aiCost: 50,            // AI se baat karne ke kitne coins lagenge
-        freeForMods: true      // Mod/Streamer ke liye free rahega
+        currencyName: "Mac-Coins",
+        coinsPerMsg: 5,        // Har normal chat par
+        cooldownSeconds: 30,   // Rate limit cooldown
+        aiCost: 50,            // Cost for AI chat
+        freeForMods: true      // Mod/Streamer ke liye free
     },
 
-    // PERMANENT STORAGE FOR USERS
     userCoins: {},             // { "username": 150 }
-    userHistories: {},         // AI context memory
+    userHistories: {},
 
     customCommands: [
         { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", tts: false },
@@ -94,7 +94,18 @@ let streamData = {
     ]
 };
 
-// Load saved data & coins from disk
+// ACTIVE PREDICTION / BET STATE
+let activeBet = {
+    isOpen: false,
+    locked: false,
+    title: "",
+    option1: "Win",
+    option2: "Lose",
+    pool1: 0,
+    pool2: 0,
+    bets: {} // { "username": { option: 1, amount: 50 } }
+};
+
 if (fs.existsSync(DATA_FILE)) {
     try {
         const loaded = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -102,9 +113,8 @@ if (fs.existsSync(DATA_FILE)) {
         if (!streamData.userCoins) streamData.userCoins = {};
         if (!streamData.userHistories) streamData.userHistories = {};
         if (!streamData.coinSettings) {
-            streamData.coinSettings = { coinsPerMsg: 5, cooldownSeconds: 30, aiCost: 50, freeForMods: true };
+            streamData.coinSettings = { currencyName: "Mac-Coins", coinsPerMsg: 5, cooldownSeconds: 30, aiCost: 50, freeForMods: true };
         }
-        console.log(`💾 All settings & coins loaded for ${Object.keys(streamData.userCoins).length} viewers!`);
     } catch (e) {
         console.error('Data load error:', e);
     }
@@ -121,7 +131,7 @@ const saveDataToDisk = () => {
 let currentStatus = 'retrying';
 let isTimerRunning = false;
 let seenChatters = new Set();
-let lastEarnedTime = {}; // In-memory rate limiter for earning coins
+let lastEarnedTime = {};
 
 // Auto-Timer Loop
 setInterval(() => {
@@ -136,7 +146,7 @@ setInterval(() => {
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
-        const reminderText = discordCmd ? discordCmd.reply : "Stream pasand aa rahi ho toh like aur subscribe zaroor karein!";
+        const reminderText = discordCmd ? discordCmd.reply : `Stream pasand aa rahi ho toh chat karke ${streamData.coinSettings.currencyName} kamao aur maze karo!`;
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
@@ -149,9 +159,7 @@ setInterval(() => {
 
 // --- GEMINI AI FUNCTION ---
 async function askGemini(userPrompt, username, userRole) {
-    if (!streamData.geminiApiKey) {
-        return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
-    }
+    if (!streamData.geminiApiKey) return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
 
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${streamData.geminiApiKey}`;
 
@@ -248,10 +256,11 @@ liveChat.on("chat", async (chatItem) => {
     const isMod = chatItem.author.isChatModerator;
     const isModOrOwner = isOwner || isMod;
     const userRole = isOwner ? 'owner' : (isMod ? 'mod' : 'viewer');
-
-    // 1. PASSIVE COIN EARNING (Anti-Spam Cooldown)
-    const now = Date.now();
     const userKey = username.toLowerCase();
+    const cName = streamData.coinSettings.currencyName;
+
+    // 1. PASSIVE MAC-COINS EARNING
+    const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
         streamData.userCoins[userKey] += streamData.coinSettings.coinsPerMsg;
@@ -259,34 +268,46 @@ liveChat.on("chat", async (chatItem) => {
         saveDataToDisk();
     }
 
-    // 2. CHECK BALANCE COMMAND (!coins / !balance)
-    if (message === '!coins' || message === '!balance' || message === '!points') {
+    // 2. CHECK BALANCE (!coins, !balance, !maccoins)
+    if (message === '!coins' || message === '!balance' || message === '!maccoins') {
         const balance = streamData.userCoins[userKey] || 0;
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `@${username}, aapke paas 🪙 ${balance} coins hain! Har sawal ke liye ${streamData.coinSettings.aiCost} coins lagte hain.`,
+            text: `@${username}, aapke paas 🪙 ${balance} ${cName} hain!`,
             enableBubble: streamData.enableBubble,
             enableTTS: false
         });
         return;
     }
 
-    // 3. MOD COMMAND: GIVE COINS (!givecoins @username <amount>)
-    if (isModOrOwner && message.startsWith('!givecoins ')) {
+    // 3. OWNER ONLY: GIVE COINS VIA CHAT (!givecoins @user <amount>)
+    if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
+        if (!isOwner) {
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `Maaf kijiye @${username}, ${cName} generate karne ka haq sirf Streamer Boss ke paas hai! ❌`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: streamData.enableTTS
+            });
+            return;
+        }
+
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
             const targetUser = parts[1].replace('@', '').toLowerCase();
             const amount = parseInt(parts[2]);
-            if (!isNaN(amount)) {
+            if (!isNaN(amount) && amount > 0) {
                 if (!streamData.userCoins[targetUser]) streamData.userCoins[targetUser] = 0;
                 streamData.userCoins[targetUser] += amount;
                 saveDataToDisk();
                 broadcastState();
+
                 io.emit('ai-speak', {
                     characterName: streamData.characterName,
                     characterImage: streamData.characterImage,
-                    text: `Moderator ji ne @${targetUser} ko 🪙 ${amount} coins diye! Naya balance: ${streamData.userCoins[targetUser]}`,
+                    text: `Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye! Naya balance: ${streamData.userCoins[targetUser]}`,
                     enableBubble: streamData.enableBubble,
                     enableTTS: streamData.enableTTS
                 });
@@ -295,7 +316,140 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 4. CHARACTER CHANGE COMMAND (!setchar <name>)
+    // 4. USER-TO-USER TRANSFER (!pay @user <amount> or !transfer @user <amount>)
+    if (message.startsWith('!pay ') || message.startsWith('!transfer ') || message.startsWith('!gift ')) {
+        const parts = rawText.split(' ');
+        if (parts.length >= 3) {
+            const recipient = parts[1].replace('@', '').toLowerCase();
+            const amount = parseInt(parts[2]);
+
+            if (recipient === userKey) {
+                io.emit('ai-speak', {
+                    characterName: streamData.characterName,
+                    characterImage: streamData.characterImage,
+                    text: `@${username}, khud ko hi ${cName} transfer nahi kar sakte! 😂`,
+                    enableBubble: streamData.enableBubble,
+                    enableTTS: false
+                });
+                return;
+            }
+
+            if (isNaN(amount) || amount <= 0) {
+                return;
+            }
+
+            const senderBalance = streamData.userCoins[userKey] || 0;
+            if (senderBalance < amount) {
+                io.emit('ai-speak', {
+                    characterName: streamData.characterName,
+                    characterImage: streamData.characterImage,
+                    text: `@${username}, aapke paas transfer karne ke liye paryapt ${cName} nahi hain! Balance: ${senderBalance}`,
+                    enableBubble: streamData.enableBubble,
+                    enableTTS: false
+                });
+                return;
+            }
+
+            // Execute Transfer
+            streamData.userCoins[userKey] -= amount;
+            if (!streamData.userCoins[recipient]) streamData.userCoins[recipient] = 0;
+            streamData.userCoins[recipient] += amount;
+            saveDataToDisk();
+            broadcastState();
+
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `💸 @${username} ne @${recipient} ko 🪙 ${amount} ${cName} transfer kiye!`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: streamData.enableTTS
+            });
+            return;
+        }
+    }
+
+    // 5. BETTING / PREDICTION COMMAND (!bet 1 <amount> or !bet 2 <amount>)
+    if (message.startsWith('!bet ')) {
+        if (!activeBet.isOpen) {
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `@${username}, abhi koi bet ya prediction active nahi hai!`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: false
+            });
+            return;
+        }
+
+        if (activeBet.locked) {
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `@${username}, betting lock ho chuki hai! Agli round ka intezar karein.`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: false
+            });
+            return;
+        }
+
+        const parts = rawText.split(' ');
+        if (parts.length >= 3) {
+            const optionChoice = parseInt(parts[1]);
+            const betAmount = parseInt(parts[2]);
+
+            if (optionChoice !== 1 && optionChoice !== 2) {
+                io.emit('ai-speak', {
+                    characterName: streamData.characterName,
+                    characterImage: streamData.characterImage,
+                    text: `@${username}, valid option chunein: 1 (${activeBet.option1}) ya 2 (${activeBet.option2})! Example: !bet 1 50`,
+                    enableBubble: streamData.enableBubble,
+                    enableTTS: false
+                });
+                return;
+            }
+
+            if (isNaN(betAmount) || betAmount <= 0) return;
+
+            const userBalance = streamData.userCoins[userKey] || 0;
+            if (userBalance < betAmount) {
+                io.emit('ai-speak', {
+                    characterName: streamData.characterName,
+                    characterImage: streamData.characterImage,
+                    text: `@${username}, aapke paas bet lagane ke liye sirf 🪙 ${userBalance} ${cName} hain!`,
+                    enableBubble: streamData.enableBubble,
+                    enableTTS: false
+                });
+                return;
+            }
+
+            // Deduct Coins & Place Bet
+            streamData.userCoins[userKey] -= betAmount;
+            if (!activeBet.bets[userKey]) {
+                activeBet.bets[userKey] = { option: optionChoice, amount: betAmount };
+            } else {
+                // Add to existing bet on same option
+                activeBet.bets[userKey].amount += betAmount;
+            }
+
+            if (optionChoice === 1) activeBet.pool1 += betAmount;
+            else activeBet.pool2 += betAmount;
+
+            saveDataToDisk();
+            broadcastState();
+            io.emit('bet-update', activeBet);
+
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `🎲 @${username} ne 🪙 ${betAmount} ${cName} Option ${optionChoice} par lagaye!`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: false
+            });
+            return;
+        }
+    }
+
+    // 6. CHARACTER CHANGE (!setchar <name>) - ONLY OWNER & MODS
     if (message.startsWith('!setchar ') || message.startsWith('!switchchar ')) {
         const charKey = message.split(' ')[1];
         if (!isModOrOwner) {
@@ -330,10 +484,10 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 5. AUTO WELCOME
+    // 7. AUTO WELCOME
     if (streamData.welcomeNewChatters && !seenChatters.has(username)) {
         seenChatters.add(username);
-        let welcomeMsg = `Yo @${username}, stream par swagat hai! Normal chat karke coins kamao aur mujhse baat karo!`;
+        let welcomeMsg = `Yo @${username}, stream par swagat hai! Normal chat karke ${cName} kamao aur maze karo!`;
         if (isOwner) welcomeMsg = `Aadab Streamer Boss! Stream live aur ready hai.`;
         else if (isMod) welcomeMsg = `Namaste Moderator ji @${username}! Duty par swagat hai.`;
 
@@ -346,7 +500,7 @@ liveChat.on("chat", async (chatItem) => {
         });
     }
 
-    // 6. CUSTOM CHAT COMMANDS
+    // 8. CUSTOM COMMANDS
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const prefix = isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`);
@@ -360,7 +514,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 7. TTS MANUAL COMMAND
+    // 9. MANUAL TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -373,12 +527,10 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 8. AI PERSONA QUESTIONS WITH COIN DEDUCTION (!goku, !gojo, etc.)
+    // 10. AI QUESTIONS WITH COIN DEDUCTION
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
-
-        // COIN CHECK (Free for Mod/Owner if enabled)
         const isFree = isModOrOwner && streamData.coinSettings.freeForMods;
         const currentCoins = streamData.userCoins[userKey] || 0;
         const cost = streamData.coinSettings.aiCost;
@@ -387,21 +539,19 @@ liveChat.on("chat", async (chatItem) => {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
-                text: `@${username}, AI se baat karne ke liye 🪙 ${cost} coins chahiye! Tere paas sirf ${currentCoins} coins hain. Normal chat karke coins kamao!`,
+                text: `@${username}, AI se baat karne ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentCoins} hain. Chat karke earn karo!`,
                 enableBubble: streamData.enableBubble,
                 enableTTS: streamData.enableTTS
             });
             return;
         }
 
-        // Deduct Coins if not free
         if (!isFree) {
             streamData.userCoins[userKey] -= cost;
             saveDataToDisk();
             broadcastState();
         }
 
-        // Generate AI Answer
         const aiAnswer = await askGemini(question, username, userRole);
         io.emit('ai-speak', {
             characterName: streamData.characterName,
@@ -413,14 +563,14 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 9. Memes & SFX
+    // 11. Memes & SFX
     const matchedTrigger = triggers.find(t => t.cmd === message);
     if (matchedTrigger) {
         if (matchedTrigger.type === 'video') io.emit('play-meme', { mediaUrl: matchedTrigger.url });
         if (matchedTrigger.type === 'sfx') io.emit('play-sfx', { sfxUrl: matchedTrigger.url });
     }
 
-    // 10. Death Counter
+    // 12. Death Counter
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -431,15 +581,17 @@ liveChat.on("chat", async (chatItem) => {
 const broadcastState = () => {
     io.emit('update-counter', { count: streamData.deathCount });
     io.emit('update-styles', streamData);
+    io.emit('bet-update', activeBet);
     saveDataToDisk();
 };
 
-// Admin Sockets
+// --- ADMIN / DASHBOARD SOCKET CONTROLS ---
 io.on('connection', (socket) => {
     socket.emit('update-counter', { count: streamData.deathCount });
     socket.emit('stream-status', { status: currentStatus });
     socket.emit('load-triggers', triggers);
     socket.emit('update-styles', streamData);
+    socket.emit('bet-update', activeBet);
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
 
     socket.on('admin-death-add', () => { streamData.deathCount++; broadcastState(); });
@@ -455,10 +607,121 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
+    // Save Coin Economy Rules
     socket.on('admin-save-coins', (newCoinSettings) => {
         streamData.coinSettings = { ...streamData.coinSettings, ...newCoinSettings };
         saveDataToDisk();
         broadcastState();
+    });
+
+    // Direct Gift / Deduct Coins from Dashboard
+    socket.on('admin-modify-user-coins', ({ username, amount }) => {
+        const u = username.replace('@', '').toLowerCase().trim();
+        if (u) {
+            if (!streamData.userCoins[u]) streamData.userCoins[u] = 0;
+            streamData.userCoins[u] = Math.max(0, streamData.userCoins[u] + parseInt(amount));
+            saveDataToDisk();
+            broadcastState();
+
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `Dashboard se @${u} ka balance update hua! Naya balance: 🪙 ${streamData.userCoins[u]} ${streamData.coinSettings.currencyName}`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: streamData.enableTTS
+            });
+        }
+    });
+
+    // --- BETTING ARENA CONTROLS ---
+    socket.on('admin-start-bet', ({ title, option1, option2 }) => {
+        activeBet = {
+            isOpen: true,
+            locked: false,
+            title: title || "Will I win this match?",
+            option1: option1 || "Win",
+            option2: option2 || "Lose",
+            pool1: 0,
+            pool2: 0,
+            bets: {}
+        };
+        broadcastState();
+
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: `🚨 BETTING SHURU! "${activeBet.title}" 👉 [1: ${activeBet.option1}] vs [2: ${activeBet.option2}]. Command: !bet 1 <amount> ya !bet 2 <amount>`,
+            enableBubble: streamData.enableBubble,
+            enableTTS: streamData.enableTTS
+        });
+    });
+
+    socket.on('admin-lock-bet', () => {
+        activeBet.locked = true;
+        broadcastState();
+
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: `🔒 BETTING CLOSED! Saare bets lock ho gaye hain. Match shuru! Pool: 1=[${activeBet.pool1}] vs 2=[${activeBet.pool2}]`,
+            enableBubble: streamData.enableBubble,
+            enableTTS: streamData.enableTTS
+        });
+    });
+
+    socket.on('admin-resolve-bet', ({ winningOption }) => {
+        if (!activeBet.isOpen) return;
+
+        const totalPool = activeBet.pool1 + activeBet.pool2;
+        const winningPool = winningOption === 1 ? activeBet.pool1 : activeBet.pool2;
+        const winningName = winningOption === 1 ? activeBet.option1 : activeBet.option2;
+
+        if (winningPool > 0) {
+            // Distribute pool to winners
+            for (const [user, bet] of Object.entries(activeBet.bets)) {
+                if (bet.option === winningOption) {
+                    const share = (bet.amount / winningPool) * totalPool;
+                    const payout = Math.floor(share);
+                    streamData.userCoins[user] = (streamData.userCoins[user] || 0) + payout;
+                }
+            }
+        } else {
+            // Refund if no winners on that option
+            for (const [user, bet] of Object.entries(activeBet.bets)) {
+                streamData.userCoins[user] = (streamData.userCoins[user] || 0) + bet.amount;
+            }
+        }
+
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: `🏆 BET RESULTS: "${winningName}" JEET GAYA! Total 🪙 ${totalPool} ${streamData.coinSettings.currencyName} ka pool jeetne walo mein bant diya gaya hai!`,
+            enableBubble: streamData.enableBubble,
+            enableTTS: streamData.enableTTS
+        });
+
+        activeBet = { isOpen: false, locked: false, title: "", option1: "Win", option2: "Lose", pool1: 0, pool2: 0, bets: {} };
+        saveDataToDisk();
+        broadcastState();
+    });
+
+    socket.on('admin-cancel-bet', () => {
+        if (!activeBet.isOpen) return;
+        // Refund everyone
+        for (const [user, bet] of Object.entries(activeBet.bets)) {
+            streamData.userCoins[user] = (streamData.userCoins[user] || 0) + bet.amount;
+        }
+        activeBet = { isOpen: false, locked: false, title: "", option1: "Win", option2: "Lose", pool1: 0, pool2: 0, bets: {} };
+        saveDataToDisk();
+        broadcastState();
+
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: `Bet cancel ho gayi hai aur sabke ${streamData.coinSettings.currencyName} wapas refund kar diye gaye hain!`,
+            enableBubble: streamData.enableBubble,
+            enableTTS: false
+        });
     });
 
     socket.on('admin-add-custom-cmd', (newCmd) => {
