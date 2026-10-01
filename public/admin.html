@@ -450,7 +450,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA (CUSTOM CHARACTER SETUP) -->
+        <!-- TAB 6: AI PERSONA (CUSTOM SETUP - ZERO PRESETS) -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -521,7 +521,7 @@
                     <input type="checkbox" id="ai-tts" checked>
                 </div>
 
-                <!-- 4 REAL INDIAN VOICES -->
+                <!-- 4 INDIAN ACCENT VOICES -->
                 <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Indian AI Voice</label>
                 <select id="ai-voice-select">
                     <optgroup label="👩 FEMALE VOICES (Indian)">
@@ -543,7 +543,7 @@
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
                         <input type="range" id="ai-rate" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
-                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow Speech | Fast Talk →</small>
+                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow | Fast →</small>
                     </div>
                 </div>
 
@@ -772,8 +772,8 @@
 
         function testVoiceInOBS() {
             const data = {
-                characterName: document.getElementById('ai-name').value.trim() || 'Bot',
-                characterImage: document.getElementById('ai-image-url').value.trim() || 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
+                characterName: document.getElementById('ai-name').value.trim() || 'Ryomen Sukuna',
+                characterImage: document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg',
                 ttsVoice: document.getElementById('ai-voice-select').value,
                 ttsPitch: parseFloat(document.getElementById('ai-pitch').value) || 1.0,
                 ttsRate: parseFloat(document.getElementById('ai-rate').value) || 1.0,
@@ -829,7 +829,7 @@
         function saveAISettings(showAlert = true) {
             const gemKey = document.getElementById('ai-key').value.trim();
             const groqKey = document.getElementById('ai-groq-key').value.trim();
-            const img = document.getElementById('ai-image-url').value.trim() || 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png';
+            const img = document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg';
             const name = document.getElementById('ai-name').value.trim();
             const cmd = document.getElementById('ai-cmd').value.trim();
             const voice = document.getElementById('ai-voice-select').value;
@@ -1123,7 +1123,7 @@
             try {
                 const res = await obs.call('ToggleInputMute', { inputName: micName });
                 micBtn.className = res.inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️️ MIC IS LIVE';
+                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
             } catch (err) { alert('OBS connect nahi hai!'); }
         }
 
