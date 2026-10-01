@@ -50,6 +50,7 @@ const PRESETS = {
     }
 };
 
+// --- DEFAULT SETTINGS & STATE ---
 let streamData = {
     deathCount: 0,
     gameTimeSeconds: 0,
@@ -59,12 +60,12 @@ let streamData = {
     timerFont: 'Orbitron',
     themeColor: '#ff4757',
     
-    // AI & VOICE SETTINGS
+    // AI SETTINGS
     geminiApiKey: '',
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
-    postToYTChat: false, // Quota protection default: OFF
+    postToYTChat: false,
     ttsPitch: 1.1,
     ttsRate: 1.0,
     aiCommand: '!goku',
@@ -74,7 +75,17 @@ let streamData = {
     welcomeNewChatters: true,
     reminderMinutes: 15,
 
-    userHistories: {},
+    // COIN ECONOMY SETTINGS
+    coinSettings: {
+        coinsPerMsg: 5,        // Har message par kitne coins milenge
+        cooldownSeconds: 30,   // Har 30 sec me max 1 baar hi coin earn honge (anti-spam)
+        aiCost: 50,            // AI se baat karne ke kitne coins lagenge
+        freeForMods: true      // Mod/Streamer ke liye free rahega
+    },
+
+    // PERMANENT STORAGE FOR USERS
+    userCoins: {},             // { "username": 150 }
+    userHistories: {},         // AI context memory
 
     customCommands: [
         { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", tts: false },
@@ -83,11 +94,17 @@ let streamData = {
     ]
 };
 
+// Load saved data & coins from disk
 if (fs.existsSync(DATA_FILE)) {
     try {
         const loaded = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
         streamData = { ...streamData, ...loaded };
+        if (!streamData.userCoins) streamData.userCoins = {};
         if (!streamData.userHistories) streamData.userHistories = {};
+        if (!streamData.coinSettings) {
+            streamData.coinSettings = { coinsPerMsg: 5, cooldownSeconds: 30, aiCost: 50, freeForMods: true };
+        }
+        console.log(`💾 All settings & coins loaded for ${Object.keys(streamData.userCoins).length} viewers!`);
     } catch (e) {
         console.error('Data load error:', e);
     }
@@ -104,7 +121,9 @@ const saveDataToDisk = () => {
 let currentStatus = 'retrying';
 let isTimerRunning = false;
 let seenChatters = new Set();
+let lastEarnedTime = {}; // In-memory rate limiter for earning coins
 
+// Auto-Timer Loop
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -113,6 +132,7 @@ setInterval(() => {
     }
 }, 1000);
 
+// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -122,13 +142,12 @@ setInterval(() => {
             characterImage: streamData.characterImage,
             text: reminderText,
             enableBubble: streamData.enableBubble,
-            enableTTS: false,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate
+            enableTTS: false
         });
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
+// --- GEMINI AI FUNCTION ---
 async function askGemini(userPrompt, username, userRole) {
     if (!streamData.geminiApiKey) {
         return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
@@ -137,29 +156,18 @@ async function askGemini(userPrompt, username, userRole) {
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${streamData.geminiApiKey}`;
 
     let roleInstructions = "";
-    if (userRole === 'owner') {
-        roleInstructions = `CRITICAL: The person talking to you is the STREAM OWNER / BOSS / CREATOR. Treat them with highest honor and call them 'Streamer Sahab' or 'Boss'.`;
-    } else if (userRole === 'mod') {
-        roleInstructions = `CRITICAL: The person talking to you is a trusted MODERATOR of this stream. Address them respectfully as 'Moderator ji' or 'Mod Sahab'.`;
-    } else {
-        roleInstructions = `The viewer talking is named @${username}.`;
-    }
+    if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
+    else if (userRole === 'mod') roleInstructions = `CRITICAL: The person talking is a MODERATOR. Call them 'Moderator ji' or 'Mod Sahab'.`;
+    else roleInstructions = `The viewer talking is named @${username}.`;
 
-    const systemInstructionText = `${streamData.characterPersona}\n${roleInstructions}\nKeep your answer short (1-2 sentences) so it fits in a stream speech bubble.`;
+    const systemInstructionText = `${streamData.characterPersona}\n${roleInstructions}\nKeep answers short (1-2 sentences) for stream speech bubble.`;
     const history = streamData.userHistories[username] || [];
 
     const contents = [];
     history.slice(-6).forEach(entry => {
-        contents.push({
-            role: entry.role === 'model' ? 'model' : 'user',
-            parts: [{ text: entry.text }]
-        });
+        contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] });
     });
-
-    contents.push({
-        role: "user",
-        parts: [{ text: userPrompt }]
-    });
+    contents.push({ role: "user", parts: [{ text: userPrompt }] });
 
     try {
         const res = await fetch(endpoint, {
@@ -178,17 +186,14 @@ async function askGemini(userPrompt, username, userRole) {
             if (!streamData.userHistories[username]) streamData.userHistories[username] = [];
             streamData.userHistories[username].push({ role: 'user', text: userPrompt });
             streamData.userHistories[username].push({ role: 'model', text: aiReply });
-
             if (streamData.userHistories[username].length > 8) {
                 streamData.userHistories[username] = streamData.userHistories[username].slice(-8);
             }
             saveDataToDisk();
-
             return aiReply;
         }
         return "Lagta hai power level bohot high ho gaya, samajh nahi aaya!";
     } catch (err) {
-        console.error('Gemini Error:', err);
         return "AI connect nahi ho paaya, try again!";
     }
 }
@@ -244,19 +249,62 @@ liveChat.on("chat", async (chatItem) => {
     const isModOrOwner = isOwner || isMod;
     const userRole = isOwner ? 'owner' : (isMod ? 'mod' : 'viewer');
 
-    // 1. CHARACTER CHANGE COMMAND
+    // 1. PASSIVE COIN EARNING (Anti-Spam Cooldown)
+    const now = Date.now();
+    const userKey = username.toLowerCase();
+    if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
+        if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
+        streamData.userCoins[userKey] += streamData.coinSettings.coinsPerMsg;
+        lastEarnedTime[userKey] = now;
+        saveDataToDisk();
+    }
+
+    // 2. CHECK BALANCE COMMAND (!coins / !balance)
+    if (message === '!coins' || message === '!balance' || message === '!points') {
+        const balance = streamData.userCoins[userKey] || 0;
+        io.emit('ai-speak', {
+            characterName: streamData.characterName,
+            characterImage: streamData.characterImage,
+            text: `@${username}, aapke paas 🪙 ${balance} coins hain! Har sawal ke liye ${streamData.coinSettings.aiCost} coins lagte hain.`,
+            enableBubble: streamData.enableBubble,
+            enableTTS: false
+        });
+        return;
+    }
+
+    // 3. MOD COMMAND: GIVE COINS (!givecoins @username <amount>)
+    if (isModOrOwner && message.startsWith('!givecoins ')) {
+        const parts = rawText.split(' ');
+        if (parts.length >= 3) {
+            const targetUser = parts[1].replace('@', '').toLowerCase();
+            const amount = parseInt(parts[2]);
+            if (!isNaN(amount)) {
+                if (!streamData.userCoins[targetUser]) streamData.userCoins[targetUser] = 0;
+                streamData.userCoins[targetUser] += amount;
+                saveDataToDisk();
+                broadcastState();
+                io.emit('ai-speak', {
+                    characterName: streamData.characterName,
+                    characterImage: streamData.characterImage,
+                    text: `Moderator ji ne @${targetUser} ko 🪙 ${amount} coins diye! Naya balance: ${streamData.userCoins[targetUser]}`,
+                    enableBubble: streamData.enableBubble,
+                    enableTTS: streamData.enableTTS
+                });
+                return;
+            }
+        }
+    }
+
+    // 4. CHARACTER CHANGE COMMAND (!setchar <name>)
     if (message.startsWith('!setchar ') || message.startsWith('!switchchar ')) {
         const charKey = message.split(' ')[1];
-
         if (!isModOrOwner) {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
                 text: `Sorry @${username}, character badalne ki power sirf Moderator ji aur Streamer Boss ke paas hai! 😎`,
                 enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS,
-                pitch: streamData.ttsPitch,
-                rate: streamData.ttsRate
+                enableTTS: streamData.enableTTS
             });
             return;
         }
@@ -276,18 +324,16 @@ liveChat.on("chat", async (chatItem) => {
                 characterImage: streamData.characterImage,
                 text: `${title} @${username} ke kehne par main aa gaya hoon! Command ab ${streamData.aiCommand} hai.`,
                 enableBubble: streamData.enableBubble,
-                enableTTS: streamData.enableTTS,
-                pitch: streamData.ttsPitch,
-                rate: streamData.ttsRate
+                enableTTS: streamData.enableTTS
             });
             return;
         }
     }
 
-    // 2. AUTO WELCOME
+    // 5. AUTO WELCOME
     if (streamData.welcomeNewChatters && !seenChatters.has(username)) {
         seenChatters.add(username);
-        let welcomeMsg = `Yo @${username}, stream par swagat hai!`;
+        let welcomeMsg = `Yo @${username}, stream par swagat hai! Normal chat karke coins kamao aur mujhse baat karo!`;
         if (isOwner) welcomeMsg = `Aadab Streamer Boss! Stream live aur ready hai.`;
         else if (isMod) welcomeMsg = `Namaste Moderator ji @${username}! Duty par swagat hai.`;
 
@@ -296,13 +342,11 @@ liveChat.on("chat", async (chatItem) => {
             characterImage: streamData.characterImage,
             text: welcomeMsg,
             enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate
+            enableTTS: streamData.enableTTS
         });
     }
 
-    // 3. CUSTOM CHAT COMMANDS
+    // 6. CUSTOM CHAT COMMANDS
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const prefix = isMod ? "Moderator ji" : (isOwner ? "Boss" : `@${username}`);
@@ -311,14 +355,12 @@ liveChat.on("chat", async (chatItem) => {
             characterImage: streamData.characterImage,
             text: `${prefix}, ${matchedCustom.reply}`,
             enableBubble: streamData.enableBubble,
-            enableTTS: matchedCustom.tts && streamData.enableTTS,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate
+            enableTTS: matchedCustom.tts && streamData.enableTTS
         });
         return;
     }
 
-    // 4. TTS MANUAL COMMAND
+    // 7. TTS MANUAL COMMAND
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -326,38 +368,59 @@ liveChat.on("chat", async (chatItem) => {
             characterImage: 'https://cdn-icons-png.flaticon.com/512/3233/3233514.png',
             text: ttsText,
             enableBubble: streamData.enableBubble,
-            enableTTS: true,
-            pitch: 1.0,
-            rate: 1.0
+            enableTTS: true
         });
         return;
     }
 
-    // 5. AI PERSONA QUESTIONS
+    // 8. AI PERSONA QUESTIONS WITH COIN DEDUCTION (!goku, !gojo, etc.)
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
+
+        // COIN CHECK (Free for Mod/Owner if enabled)
+        const isFree = isModOrOwner && streamData.coinSettings.freeForMods;
+        const currentCoins = streamData.userCoins[userKey] || 0;
+        const cost = streamData.coinSettings.aiCost;
+
+        if (!isFree && currentCoins < cost) {
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `@${username}, AI se baat karne ke liye 🪙 ${cost} coins chahiye! Tere paas sirf ${currentCoins} coins hain. Normal chat karke coins kamao!`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: streamData.enableTTS
+            });
+            return;
+        }
+
+        // Deduct Coins if not free
+        if (!isFree) {
+            streamData.userCoins[userKey] -= cost;
+            saveDataToDisk();
+            broadcastState();
+        }
+
+        // Generate AI Answer
         const aiAnswer = await askGemini(question, username, userRole);
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
             text: aiAnswer,
             enableBubble: streamData.enableBubble,
-            enableTTS: streamData.enableTTS,
-            pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate
+            enableTTS: streamData.enableTTS
         });
         return;
     }
 
-    // 6. Dynamic Meme/SFX Triggers
+    // 9. Memes & SFX
     const matchedTrigger = triggers.find(t => t.cmd === message);
     if (matchedTrigger) {
         if (matchedTrigger.type === 'video') io.emit('play-meme', { mediaUrl: matchedTrigger.url });
         if (matchedTrigger.type === 'sfx') io.emit('play-sfx', { sfxUrl: matchedTrigger.url });
     }
 
-    // 7. Death Counter
+    // 10. Death Counter
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -392,6 +455,12 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
+    socket.on('admin-save-coins', (newCoinSettings) => {
+        streamData.coinSettings = { ...streamData.coinSettings, ...newCoinSettings };
+        saveDataToDisk();
+        broadcastState();
+    });
+
     socket.on('admin-add-custom-cmd', (newCmd) => {
         streamData.customCommands = streamData.customCommands.filter(c => c.cmd.toLowerCase() !== newCmd.cmd.toLowerCase());
         streamData.customCommands.push(newCmd);
@@ -403,7 +472,6 @@ io.on('connection', (socket) => {
         broadcastState();
     });
 
-    // Test Voice Trigger
     socket.on('admin-test-ai', () => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
