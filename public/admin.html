@@ -298,6 +298,7 @@
         <button class="nav-btn" onclick="switchTab('bet')"><span>🎲</span> Predictions</button>
         <button class="nav-btn" onclick="switchTab('coins')"><span>🪙</span> Mac-Coins</button>
         <button class="nav-btn" onclick="switchTab('ai')"><span>🤖</span> AI Persona</button>
+        <button class="nav-btn" onclick="switchTab('automod')"><span>🛡️</span> Auto-Mod</button>
         <button class="nav-btn" onclick="switchTab('commands')"><span>💬</span> Commands</button>
         <button class="nav-btn" onclick="switchTab('customizer')"><span>🎨</span> Styles</button>
         <button class="nav-btn" onclick="switchTab('add')"><span>➕</span> Add Item</button>
@@ -410,7 +411,7 @@
             </div>
         </div>
 
-        <!-- TAB 5: MAC-COINS -->
+        <!-- TAB 5: MAC-COINS & MINI-GAMES -->
         <div id="tab-coins" class="tab-content">
             <div class="card">
                 <div class="section-title">👑 Direct Coin Grant</div>
@@ -442,6 +443,16 @@
                     <input type="number" id="coin-ai-cost" value="50">
                 </div>
                 <button class="btn-submit" onclick="saveCoinRules()">💾 Save Rates</button>
+            </div>
+
+            <!-- MINI-GAMES GUIDE -->
+            <div class="card">
+                <div class="section-title">🎰 Active Chat Mini-Games</div>
+                <div class="guide-box" style="margin-top:0;">
+                    • <code>!gamble 100</code> ➔ 50/50 Coin Flip (Double or Nothing!)<br>
+                    • <code>!slots 50</code> ➔ 3-Reel Slots (3 Match = 5x, 2 Match = 2x)<br>
+                    • <code>!duel @user 200</code> ➔ Challenge viewer to duel (opponent types <code>!accept</code>)
+                </div>
             </div>
 
             <div class="card">
@@ -562,7 +573,37 @@
             </div>
         </div>
 
-        <!-- TAB 7: CHAT COMMANDS -->
+        <!-- TAB 7: 🛡️ AUTO-MOD & STREAM ALERTS SIMULATOR -->
+        <div id="tab-automod" class="tab-content">
+            <div class="card">
+                <div class="section-title">🛡️ Auto-Moderation & Chat Shield</div>
+                
+                <div class="row-toggle">
+                    <span>Block Links & URLs in Chat</span>
+                    <input type="checkbox" id="mod-block-links" checked>
+                </div>
+                <div class="row-toggle">
+                    <span>CAPS Lock Spam Filter</span>
+                    <input type="checkbox" id="mod-caps-filter" checked>
+                </div>
+
+                <label style="font-size:10px; color:var(--text-dim);">Banned Words Blacklist (Comma separated)</label>
+                <textarea id="mod-banned-words" rows="2" placeholder="badword1, badword2, ...">mc,bc,bhenchod,madarchod,gandu,chutiya,randi,bsdk</textarea>
+
+                <button class="btn-submit" onclick="saveAutoModSettings()">💾 Save Auto-Mod Shield</button>
+            </div>
+
+            <!-- LIVE ALERTS TEST CARD -->
+            <div class="card">
+                <div class="section-title">🎉 Live Alerts Simulator (Test on Screen)</div>
+                <div class="grid-2">
+                    <button style="background:linear-gradient(135deg, #f1c40f, #e67e22); color:#000; font-weight:800;" onclick="socket.emit('admin-test-superchat')">💰 Test ₹500 Super Chat</button>
+                    <button style="background:linear-gradient(135deg, #00d2d3, #2ecc71); color:#000; font-weight:800;" onclick="socket.emit('admin-test-member')">👑 Test New Member</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 8: CHAT COMMANDS -->
         <div id="tab-commands" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Command</div>
@@ -590,7 +631,7 @@
             </div>
         </div>
 
-        <!-- TAB 8: STYLES & OBS -->
+        <!-- TAB 9: STYLES & OBS -->
         <div id="tab-customizer" class="tab-content">
             <div class="card">
                 <div class="section-title">🎨 Fonts & Themes</div>
@@ -628,7 +669,7 @@
             </div>
         </div>
 
-        <!-- TAB 9: ADD REDEEM TRIGGER -->
+        <!-- TAB 10: ADD REDEEM TRIGGER -->
         <div id="tab-add" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Redeem Item</div>
@@ -759,7 +800,11 @@
             document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
-            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 'coins': 4, 'ai': 5, 'commands': 6, 'customizer': 7, 'add': 8 };
+            const tabMap = { 
+                'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 
+                'coins': 4, 'ai': 5, 'automod': 6, 'commands': 7, 
+                'customizer': 8, 'add': 9 
+            };
             document.querySelectorAll('.nav-btn')[tabMap[tabName]].classList.add('active');
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
@@ -777,6 +822,15 @@
 
             saveAISettings(false);
             socket.emit('admin-test-voice-preview', data);
+        }
+
+        function saveAutoModSettings() {
+            const blockLinks = document.getElementById('mod-block-links').checked;
+            const capsFilter = document.getElementById('mod-caps-filter').checked;
+            const bannedWords = document.getElementById('mod-banned-words').value.trim();
+
+            socket.emit('admin-save-automod', { blockLinks, capsFilter, bannedWords });
+            alert("🛡️ Auto-Moderation settings saved!");
         }
 
         function saveGoogleCredentials() {
@@ -912,6 +966,12 @@
                 document.getElementById('ai-rate').value = data.ttsRate;
                 document.getElementById('val-rate').innerText = data.ttsRate;
                 localStorage.setItem('bot_ttsRate', data.ttsRate);
+            }
+
+            if (data.modSettings) {
+                document.getElementById('mod-block-links').checked = data.modSettings.blockLinks !== false;
+                document.getElementById('mod-caps-filter').checked = data.modSettings.capsFilter !== false;
+                if (data.modSettings.bannedWords) document.getElementById('mod-banned-words').value = data.modSettings.bannedWords;
             }
 
             if (data.userCoins) renderCoinBalances(data.userCoins);
