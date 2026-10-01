@@ -131,6 +131,9 @@
             letter-spacing: 1px; 
             margin-bottom: 8px; 
             font-weight: 800; 
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -144,11 +147,7 @@
             overflow-y: auto;
         }
 
-        .deck-btn-wrapper {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-        }
+        .deck-btn-wrapper { position: relative; display: flex; flex-direction: column; }
         .deck-del-btn {
             position: absolute;
             top: 2px;
@@ -241,19 +240,19 @@
         .bet-box {
             background: #151a26;
             border: 1px solid #232c40;
-            padding: 10px;
+            padding: 12px;
             border-radius: 8px;
             margin-bottom: 8px;
         }
-        .pool-meter {
+        .opt-item-row {
             display: flex;
+            align-items: center;
             justify-content: space-between;
             background: #0a0d13;
-            padding: 8px 10px;
+            padding: 7px 10px;
             border-radius: 6px;
-            margin: 6px 0;
-            font-size: 13px;
-            font-weight: 700;
+            margin-bottom: 6px;
+            font-size: 12px;
         }
         .guide-box {
             background: rgba(0, 210, 211, 0.08);
@@ -264,6 +263,13 @@
             font-size: 12px;
             line-height: 1.5;
         }
+        .opt-input-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 6px;
+        }
+        .opt-input-row input { margin-bottom: 0; }
+        .btn-icon-del { background: #e74c3c; width: 36px; min-width: 36px; padding: 0; font-size: 14px; }
     </style>
 </head>
 <body>
@@ -300,7 +306,7 @@
         <div id="tab-deck" class="tab-content active">
             <div class="card">
                 <div class="section-title">🎙️ Audio Controls</div>
-                <button id="mic-btn" class="btn-mic mic-unmuted" onclick="toggleMic()">🎙️ MIC IS LIVE</button>
+                <button id="mic-btn" class="btn-mic mic-unmuted" onclick="toggleMic()">🎙️️ MIC IS LIVE</button>
             </div>
             <div class="card">
                 <div class="section-title">🎬 OBS Scenes</div>
@@ -346,42 +352,49 @@
             </div>
         </div>
 
-        <!-- TAB 4: PREDICTIONS / BETTING WITH INSTRUCTIONS -->
+        <!-- TAB 4: PREDICTIONS / MULTI-OPTION POLL MANAGER -->
         <div id="tab-bet" class="tab-content">
             <div class="card">
-                <div class="section-title">🎲 Live Match Betting</div>
-                <div class="bet-box">
-                    <span id="bet-status-indicator" style="color:var(--orange); font-size:11px; font-weight:800;">STATUS: NO ACTIVE BET</span>
-                    <h4 id="bet-title-display" style="margin:4px 0 6px 0; font-size:15px;">No active prediction</h4>
-                    
-                    <div class="pool-meter">
-                        <span style="color:var(--cyan);" id="bet-opt1-label">Opt 1: 🪙 0</span>
-                        <span style="color:var(--red);" id="bet-opt2-label">Opt 2: 🪙 0</span>
-                    </div>
-
-                    <div class="grid-3" style="margin-top:6px;">
-                        <button style="background:var(--orange); font-size:11px;" onclick="socket.emit('admin-lock-bet')">🔒 Lock</button>
-                        <button style="background:var(--cyan); color:#000; font-size:11px;" onclick="resolveBet(1)">1 Won</button>
-                        <button style="background:var(--red); font-size:11px;" onclick="resolveBet(2)">2 Won</button>
-                    </div>
-                    <button style="background:#2e384e; width:100%; margin-top:5px; padding:6px; font-size:11px;" onclick="socket.emit('admin-cancel-bet')">❌ Cancel & Refund</button>
+                <div class="section-title">
+                    <span>🎲 Active Prediction Status</span>
+                    <span id="bet-status-badge" style="color:var(--orange); font-size:10px;">INACTIVE</span>
                 </div>
 
-                <!-- Clear Chat Instructions Box -->
+                <div class="bet-box">
+                    <h4 id="bet-title-display" style="margin:2px 0 8px 0; font-size:15px; color:#fff;">No active poll</h4>
+                    <div id="active-options-list">
+                        <!-- Dynamic Options Loaded Here -->
+                    </div>
+
+                    <div class="grid-2" style="margin-top:10px;">
+                        <button style="background:var(--orange); font-size:12px;" onclick="socket.emit('admin-lock-bet')">🔒 Lock Voting</button>
+                        <button style="background:#e74c3c; font-size:12px;" onclick="endPollNow()">⏹️ End Poll (Hide)</button>
+                    </div>
+                </div>
+
                 <div class="guide-box">
-                    <b style="color:var(--cyan);">📖 Live Chat Voting Commands:</b><br>
+                    <b style="color:var(--cyan);">📖 Live Chat Voting Guide:</b><br>
                     • <code>!bet 1 50</code> ➔ Option 1 par 50 Mac-Coins lagana<br>
                     • <code>!bet 2 100</code> ➔ Option 2 par 100 Mac-Coins lagana<br>
-                    • <code>!coins</code> ➔ Apna balance check karna
+                    • <code>!vote 1</code> ➔ Free voting (0 coins)
                 </div>
 
-                <div class="section-title" style="margin-top:14px;">➕ Launch Custom Prediction</div>
+                <div class="section-title" style="margin-top:14px;">➕ Launch Custom Multi-Option Poll</div>
                 <input type="text" id="bet-new-title" placeholder="Question (e.g. Kaun Jeetega?)">
-                <div class="grid-2">
-                    <input type="text" id="bet-new-opt1" placeholder="Option 1 (e.g. Kazuya)" value="Win">
-                    <input type="text" id="bet-new-opt2" placeholder="Option 2 (e.g. Jin)" value="Lose">
+                
+                <div id="poll-custom-options-container">
+                    <div class="opt-input-row">
+                        <input type="text" class="custom-opt-input" placeholder="Option 1 (e.g. Kazuya)" value="Win">
+                    </div>
+                    <div class="opt-input-row">
+                        <input type="text" class="custom-opt-input" placeholder="Option 2 (e.g. Jin)" value="Lose">
+                    </div>
                 </div>
-                <button class="btn-gold" onclick="startNewBet()">🚀 Launch on Stream</button>
+
+                <div class="grid-2" style="margin-top:4px;">
+                    <button style="background:#2f384d; font-size:12px;" onclick="addOptionField()">➕ Add Option</button>
+                    <button class="btn-gold" onclick="launchCustomPoll()">🚀 Launch on Stream</button>
+                </div>
             </div>
         </div>
 
@@ -425,10 +438,20 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA & FULL TTS ENGINE -->
+        <!-- TAB 6: AI PERSONA & LIVE GEMINI STATUS -->
         <div id="tab-ai" class="tab-content">
             <div class="card">
-                <div class="section-title">🎙️ Audio & Voice Engine</div>
+                <div class="section-title">
+                    <span>🤖 Gemini AI Connection</span>
+                    <span id="api-key-status" style="font-size:10px; color:var(--red);">🔴 API Key Missing</span>
+                </div>
+
+                <div style="display:flex; gap:6px; margin-bottom:7px;">
+                    <input type="password" id="ai-key" placeholder="Paste Google AI Studio API Key" style="margin-bottom:0;" oninput="updateKeyStatusBadge()">
+                    <button style="background:var(--blue); min-width:85px; font-size:11px;" onclick="verifyGeminiKey()">⚡ Verify</button>
+                </div>
+
+                <div class="section-title" style="margin-top:10px;">🎙️ Audio & Voice Engine</div>
                 <div class="row-toggle">
                     <span>Show Screen Bubble</span>
                     <input type="checkbox" id="ai-bubble" checked>
@@ -455,10 +478,7 @@
                     </div>
                 </div>
 
-                <label style="font-size:10px; color:var(--text-dim);">Gemini API Key</label>
-                <input type="password" id="ai-key" placeholder="AI Studio Free API Key">
-
-                <div class="grid-2">
+                <div class="grid-2" style="margin-top:6px;">
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Character Name</label>
                         <input type="text" id="ai-name" value="Son Goku">
@@ -479,7 +499,7 @@
             </div>
         </div>
 
-        <!-- TAB 7: CHAT COMMANDS WITH COIN REDEEM OPTION -->
+        <!-- TAB 7: CHAT COMMANDS -->
         <div id="tab-commands" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Command</div>
@@ -545,7 +565,7 @@
             </div>
         </div>
 
-        <!-- TAB 9: ADD REDEEM TRIGGER WITH COIN COST -->
+        <!-- TAB 9: ADD REDEEM TRIGGER -->
         <div id="tab-add" class="tab-content">
             <div class="card">
                 <div class="section-title">➕ Add New Redeem Item</div>
@@ -580,6 +600,8 @@
         const triggersContainer = document.getElementById('triggers-container');
         const commandsContainer = document.getElementById('custom-commands-list');
         const coinsListContainer = document.getElementById('coin-balances-list');
+        const activeOptionsList = document.getElementById('active-options-list');
+        const customOptionsContainer = document.getElementById('poll-custom-options-container');
         const micBtn = document.getElementById('mic-btn');
 
         function switchTab(tabName) {
@@ -591,6 +613,122 @@
             document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
+        // --- GEMINI KEY VERIFY & PERSISTENCE ---
+        function updateKeyStatusBadge() {
+            const key = document.getElementById('ai-key').value.trim();
+            const badge = document.getElementById('api-key-status');
+            if (key) {
+                badge.innerText = '🟢 Key Entered';
+                badge.style.color = 'var(--green)';
+            } else {
+                badge.innerText = '🔴 API Key Missing';
+                badge.style.color = 'var(--red)';
+            }
+        }
+
+        async function verifyGeminiKey() {
+            const key = document.getElementById('ai-key').value.trim();
+            const badge = document.getElementById('api-key-status');
+            if (!key) return alert('Pehle Gemini API Key paste karein!');
+
+            badge.innerText = '⏳ Verifying with Google...';
+            badge.style.color = 'var(--orange)';
+
+            try {
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "hi" }] }] })
+                });
+                const data = await res.json();
+                if (data.candidates && data.candidates[0].content) {
+                    badge.innerText = '🟢 Key Verified & Working!';
+                    badge.style.color = 'var(--green)';
+                    localStorage.setItem('geminiApiKey', key);
+                    saveAISettings();
+                    alert('✅ Google Gemini API Key successfully connected aur verified!');
+                } else {
+                    badge.innerText = '🔴 Invalid Key';
+                    badge.style.color = 'var(--red)';
+                    alert('❌ API Key galat hai ya quota khatam hai: ' + (data.error ? data.error.message : 'Unknown error'));
+                }
+            } catch(e) {
+                badge.innerText = '🔴 Connection Error';
+                badge.style.color = 'var(--red)';
+                alert('❌ Error: ' + e.message);
+            }
+        }
+
+        // --- MULTI-OPTION POLL MANAGEMENT ---
+        function addOptionField() {
+            const count = customOptionsContainer.children.length + 1;
+            const div = document.createElement('div');
+            div.className = 'opt-input-row';
+            div.innerHTML = `
+                <input type="text" class="custom-opt-input" placeholder="Option ${count}">
+                <button class="btn-icon-del" onclick="this.parentElement.remove()">✕</button>
+            `;
+            customOptionsContainer.appendChild(div);
+        }
+
+        function launchCustomPoll() {
+            const title = document.getElementById('bet-new-title').value.trim();
+            const inputs = document.querySelectorAll('.custom-opt-input');
+            const options = [];
+            inputs.forEach(inp => {
+                const val = inp.value.trim();
+                if (val) options.push(val);
+            });
+
+            if (!title) return alert('Poll question likhna zaroori hai!');
+            if (options.length < 2) return alert('Kam se kam 2 options daalna zaroori hai!');
+
+            socket.emit('admin-start-bet', { title, options });
+            document.getElementById('bet-new-title').value = '';
+        }
+
+        function resolveWinnerOption(id, name) {
+            if (confirm(`Declare "${name}" as the winner? Payout distribute hoga!`)) {
+                socket.emit('admin-resolve-bet', { winningOptionId: id });
+            }
+        }
+
+        function endPollNow() {
+            if (confirm('Poll end karke screen se hatana hai? (Bets refund ho jayenge)')) {
+                socket.emit('admin-end-bet');
+            }
+        }
+
+        socket.on('bet-update', (bet) => {
+            const badge = document.getElementById('bet-status-badge');
+            const title = document.getElementById('bet-title-display');
+
+            if (!bet.isOpen) {
+                badge.innerText = 'INACTIVE';
+                badge.style.color = 'var(--text-dim)';
+                title.innerText = 'No active poll';
+                activeOptionsList.innerHTML = '<small style="color:var(--text-dim);">Launch a poll below to start.</small>';
+            } else {
+                badge.innerText = bet.locked ? '🔒 LOCKED' : '🟢 ACTIVE';
+                badge.style.color = bet.locked ? 'var(--orange)' : 'var(--green)';
+                title.innerText = `${bet.title} (🪙 ${bet.totalPool} Pool • ${bet.totalVotes} Votes)`;
+
+                activeOptionsList.innerHTML = '';
+                bet.options.forEach(opt => {
+                    const row = document.createElement('div');
+                    row.className = 'opt-item-row';
+                    row.innerHTML = `
+                        <div>
+                            <b>[${opt.id}] ${opt.name}</b>
+                            <span style="color:var(--text-dim); margin-left:6px;">${opt.votes} votes • 🪙${opt.pool} (${opt.pct}%)</span>
+                        </div>
+                        <button style="background:var(--cyan); color:#000; padding:4px 8px; font-size:11px;" onclick="resolveWinnerOption(${opt.id}, '${opt.name}')">🏆 Won</button>
+                    `;
+                    activeOptionsList.appendChild(row);
+                });
+            }
+        });
+
         function setCustomPlaytime() {
             const hours = document.getElementById('set-timer-h').value || 0;
             const minutes = document.getElementById('set-timer-m').value || 0;
@@ -598,42 +736,6 @@
             socket.emit('admin-timer-set', { hours, minutes, seconds });
             alert('Playtime updated!');
         }
-
-        function startNewBet() {
-            const title = document.getElementById('bet-new-title').value.trim();
-            const option1 = document.getElementById('bet-new-opt1').value.trim() || 'Option 1';
-            const option2 = document.getElementById('bet-new-opt2').value.trim() || 'Option 2';
-            if (!title) return alert('Bet question likhna zaroori hai!');
-            socket.emit('admin-start-bet', { title, option1, option2 });
-            document.getElementById('bet-new-title').value = '';
-        }
-
-        function resolveBet(winnerNum) {
-            if (confirm(`Option ${winnerNum} ko winner declare karein? Pool distribute hoga!`)) {
-                socket.emit('admin-resolve-bet', { winningOption: winnerNum });
-            }
-        }
-
-        socket.on('bet-update', (bet) => {
-            const ind = document.getElementById('bet-status-indicator');
-            const title = document.getElementById('bet-title-display');
-            const opt1 = document.getElementById('bet-opt1-label');
-            const opt2 = document.getElementById('bet-opt2-label');
-
-            if (!bet.isOpen) {
-                ind.innerText = 'STATUS: NO ACTIVE BET';
-                ind.style.color = '#7f8b9f';
-                title.innerText = 'No active prediction running';
-                opt1.innerText = 'Opt 1: 🪙 0';
-                opt2.innerText = 'Opt 2: 🪙 0';
-            } else {
-                ind.innerText = bet.locked ? 'STATUS: 🔒 LOCKED' : 'STATUS: 🟢 ACCEPTING BETS';
-                ind.style.color = bet.locked ? 'var(--orange)' : 'var(--green)';
-                title.innerText = bet.title;
-                opt1.innerText = `[1] ${bet.option1}: 🪙 ${bet.pool1} (${bet.pct1 || 50}%)`;
-                opt2.innerText = `[2] ${bet.option2}: 🪙 ${bet.pool2} (${bet.pct2 || 50}%)`;
-            }
-        });
 
         function grantCoinsDirect() {
             const username = document.getElementById('grant-user').value.trim();
@@ -720,22 +822,34 @@
         }
 
         function saveAISettings() {
+            const key = document.getElementById('ai-key').value.trim() || localStorage.getItem('geminiApiKey') || '';
+            if (key) localStorage.setItem('geminiApiKey', key);
+
             socket.emit('admin-change-styles', {
                 enableBubble: document.getElementById('ai-bubble').checked,
                 enableTTS: document.getElementById('ai-tts').checked,
                 ttsGender: document.getElementById('ai-voice-gender').value,
                 ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
                 ttsRate: parseFloat(document.getElementById('ai-rate').value),
-                geminiApiKey: document.getElementById('ai-key').value.trim(),
+                geminiApiKey: key,
                 characterName: document.getElementById('ai-name').value.trim(),
                 characterPersona: document.getElementById('ai-persona').value.trim(),
                 aiCommand: document.getElementById('ai-cmd').value.trim()
             });
+            updateKeyStatusBadge();
             alert('AI Settings Saved!');
         }
 
         socket.on('update-styles', (data) => {
-            if (data.geminiApiKey !== undefined) document.getElementById('ai-key').value = data.geminiApiKey;
+            const savedLocalKey = localStorage.getItem('geminiApiKey');
+            if (data.geminiApiKey) {
+                document.getElementById('ai-key').value = data.geminiApiKey;
+                localStorage.setItem('geminiApiKey', data.geminiApiKey);
+            } else if (savedLocalKey) {
+                document.getElementById('ai-key').value = savedLocalKey;
+            }
+            updateKeyStatusBadge();
+
             if (data.characterName) document.getElementById('ai-name').value = data.characterName;
             if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
             if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
@@ -798,7 +912,7 @@
                 const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
                 const { inputMuted } = await obs.call('GetInputMute', { inputName: micName });
                 micBtn.className = inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙️️ MIC IS LIVE';
+                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
             } catch (e) {}
         }
 
@@ -914,6 +1028,14 @@
             document.getElementById('trig-scene-name').value = '';
             switchTab('deck');
         }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const localKey = localStorage.getItem('geminiApiKey');
+            if (localKey && !document.getElementById('ai-key').value) {
+                document.getElementById('ai-key').value = localKey;
+                updateKeyStatusBadge();
+            }
+        });
     </script>
 </body>
 </html>
