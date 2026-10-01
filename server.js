@@ -63,7 +63,7 @@ let streamData = {
     timerFont: 'Orbitron',
     themeColor: '#ff4757',
     
-    geminiApiKey: '',
+    geminiApiKey: process.env.GEMINI_API_KEY || '',
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
@@ -130,12 +130,7 @@ function getCalculatedBetData() {
         return { ...opt, pct };
     });
 
-    return {
-        ...activeBet,
-        totalPool,
-        totalVotes,
-        options: calculatedOptions
-    };
+    return { ...activeBet, totalPool, totalVotes, options: calculatedOptions };
 }
 
 if (fs.existsSync(DATA_FILE)) {
@@ -149,6 +144,10 @@ if (fs.existsSync(DATA_FILE)) {
     } catch (e) {
         console.error('Data load error:', e);
     }
+}
+
+if (process.env.GEMINI_API_KEY && !streamData.geminiApiKey) {
+    streamData.geminiApiKey = process.env.GEMINI_API_KEY;
 }
 
 const saveDataToDisk = () => {
@@ -189,9 +188,10 @@ setInterval(() => {
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
 async function askGemini(userPrompt, username, userRole) {
-    if (!streamData.geminiApiKey) return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
+    const key = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (!key) return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${streamData.geminiApiKey}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
 
     let roleInstructions = "";
     if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
@@ -270,7 +270,7 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // 1. Passive Earning (Har chat par Mac-Coins)
+    // Passive Coin Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -291,7 +291,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 2. Owner Grant Coins (!givecoins @user 50)
+    // Owner Add Coins
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
         if (!isOwner) return;
         const parts = rawText.split(' ');
@@ -318,7 +318,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 3. P2P Transfer (!pay @user 25)
+    // P2P Transfer
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -348,13 +348,12 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 4. MEME & SFX REDEEM (Streamer = 100% FREE, Mods & Viewers = PAY COINS)
+    // Meme/SFX Redeem (Streamer = 100% Free, Mods & Viewers = Pay Coins)
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
         const currentBalance = streamData.userCoins[userKey] || 0;
 
-        // ONLY OWNER IS FREE (Mods and viewers must pay)
         if (cost > 0 && !isOwner && currentBalance < cost) {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
@@ -369,7 +368,6 @@ liveChat.on("chat", async (chatItem) => {
             return;
         }
 
-        // Deduct coins only if user is NOT Owner
         if (cost > 0 && !isOwner) {
             streamData.userCoins[userKey] -= cost;
             saveDataToDisk();
@@ -385,7 +383,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 5. CUSTOM COMMANDS WITH COINS (Streamer = FREE, Mods & Viewers = PAY COINS)
+    // Custom Commands with Coins (Streamer = Free, Others = Pay)
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         const cost = parseInt(matchedCustom.cost) || 0;
@@ -424,7 +422,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 6. DYNAMIC BETTING (!bet 1 <amount> or !vote 1)
+    // Betting
     if (message.startsWith('!bet ') || message.startsWith('!vote ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -466,7 +464,7 @@ liveChat.on("chat", async (chatItem) => {
             io.emit('ai-speak', {
                 characterName: streamData.characterName,
                 characterImage: streamData.characterImage,
-                text: `🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount}${cName})` : ''}`,
+                text: `🎲 @${username} ne '${targetOption.name}' par vote kiya! ${betAmount > 0 ? `(🪙 ${betAmount} ${cName})` : ''}`,
                 enableBubble: streamData.enableBubble,
                 enableTTS: false
             });
@@ -474,7 +472,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // 7. Manual TTS
+    // Manual TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -490,7 +488,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 8. AI Questions (Streamer = FREE, Mods & Viewers = PAY COINS)
+    // AI Questions (Streamer = Free, Others = Pay)
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -531,7 +529,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // 9. Deaths
+    // Deaths
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -555,6 +553,23 @@ io.on('connection', (socket) => {
     socket.emit('update-styles', streamData);
     socket.emit('bet-update', getCalculatedBetData());
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
+
+    // Auto Handshake: Sync local data if server has empty fields
+    socket.on('admin-sync-local', (localData) => {
+        let changed = false;
+        if (!streamData.geminiApiKey && localData.geminiApiKey) {
+            streamData.geminiApiKey = localData.geminiApiKey;
+            changed = true;
+        }
+        if (!streamData.characterImage && localData.characterImage) {
+            streamData.characterImage = localData.characterImage;
+            changed = true;
+        }
+        if (changed) {
+            saveDataToDisk();
+            broadcastState();
+        }
+    });
 
     socket.on('admin-death-add', () => { streamData.deathCount++; broadcastState(); });
     socket.on('admin-death-sub', () => { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); });
@@ -662,7 +677,7 @@ io.on('connection', (socket) => {
         io.emit('ai-speak', {
             characterName: streamData.characterName,
             characterImage: streamData.characterImage,
-            text: `🏆 RESULT: "${winningOption.name}" JEET GAYA! Total 🪙 ${totalPool} Mac-Coins distribute ho gaye!`,
+            text: `🏆 RESULT: "${winningOption.name}" JEET GAYA! 🪙 ${totalPool} Mac-Coins distribute ho gaye!`,
             enableBubble: streamData.enableBubble,
             enableTTS: streamData.enableTTS,
             pitch: streamData.ttsPitch,
@@ -677,7 +692,7 @@ io.on('connection', (socket) => {
         }, 12000);
     });
 
-    // End / Stop Poll (Hide immediately and refund)
+    // End / Stop Poll (Instant Hide and refund)
     socket.on('admin-end-bet', () => {
         for (const [user, bet] of Object.entries(activeBet.bets)) {
             if (bet.amount > 0) {
