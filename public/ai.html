@@ -93,17 +93,17 @@
 
         let hideTimeout;
 
-        function speakText(text) {
+        function speakText(text, pitch = 1.0, rate = 1.0) {
             if (!('speechSynthesis' in window)) return;
             window.speechSynthesis.cancel();
             
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 1.05;
-            utterance.pitch = 1.1;
+            utterance.pitch = pitch;
+            utterance.rate = rate;
             
             const voices = window.speechSynthesis.getVoices();
-            const naturalVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN') || v.name.includes('Google'));
-            if (naturalVoice) utterance.voice = naturalVoice;
+            const preferredVoice = voices.find(v => v.lang.includes('hi') || v.lang.includes('IN') || v.name.includes('Google') || v.name.includes('Natural'));
+            if (preferredVoice) utterance.voice = preferredVoice;
 
             window.speechSynthesis.speak(utterance);
         }
@@ -113,16 +113,19 @@
             charNameEl.innerText = data.characterName || 'AI ASSISTANT';
             textEl.innerText = data.text;
 
-            bubble.classList.add('active');
-
-            if (data.enableTTS) {
-                speakText(data.text);
+            // Show Speech Bubble on OBS
+            if (data.enableBubble !== false) {
+                bubble.classList.add('active');
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(() => {
+                    bubble.classList.remove('active');
+                }, 9000);
             }
 
-            clearTimeout(hideTimeout);
-            hideTimeout = setTimeout(() => {
-                bubble.classList.remove('active');
-            }, 9000);
+            // Speak TTS with customized pitch and rate
+            if (data.enableTTS) {
+                speakText(data.text, parseFloat(data.pitch) || 1.0, parseFloat(data.rate) || 1.0);
+            }
         });
 
         if ('speechSynthesis' in window) {
