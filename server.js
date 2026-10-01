@@ -38,7 +38,7 @@ const PRESETS = {
         image: "https://images3.alphacoders.com/134/1347311.jpeg",
         pitch: 0.7,
         rate: 0.95,
-        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, power-hungry, and arrogant. Dorya! Reply in 1-2 sharp sentences in the user's language."
+        prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the user's language."
     },
     sukuna: {
         name: "Ryomen Sukuna",
@@ -83,10 +83,17 @@ let streamData = {
     userCoins: {},
     userHistories: {},
 
+    triggers: [
+        { id: "1", name: "Gameplay", type: "scene", sceneName: "Gameplay", cost: 0 },
+        { id: "2", name: "BRB Screen", type: "scene", sceneName: "BRB", cost: 0 },
+        { id: "3", name: "Wavedash", cmd: "!combo", type: "video", url: "https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4", cost: 30 },
+        { id: "4", name: "Vine Boom", cmd: "!boom", type: "sfx", url: "https://www.myinstants.com/media/sounds/vine-boom.mp3", cost: 15 }
+    ],
+
     customCommands: [
-        { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", bubble: true, tts: false, useTokens: false },
-        { cmd: "!rank", reply: "Tekken 8 Main: Kazuya Mishima (Tekken King Rank)!", bubble: true, tts: true, useTokens: false },
-        { cmd: "!discord", reply: "Discord community: https://discord.gg/yourlink", bubble: true, tts: false, useTokens: false }
+        { cmd: "!specs", reply: "PC Specs: Ryzen 7 7800X3D | RTX 4070 | 32GB RAM", bubble: true, tts: false },
+        { cmd: "!rank", reply: "Tekken 8 Main: Kazuya Mishima (Tekken King Rank)!", bubble: true, tts: true },
+        { cmd: "!discord", reply: "Discord community: https://discord.gg/yourlink", bubble: true, tts: false }
     ]
 };
 
@@ -129,6 +136,7 @@ if (fs.existsSync(DATA_FILE)) {
         streamData = { ...streamData, ...loaded };
         if (!streamData.userCoins) streamData.userCoins = {};
         if (!streamData.userHistories) streamData.userHistories = {};
+        if (!streamData.triggers) streamData.triggers = [];
     } catch (e) {
         console.error('Data load error:', e);
     }
@@ -147,7 +155,7 @@ let isTimerRunning = false;
 let seenChatters = new Set();
 let lastEarnedTime = {};
 
-// Independent Timer Engine
+// Independent Timer
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -242,13 +250,6 @@ liveChat.on("error", () => {
 
 startChat();
 
-let triggers = [
-    { name: "Gameplay", type: "scene", sceneName: "Gameplay" },
-    { name: "BRB Screen", type: "scene", sceneName: "BRB" },
-    { name: "Wavedash", cmd: "!combo", type: "video", url: "https://res.cloudinary.com/udkv88c7/video/upload/v1790790781/Wavedash.mp4" },
-    { name: "Vine Boom", cmd: "!boom", type: "sfx", url: "https://www.myinstants.com/media/sounds/vine-boom.mp3" }
-];
-
 liveChat.on("chat", async (chatItem) => {
     const rawText = chatItem.message.map(m => m.text ? m.text : '').join('').trim();
     const message = rawText.toLowerCase();
@@ -260,7 +261,7 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
-    // Passive Coin Earning
+    // 1. Passive Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -281,7 +282,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Owner Add Coins
+    // 2. Owner Grant Coins
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
         if (!isOwner) return;
         const parts = rawText.split(' ');
@@ -305,7 +306,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // P2P Transfer
+    // 3. P2P Transfer
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -332,7 +333,48 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Betting (!bet 1 50 / !bet 2 50)
+    // 4. MEME & SFX REDEEM (Shows: Username redeemed + Item Name)
+    const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
+    if (matchedTrigger) {
+        const cost = parseInt(matchedTrigger.cost) || 0;
+        const isFree = isModOrOwner && streamData.coinSettings.freeForMods;
+        const currentBalance = streamData.userCoins[userKey] || 0;
+
+        if (cost > 0 && !isFree && currentBalance < cost) {
+            io.emit('ai-speak', {
+                characterName: streamData.characterName,
+                characterImage: streamData.characterImage,
+                text: `@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye! Tere paas sirf ${currentBalance} hain.`,
+                enableBubble: streamData.enableBubble,
+                enableTTS: streamData.enableTTS
+            });
+            return;
+        }
+
+        if (cost > 0 && !isFree) {
+            streamData.userCoins[userKey] -= cost;
+            saveDataToDisk();
+            broadcastState();
+        }
+
+        if (matchedTrigger.type === 'video') {
+            io.emit('play-meme', {
+                mediaUrl: matchedTrigger.url,
+                name: matchedTrigger.name,
+                redeemedBy: username
+            });
+        }
+        if (matchedTrigger.type === 'sfx') {
+            io.emit('play-sfx', {
+                sfxUrl: matchedTrigger.url,
+                name: matchedTrigger.name,
+                redeemedBy: username
+            });
+        }
+        return;
+    }
+
+    // 5. Betting
     if (message.startsWith('!bet ')) {
         if (!activeBet.isOpen || activeBet.locked) return;
         const parts = rawText.split(' ');
@@ -359,7 +401,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Custom Commands
+    // 6. Custom Commands
     const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
     if (matchedCustom) {
         io.emit('ai-speak', {
@@ -372,7 +414,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Manual TTS
+    // 7. Manual TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -385,7 +427,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Questions
+    // 8. AI Questions
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -421,14 +463,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // Memes
-    const matchedTrigger = triggers.find(t => t.cmd === message);
-    if (matchedTrigger) {
-        if (matchedTrigger.type === 'video') io.emit('play-meme', { mediaUrl: matchedTrigger.url });
-        if (matchedTrigger.type === 'sfx') io.emit('play-sfx', { sfxUrl: matchedTrigger.url });
-    }
-
-    // Death Counter
+    // 9. Deaths
     if (isModOrOwner) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -439,6 +474,7 @@ liveChat.on("chat", async (chatItem) => {
 const broadcastState = () => {
     io.emit('update-counter', { count: streamData.deathCount });
     io.emit('update-styles', streamData);
+    io.emit('load-triggers', streamData.triggers);
     io.emit('bet-update', getCalculatedBetData());
     io.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     saveDataToDisk();
@@ -447,7 +483,7 @@ const broadcastState = () => {
 io.on('connection', (socket) => {
     socket.emit('update-counter', { count: streamData.deathCount });
     socket.emit('stream-status', { status: currentStatus });
-    socket.emit('load-triggers', triggers);
+    socket.emit('load-triggers', streamData.triggers);
     socket.emit('update-styles', streamData);
     socket.emit('bet-update', getCalculatedBetData());
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
@@ -456,24 +492,11 @@ io.on('connection', (socket) => {
     socket.on('admin-death-sub', () => { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); });
     socket.on('admin-death-reset', () => { streamData.deathCount = 0; broadcastState(); });
 
-    // Independent Timer Controls
-    socket.on('admin-timer-start', () => { 
-        isTimerRunning = true; 
-        broadcastState(); 
-    });
-    socket.on('admin-timer-pause', () => { 
-        isTimerRunning = false; 
-        broadcastState(); 
-    });
-    socket.on('admin-timer-reset', () => { 
-        streamData.gameTimeSeconds = 0; 
-        broadcastState(); 
-    });
+    socket.on('admin-timer-start', () => { isTimerRunning = true; broadcastState(); });
+    socket.on('admin-timer-pause', () => { isTimerRunning = false; broadcastState(); });
+    socket.on('admin-timer-reset', () => { streamData.gameTimeSeconds = 0; broadcastState(); });
     socket.on('admin-timer-set', ({ hours, minutes, seconds }) => {
-        const h = parseInt(hours) || 0;
-        const m = parseInt(minutes) || 0;
-        const s = parseInt(seconds) || 0;
-        streamData.gameTimeSeconds = (h * 3600) + (m * 60) + s;
+        streamData.gameTimeSeconds = ((parseInt(hours) || 0) * 3600) + ((parseInt(minutes) || 0) * 60) + (parseInt(seconds) || 0);
         broadcastState();
     });
 
@@ -498,7 +521,18 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Custom Named Betting / Prediction
+    socket.on('admin-add-trigger', (newTrigger) => {
+        newTrigger.id = Date.now().toString();
+        streamData.triggers.push(newTrigger);
+        broadcastState();
+    });
+
+    socket.on('admin-del-trigger', (id) => {
+        streamData.triggers = streamData.triggers.filter(t => t.id !== id);
+        broadcastState();
+    });
+
+    // Betting
     socket.on('admin-start-bet', ({ title, option1, option2 }) => {
         activeBet = {
             isOpen: true,
@@ -585,13 +619,22 @@ io.on('connection', (socket) => {
         });
     });
 
-    socket.on('admin-add-trigger', (newTrigger) => {
-        triggers.push(newTrigger);
-        io.emit('load-triggers', triggers);
+    // Dashboard click triggers
+    socket.on('admin-play-meme', (data) => {
+        io.emit('play-meme', {
+            mediaUrl: data.mediaUrl,
+            name: "Stream Deck",
+            redeemedBy: "Streamer Boss"
+        });
     });
 
-    socket.on('admin-play-meme', (data) => io.emit('play-meme', data));
-    socket.on('admin-play-sfx', (data) => io.emit('play-sfx', data));
+    socket.on('admin-play-sfx', (data) => {
+        io.emit('play-sfx', {
+            sfxUrl: data.sfxUrl,
+            name: "Stream Deck",
+            redeemedBy: "Streamer Boss"
+        });
+    });
 });
 
 const PORT = process.env.PORT || 3000;
