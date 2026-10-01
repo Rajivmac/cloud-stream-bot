@@ -66,7 +66,6 @@ let streamData = {
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     groqApiKey: process.env.GROQ_API_KEY || '',
     openrouterApiKey: process.env.OPENROUTER_API_KEY || '',
-    aiProvider: 'auto',
 
     aiEnabled: true,
     enableBubble: true,
@@ -189,53 +188,10 @@ setInterval(() => {
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// --- MULTI-PROVIDER AI DRIVERS ---
-
-// 1. Google Gemini Driver (Targeting gemini-3.8-flash first)
-async function callGeminiDriver(key, systemText, userText, history) {
-    const contents = [];
-    if (history && history.length) {
-        history.slice(-6).forEach(entry => {
-            contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] });
-        });
-    }
-    contents.push({ role: "user", parts: [{ text: userText }] });
-
-    // gemini-3.8-flash prioritized as mandated by Google
-    const models = ["gemini-3.8-flash", "gemini-2.5-flash", "gemini-1.5-flash"];
-    let lastErr = "";
-
-    for (const model of models) {
-        const urls = [
-            `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-            `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`
-        ];
-        for (const url of urls) {
-            try {
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        system_instruction: { parts: [{ text: systemText }] },
-                        contents: contents
-                    })
-                });
-                const data = await res.json();
-                if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
-                    return { success: true, text: data.candidates[0].content.parts[0].text.trim(), model: `Gemini (${model})` };
-                } else if (data.error) {
-                    lastErr = data.error.message;
-                }
-            } catch (e) {
-                lastErr = e.message;
-            }
-        }
-    }
-    return { success: false, error: lastErr || "Gemini unavailable" };
-}
-
-// 2. Groq Driver
+// --- AI DRIVER 1: GROQ CLOUD (Ultra-Fast 0.2s with Active Models) ---
 async function callGroqDriver(key, systemText, userText, history) {
+    if (!key || !key.startsWith('gsk_')) return { success: false, error: "Invalid Groq key format (must start with gsk_)" };
+
     const messages = [{ role: "system", content: systemText }];
     if (history && history.length) {
         history.slice(-6).forEach(h => {
@@ -244,8 +200,10 @@ async function callGroqDriver(key, systemText, userText, history) {
     }
     messages.push({ role: "user", content: userText });
 
-    const models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
+    // Active working models on Groq
+    const models = ["llama-3.3-70b-versatile", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"];
     let lastErr = "";
+
     for (const m of models) {
         try {
             const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -270,11 +228,64 @@ async function callGroqDriver(key, systemText, userText, history) {
             lastErr = e.message;
         }
     }
-    return { success: false, error: lastErr || "Groq key invalid" };
+    return { success: false, error: lastErr || "Groq models busy" };
 }
 
-// 3. OpenRouter Driver
+// --- AI DRIVER 2: GOOGLE GEMINI (Dynamic Model Discovery) ---
+async function callGeminiDriver(key, systemText, userText, history) {
+    if (!key) return { success: false, error: "Missing Gemini key" };
+
+    const contents = [];
+    if (history && history.length) {
+        history.slice(-6).forEach(entry => {
+            contents.push({ role: entry.role === 'model' ? 'model' : 'user', parts: [{ text: entry.text }] });
+        });
+    }
+    contents.push({ role: "user", parts: [{ text: userText }] });
+
+    // Auto-discover models directly from user's key
+    let candidateModels = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+    try {
+        const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+        if (listRes.ok) {
+            const listData = await listRes.json();
+            if (listData.models && listData.models.length > 0) {
+                const found = listData.models
+                    .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+                    .map(m => m.name.replace('models/', ''));
+                if (found.length > 0) candidateModels = found;
+            }
+        }
+    } catch(e) {}
+
+    let lastErr = "";
+    for (const m of candidateModels.slice(0, 4)) {
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_instruction: { parts: [{ text: systemText }] },
+                    contents: contents
+                })
+            });
+            const data = await res.json();
+            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
+                return { success: true, text: data.candidates[0].content.parts[0].text.trim(), model: `Gemini (${m})` };
+            } else if (data.error) {
+                lastErr = data.error.message;
+            }
+        } catch (e) {
+            lastErr = e.message;
+        }
+    }
+    return { success: false, error: lastErr || "Gemini models busy" };
+}
+
+// --- AI DRIVER 3: OPENROUTER (Free Tier) ---
 async function callOpenRouterDriver(key, systemText, userText, history) {
+    if (!key || !key.startsWith('sk-or-')) return { success: false, error: "Invalid OpenRouter key format" };
+
     const messages = [{ role: "system", content: systemText }];
     if (history && history.length) {
         history.slice(-6).forEach(h => {
@@ -283,8 +294,9 @@ async function callOpenRouterDriver(key, systemText, userText, history) {
     }
     messages.push({ role: "user", content: userText });
 
-    const models = ["meta-llama/llama-3.3-70b-instruct:free", "deepseek/deepseek-r1:free"];
+    const models = ["meta-llama/llama-3.2-3b-instruct:free", "google/gemini-2.0-flash-exp:free", "mistralai/mistral-7b-instruct:free"];
     let lastErr = "";
+
     for (const m of models) {
         try {
             const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -293,7 +305,7 @@ async function callOpenRouterDriver(key, systemText, userText, history) {
                     "Authorization": `Bearer ${key}`,
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://stream-bot-hqlh.onrender.com",
-                    "X-Title": "Stream Deck"
+                    "X-Title": "Stream Deck Bot"
                 },
                 body: JSON.stringify({
                     model: m,
@@ -311,10 +323,25 @@ async function callOpenRouterDriver(key, systemText, userText, history) {
             lastErr = e.message;
         }
     }
-    return { success: false, error: lastErr || "OpenRouter failed" };
+    return { success: false, error: lastErr || "OpenRouter busy" };
 }
 
-// Unified Router
+// --- AI DRIVER 4 (ULTIMATE JUGAAD): ZERO-KEY PUBLIC AI PROXY ---
+async function callPublicZeroKeyDriver(systemText, userText) {
+    try {
+        const fullPrompt = `${systemText}\nViewer says: ${userText}\nKeep reply punchy in 1-2 sentences.`;
+        const res = await fetch(`https://text.pollinations.ai/${encodeURIComponent(fullPrompt)}?model=openai`);
+        if (res.ok) {
+            const text = await res.text();
+            if (text && text.trim().length > 0) {
+                return { success: true, text: text.trim(), model: "Public Zero-Key AI (Pollinations)" };
+            }
+        }
+    } catch(e) {}
+    return { success: false, error: "Public AI unavailable" };
+}
+
+// MASTER CASCADE AI ROUTER
 async function askAI(userPrompt, username, userRole) {
     let roleInstructions = "";
     if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
@@ -324,36 +351,44 @@ async function askAI(userPrompt, username, userRole) {
     const systemInstructionText = `${streamData.characterPersona}\n${roleInstructions}\nKeep answers short (1-2 sentences) for stream speech bubble.`;
     const history = streamData.userHistories[username] || [];
 
-    const queue = ['gemini', 'groq', 'openrouter'];
-
-    for (const p of queue) {
-        if (p === 'gemini' && (streamData.geminiApiKey || process.env.GEMINI_API_KEY)) {
-            const key = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
-            const res = await callGeminiDriver(key, systemInstructionText, userPrompt, history);
-            if (res.success) {
-                recordHistory(username, userPrompt, res.text);
-                return res.text;
-            }
-        }
-        if (p === 'groq' && (streamData.groqApiKey || process.env.GROQ_API_KEY)) {
-            const key = streamData.groqApiKey || process.env.GROQ_API_KEY;
-            const res = await callGroqDriver(key, systemInstructionText, userPrompt, history);
-            if (res.success) {
-                recordHistory(username, userPrompt, res.text);
-                return res.text;
-            }
-        }
-        if (p === 'openrouter' && (streamData.openrouterApiKey || process.env.OPENROUTER_API_KEY)) {
-            const key = streamData.openrouterApiKey || process.env.OPENROUTER_API_KEY;
-            const res = await callOpenRouterDriver(key, systemInstructionText, userPrompt, history);
-            if (res.success) {
-                recordHistory(username, userPrompt, res.text);
-                return res.text;
-            }
+    // Priority 1: Groq Cloud (Super fast, no high demand)
+    const groqKey = streamData.groqApiKey || process.env.GROQ_API_KEY;
+    if (groqKey) {
+        const res = await callGroqDriver(groqKey, systemInstructionText, userPrompt, history);
+        if (res.success) {
+            recordHistory(username, userPrompt, res.text);
+            return res.text;
         }
     }
 
-    return "AI models abhi busy hain, thodi der baad try karo!";
+    // Priority 2: Google Gemini (Discovery mode)
+    const geminiKey = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
+    if (geminiKey) {
+        const res = await callGeminiDriver(geminiKey, systemInstructionText, userPrompt, history);
+        if (res.success) {
+            recordHistory(username, userPrompt, res.text);
+            return res.text;
+        }
+    }
+
+    // Priority 3: OpenRouter
+    const routerKey = streamData.openrouterApiKey || process.env.OPENROUTER_API_KEY;
+    if (routerKey) {
+        const res = await callOpenRouterDriver(routerKey, systemInstructionText, userPrompt, history);
+        if (res.success) {
+            recordHistory(username, userPrompt, res.text);
+            return res.text;
+        }
+    }
+
+    // Priority 4 (Bulletproof Jugaad): Public Zero-Key AI
+    const publicRes = await callPublicZeroKeyDriver(systemInstructionText, userPrompt);
+    if (publicRes.success) {
+        recordHistory(username, userPrompt, publicRes.text);
+        return publicRes.text;
+    }
+
+    return "Power level bohot high ho gaya, thodi der baad try karo!";
 }
 
 function recordHistory(username, userPrompt, aiReply) {
@@ -623,7 +658,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
-    // AI Question
+    // AI Question (Auto-Failover)
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -664,6 +699,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
+    // Death counter
     if (isOwner || isMod) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
@@ -693,7 +729,6 @@ io.on('connection', (socket) => {
         if (!streamData.geminiApiKey && localData.geminiApiKey) { streamData.geminiApiKey = localData.geminiApiKey; changed = true; }
         if (!streamData.groqApiKey && localData.groqApiKey) { streamData.groqApiKey = localData.groqApiKey; changed = true; }
         if (!streamData.openrouterApiKey && localData.openrouterApiKey) { streamData.openrouterApiKey = localData.openrouterApiKey; changed = true; }
-        if (localData.aiProvider) { streamData.aiProvider = localData.aiProvider; changed = true; }
         if (!streamData.characterImage && localData.characterImage) { streamData.characterImage = localData.characterImage; changed = true; }
         if (changed) {
             saveDataToDisk();
@@ -706,18 +741,9 @@ io.on('connection', (socket) => {
         const results = [];
         let anySuccess = false;
 
-        if (geminiKey) {
-            const r = await callGeminiDriver(geminiKey, "Say hi.", "hi", []);
-            if (r.success) {
-                results.push(`🟢 Google Gemini: Ready (${r.model})`);
-                anySuccess = true;
-            } else {
-                results.push(`🔴 Google Gemini: ${r.error}`);
-            }
-        }
-
-        if (groqKey) {
-            const r = await callGroqDriver(groqKey, "Say hi.", "hi", []);
+        // Test Groq if present
+        if (groqKey && groqKey.trim()) {
+            const r = await callGroqDriver(groqKey.trim(), "Say hi.", "hi", []);
             if (r.success) {
                 results.push(`🟢 Groq: Ready (${r.model})`);
                 anySuccess = true;
@@ -726,8 +752,20 @@ io.on('connection', (socket) => {
             }
         }
 
-        if (openrouterKey) {
-            const r = await callOpenRouterDriver(openrouterKey, "Say hi.", "hi", []);
+        // Test Gemini if present
+        if (geminiKey && geminiKey.trim()) {
+            const r = await callGeminiDriver(geminiKey.trim(), "Say hi.", "hi", []);
+            if (r.success) {
+                results.push(`🟢 Google Gemini: Ready (${r.model})`);
+                anySuccess = true;
+            } else {
+                results.push(`🔴 Google Gemini: ${r.error}`);
+            }
+        }
+
+        // Test OpenRouter if present
+        if (openrouterKey && openrouterKey.trim()) {
+            const r = await callOpenRouterDriver(openrouterKey.trim(), "Say hi.", "hi", []);
             if (r.success) {
                 results.push(`🟢 OpenRouter: Ready (${r.model})`);
                 anySuccess = true;
@@ -736,14 +774,16 @@ io.on('connection', (socket) => {
             }
         }
 
-        if (!geminiKey && !groqKey && !openrouterKey) {
-            socket.emit('admin-ai-verify-result', { success: false, message: "Kam se kam ek valid API Key daalna zaroori hai!" });
-            return;
+        // Test Zero-Key Jugaad
+        const pub = await callPublicZeroKeyDriver("Say hi.", "hi");
+        if (pub.success) {
+            results.push(`🟢 Public Free AI: Ready (Always active fallback)`);
+            anySuccess = true;
         }
 
         socket.emit('admin-ai-verify-result', {
             success: anySuccess,
-            message: anySuccess ? `✅ Connection Successful!\n${results.join('\n')}` : `❌ Connection Failed:\n${results.join('\n')}`
+            message: anySuccess ? `✅ Connection Successful!\n${results.join('\n')}` : `❌ Failed:\n${results.join('\n')}`
         });
     });
 
