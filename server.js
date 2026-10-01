@@ -20,16 +20,16 @@ const PRESETS = {
         name: "Son Goku",
         cmd: "!goku",
         image: "https://cdn-icons-png.flaticon.com/512/3233/3233514.png",
-        gender: "male",
-        pitch: 1.3,
-        rate: 1.1,
+        voice: "Brian",
+        pitch: 1.15,
+        rate: 1.05,
         prompt: "You are Son Goku from Dragon Ball. Cheerful, energetic, loves food and fighting. Reply in 1-2 punchy sentences in the viewer's language."
     },
     gojo: {
         name: "Gojo Satoru",
         cmd: "!gojo",
         image: "https://images8.alphacoders.com/134/1344405.jpeg",
-        gender: "male",
+        voice: "Matthew",
         pitch: 1.0,
         rate: 1.0,
         prompt: "You are Gojo Satoru from Jujutsu Kaisen. Supremely confident, witty, playful, and unbeatable. Reply in 1-2 punchy sentences in the viewer's language."
@@ -38,8 +38,8 @@ const PRESETS = {
         name: "Kazuya Mishima",
         cmd: "!kazuya",
         image: "https://images3.alphacoders.com/134/1347311.jpeg",
-        gender: "male",
-        pitch: 0.7,
+        voice: "Russell",
+        pitch: 0.9,
         rate: 0.95,
         prompt: "You are Kazuya Mishima from TEKKEN 8. Cold, ruthless, arrogant, obsessed with power. Dorya! Reply in 1-2 sharp sentences in the viewer's language."
     },
@@ -47,8 +47,8 @@ const PRESETS = {
         name: "Ryomen Sukuna",
         cmd: "!sukuna",
         image: "https://images3.alphacoders.com/134/1344406.jpeg",
-        gender: "male",
-        pitch: 0.8,
+        voice: "Russell",
+        pitch: 0.85,
         rate: 0.9,
         prompt: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal sentences."
     }
@@ -65,6 +65,7 @@ let streamData = {
     
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     groqApiKey: process.env.GROQ_API_KEY || '',
+    elevenLabsKey: '',
 
     googleClientId: process.env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
@@ -80,8 +81,8 @@ let streamData = {
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
-    ttsGender: 'male',
-    ttsPitch: 1.1,
+    ttsVoice: 'Aditi',
+    ttsPitch: 1.0,
     ttsRate: 1.0,
     aiCommand: '!goku',
     characterName: 'Son Goku',
@@ -165,10 +166,8 @@ const saveDataToDisk = () => {
 
 let currentStatus = 'offline';
 let isTimerRunning = false;
-let seenChatters = new Set();
 let lastEarnedTime = {};
 
-// Independent Playtime Timer
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -177,7 +176,6 @@ setInterval(() => {
     }
 }, 1000);
 
-// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -187,17 +185,44 @@ setInterval(() => {
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
 // ========================================================
-// 🔊 DEDICATED SERVER-SIDE TTS AUDIO STREAM (NO CORS BLOCK)
+// 🎙️ HIGH-FIDELITY REAL HUMAN-LIKE TTS ENGINE
 // ========================================================
 app.get('/api/tts', async (req, res) => {
     try {
-        const text = (req.query.text || '').slice(0, 250).trim();
-        const voice = req.query.voice || 'Brian';
+        const text = (req.query.text || '').slice(0, 280).trim();
+        const voice = req.query.voice || streamData.ttsVoice || 'Aditi';
         if (!text) return res.status(400).send("No text provided");
 
-        // Primary: StreamElements Cloud Voice
+        // Optional ElevenLabs Stream
+        if (streamData.elevenLabsKey && voice.startsWith('eleven:')) {
+            try {
+                const voiceId = voice.replace('eleven:', '') || "21m00Tcm4TlvDq8ikWAM";
+                const elRes = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'audio/mpeg',
+                        'xi-api-key': streamData.elevenLabsKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        model_id: "eleven_multilingual_v2",
+                        voice_settings: { stability: 0.5, similarity_boost: 0.8 }
+                    })
+                });
+
+                if (elRes.ok) {
+                    res.setHeader('Content-Type', 'audio/mpeg');
+                    const buffer = await elRes.arrayBuffer();
+                    return res.send(Buffer.from(buffer));
+                }
+            } catch(e) {}
+        }
+
+        // Primary Studio Real-like Voice (Amazon Polly Neural/Studio via StreamElements)
+        const cleanVoice = voice.replace('eleven:', '');
         try {
-            const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${voice}&text=${encodeURIComponent(text)}`;
+            const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=${cleanVoice}&text=${encodeURIComponent(text)}`;
             const response = await fetch(seUrl);
             if (response.ok) {
                 res.setHeader('Content-Type', 'audio/mpeg');
@@ -206,8 +231,8 @@ app.get('/api/tts', async (req, res) => {
             }
         } catch(e) {}
 
-        // Fallback: Google Voice Engine
-        const lang = (voice === 'Aditi') ? 'hi' : 'en';
+        // Fallback: Google Voice
+        const lang = (cleanVoice === 'Aditi' || cleanVoice === 'Raveena') ? 'hi' : 'en';
         const gUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=${lang}&q=${encodeURIComponent(text)}`;
         const gResponse = await fetch(gUrl, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
@@ -218,7 +243,7 @@ app.get('/api/tts', async (req, res) => {
             return res.send(Buffer.from(arrayBuffer));
         }
 
-        res.status(500).send("TTS Generation Failed");
+        res.status(500).send("TTS Error");
     } catch (err) {
         res.status(500).send("TTS Error: " + err.message);
     }
@@ -357,7 +382,7 @@ async function postToYouTubeChat(messageText) {
     if (!hasToken || !streamData.ytAccessToken || !streamData.ytLiveChatId) return;
 
     if (streamData.ytMessagesSentToday >= 180) {
-        handleQuotaExceeded("Daily limit reach ho gayi (180 messages)");
+        handleQuotaExceeded();
         return;
     }
 
@@ -406,9 +431,9 @@ function handleQuotaExceeded() {
         text: alertMsg,
         enableBubble: true,
         enableTTS: true,
+        voice: streamData.ttsVoice,
         pitch: streamData.ttsPitch,
-        rate: streamData.ttsRate,
-        gender: streamData.ttsGender
+        rate: streamData.ttsRate
     });
 }
 
@@ -419,9 +444,9 @@ function broadcastResponse(text, isTTS = true) {
         text: text,
         enableBubble: streamData.enableBubble,
         enableTTS: isTTS && streamData.enableTTS,
+        voice: streamData.ttsVoice,
         pitch: streamData.ttsPitch,
-        rate: streamData.ttsRate,
-        gender: streamData.ttsGender
+        rate: streamData.ttsRate
     });
 
     if (streamData.enableYTChatSend && !streamData.ytQuotaExhausted) {
@@ -429,7 +454,7 @@ function broadcastResponse(text, isTTS = true) {
     }
 }
 
-// AI Engine
+// AI Drivers
 async function callPublicZeroKeyDriver(systemText, userText) {
     try {
         const fullPrompt = `${systemText}\nUser:${userText}\nKeep reply punchy in 1-2 short sentences.`;
@@ -527,12 +552,10 @@ function recordHistory(username, userPrompt, aiReply) {
     saveDataToDisk();
 }
 
-// YouTube Chat Engine
+// Live Chat Listener
 const CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ';
-const TEST_STREAM_ID = ''; 
-
-const chatConfig = TEST_STREAM_ID ? { liveId: TEST_STREAM_ID } : { channelId: CHANNEL_ID };
-const liveChat = new LiveChat(chatConfig); 
+const chatConfig = { channelId: CHANNEL_ID };
+const liveChat = new LiveChat(chatConfig);
 
 const startChat = async () => {
     try {
@@ -706,9 +729,9 @@ liveChat.on("chat", async (chatItem) => {
             text: ttsText,
             enableBubble: streamData.enableBubble,
             enableTTS: true,
+            voice: streamData.ttsVoice,
             pitch: 1.0,
-            rate: 1.0,
-            gender: streamData.ttsGender
+            rate: 1.0
         });
         return;
     }
@@ -772,9 +795,10 @@ io.on('connection', (socket) => {
         if (local.ytAccountName && !streamData.ytAccountName) { streamData.ytAccountName = local.ytAccountName; changed = true; }
         if (local.geminiApiKey && !streamData.geminiApiKey) { streamData.geminiApiKey = local.geminiApiKey; changed = true; }
         if (local.groqApiKey && !streamData.groqApiKey) { streamData.groqApiKey = local.groqApiKey; changed = true; }
+        if (local.elevenLabsKey && !streamData.elevenLabsKey) { streamData.elevenLabsKey = local.elevenLabsKey; changed = true; }
         if (local.characterName) { streamData.characterName = local.characterName; changed = true; }
         if (local.characterImage) { streamData.characterImage = local.characterImage; changed = true; }
-        if (local.ttsGender) { streamData.ttsGender = local.ttsGender; changed = true; }
+        if (local.ttsVoice) { streamData.ttsVoice = local.ttsVoice; changed = true; }
         if (local.ttsPitch) { streamData.ttsPitch = local.ttsPitch; changed = true; }
         if (local.ttsRate) { streamData.ttsRate = local.ttsRate; changed = true; }
         if (local.characterPersona) { streamData.characterPersona = local.characterPersona; changed = true; }
@@ -788,7 +812,7 @@ io.on('connection', (socket) => {
     socket.on('admin-test-voice-preview', (data) => {
         streamData.characterName = data.characterName || streamData.characterName;
         streamData.characterImage = data.characterImage || streamData.characterImage;
-        streamData.ttsGender = data.ttsGender || streamData.ttsGender;
+        streamData.ttsVoice = data.ttsVoice || streamData.ttsVoice;
         streamData.ttsPitch = data.ttsPitch || streamData.ttsPitch;
         streamData.ttsRate = data.ttsRate || streamData.ttsRate;
         saveDataToDisk();
@@ -800,9 +824,9 @@ io.on('connection', (socket) => {
             text: `Yo! Audio aur Speech bubble bilkul ready hain! Main hoon ${streamData.characterName}!`,
             enableBubble: data.enableBubble !== false,
             enableTTS: data.enableTTS !== false,
+            voice: streamData.ttsVoice,
             pitch: streamData.ttsPitch,
-            rate: streamData.ttsRate,
-            gender: streamData.ttsGender
+            rate: streamData.ttsRate
         });
     });
 
