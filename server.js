@@ -64,7 +64,7 @@ let streamData = {
     themeColor: '#ff4757',
     
     geminiApiKey: process.env.GEMINI_API_KEY || '',
-    geminiModel: 'gemini-2.5-flash',
+    geminiModel: 'gemini-3.8-flash',
     aiEnabled: true,
     enableBubble: true,
     enableTTS: true,
@@ -164,6 +164,7 @@ let isTimerRunning = false;
 let seenChatters = new Set();
 let lastEarnedTime = {};
 
+// Independent Timer
 setInterval(() => {
     if (isTimerRunning) {
         streamData.gameTimeSeconds++;
@@ -172,6 +173,7 @@ setInterval(() => {
     }
 }, 1000);
 
+// Auto Reminders
 setInterval(() => {
     if (currentStatus === 'online') {
         const discordCmd = streamData.customCommands.find(c => c.cmd === '!discord');
@@ -186,12 +188,12 @@ setInterval(() => {
     }
 }, Math.max(streamData.reminderMinutes, 5) * 60 * 1000);
 
-// Multi-version Resilient Gemini API Call
+// Updated askGemini for gemini-3.8-flash
 async function askGemini(userPrompt, username, userRole) {
     const key = streamData.geminiApiKey || process.env.GEMINI_API_KEY;
     if (!key) return `Pehle Dashboard ke AI tab mein Gemini API Key daal do!`;
 
-    const model = streamData.geminiModel || 'gemini-2.5-flash';
+    const model = streamData.geminiModel || 'gemini-3.8-flash';
 
     let roleInstructions = "";
     if (userRole === 'owner') roleInstructions = `CRITICAL: The person talking is the STREAM OWNER / BOSS. Treat them with highest honor. Call them 'Boss' or 'Streamer Sahab'.`;
@@ -206,9 +208,9 @@ async function askGemini(userPrompt, username, userRole) {
     contents.push({ role: "user", parts: [{ text: userPrompt }] });
 
     const endpoints = [
-        `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`,
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`
+        `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${key}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${key}`
     ];
 
     try {
@@ -223,7 +225,7 @@ async function askGemini(userPrompt, username, userRole) {
         }
 
         const data = await res.json();
-        if (data.candidates && data.candidates[0].content.parts[0].text) {
+        if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts[0].text) {
             const aiReply = data.candidates[0].content.parts[0].text.trim();
             if (!streamData.userHistories[username]) streamData.userHistories[username] = [];
             streamData.userHistories[username].push({ role: 'user', text: userPrompt });
@@ -280,6 +282,7 @@ liveChat.on("chat", async (chatItem) => {
     const userKey = username.toLowerCase();
     const cName = streamData.coinSettings.currencyName;
 
+    // Passive Coin Earning
     const now = Date.now();
     if (!lastEarnedTime[userKey] || (now - lastEarnedTime[userKey]) >= (streamData.coinSettings.cooldownSeconds * 1000)) {
         if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
@@ -300,6 +303,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
+    // Owner Add Coins
     if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
         if (!isOwner) return;
         const parts = rawText.split(' ');
@@ -326,6 +330,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
+    // P2P Transfer
     if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
         const parts = rawText.split(' ');
         if (parts.length >= 3) {
@@ -355,7 +360,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
-    // Meme Redeem
+    // Meme/SFX Redeem (Owner = Free, Others = Pay)
     const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
     if (matchedTrigger) {
         const cost = parseInt(matchedTrigger.cost) || 0;
@@ -479,6 +484,7 @@ liveChat.on("chat", async (chatItem) => {
         }
     }
 
+    // Manual TTS
     if (message.startsWith('!tts ')) {
         const ttsText = rawText.replace(/^!tts\s+/i, '');
         io.emit('ai-speak', {
@@ -494,6 +500,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
+    // AI Question
     const activeCommand = (streamData.aiCommand || '!goku').toLowerCase();
     if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
         const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
@@ -534,6 +541,7 @@ liveChat.on("chat", async (chatItem) => {
         return;
     }
 
+    // Death counter
     if (isOwner || isMod) {
         if (message === '!death+' || message === '!died') { streamData.deathCount++; broadcastState(); }
         if (message === '!death-') { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); }
