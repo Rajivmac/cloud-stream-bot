@@ -178,7 +178,7 @@ setInterval(() => {
     }
 }, 1000);
 
-// TTS Proxy
+// TTS Audio Proxy
 app.get('/api/tts', async (req, res) => {
     try {
         const text = (req.query.text || '').slice(0, 280).trim();
@@ -243,9 +243,7 @@ app.get('/api/tts', async (req, res) => {
     }
 });
 
-// ========================================================
-// 🔗 OAUTH WITH STRICT YOUTUBE BRAND CHANNEL SELECTOR
-// ========================================================
+// OAuth Routes
 const REDIRECT_URI = "https://stream-bot-hqlh.onrender.com/oauth2callback";
 
 app.get('/auth/google', (req, res) => {
@@ -255,7 +253,6 @@ app.get('/auth/google', (req, res) => {
     }
 
     const scope = encodeURIComponent("https://www.googleapis.com/auth/youtube.force-ssl");
-    // prompt=select_account consent forces Google to show YouTube Channel Switcher!
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent%20select_account`;
     res.redirect(authUrl);
 });
@@ -289,7 +286,6 @@ app.get('/oauth2callback', async (req, res) => {
             streamData.enableYTChatSend = true;
             streamData.ytQuotaExhausted = false;
 
-            // Fetch actual YouTube Channel Title & Custom Handle
             try {
                 const ytRes = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
                     headers: { Authorization: `Bearer ${tokenData.access_token}` }
@@ -297,12 +293,12 @@ app.get('/oauth2callback', async (req, res) => {
                 const ytData = await ytRes.json();
                 if (ytData.items && ytData.items.length > 0) {
                     const snip = ytData.items[0].snippet;
-                    streamData.ytAccountName = `${snip.title} (${snip.customUrl || '@RajivMacAi'})`;
+                    streamData.ytAccountName = `${snip.title} (${snip.customUrl || '@rajivmacai'})`;
                 } else {
-                    streamData.ytAccountName = "AIBot (@RajivMacAi)";
+                    streamData.ytAccountName = "AIBot (@rajivmacai)";
                 }
             } catch (e) {
-                streamData.ytAccountName = "AIBot (@RajivMacAi)";
+                streamData.ytAccountName = "AIBot (@rajivmacai)";
             }
 
             saveDataToDisk();
@@ -327,21 +323,15 @@ app.get('/oauth2callback', async (req, res) => {
     }
 });
 
-async function ensureValidAccessToken() {
-    // If token exists and is valid for at least 5 more minutes, use it
-    if (streamData.ytAccessToken && Date.now() < (streamData.ytTokenExpiresAt - 300000)) {
-        return true;
-    }
-
-    if (!streamData.ytRefreshToken) {
-        return !!streamData.ytAccessToken;
-    }
+// Force Token Refresh
+async function forceRefreshToken() {
+    if (!streamData.ytRefreshToken) return false;
+    const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = streamData.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) return false;
 
     try {
-        const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
-        const clientSecret = streamData.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
-
-        const res = await fetch("https://oauth2.googleapis.com/token", {
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
@@ -351,37 +341,43 @@ async function ensureValidAccessToken() {
                 grant_type: "refresh_token"
             })
         });
-
-        const data = await res.json();
-        if (data.access_token) {
-            streamData.ytAccessToken = data.access_token;
-            streamData.ytTokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
+        const tokenData = await tokenRes.json();
+        if (tokenData.access_token) {
+            streamData.ytAccessToken = tokenData.access_token;
+            streamData.ytTokenExpiresAt = Date.now() + ((tokenData.expires_in || 3600) * 1000);
             saveDataToDisk();
+            broadcastState();
             return true;
         }
-    } catch (e) {}
+    } catch(e) {}
+    return false;
+}
 
-    return !!streamData.ytAccessToken;
+async function ensureValidAccessToken() {
+    if (streamData.ytAccessToken && Date.now() < (streamData.ytTokenExpiresAt - 300000)) {
+        return true;
+    }
+    return await forceRefreshToken();
 }
 
 // ========================================================
-// 🤖 ROBUST POST TO YOUTUBE LIVE CHAT (DIRECT FEEDBACK)
+// 🤖 ROBUST POST TO YOUTUBE LIVE CHAT (AUTO-RETRY ON 401)
 // ========================================================
-async function postToYouTubeChat(messageText) {
-    if (!streamData.enableYTChatSend) {
-        return { success: false, error: "Chat sending is disabled in settings checkbox." };
+async function postToYouTubeChat(messageText, isTest = false) {
+    if (!isTest && !streamData.enableYTChatSend) {
+        return { success: false, error: "Settings mein 'Post Bot Replies directly in Live Chat' ko check karein!" };
     }
     if (streamData.ytQuotaExhausted) {
         return { success: false, error: "Daily YouTube quota reached (180 msgs)." };
     }
 
-    const hasToken = await ensureValidAccessToken();
-    if (!hasToken || !streamData.ytAccessToken) {
-        return { success: false, error: "Bot YouTube account not connected. Please login again." };
+    await ensureValidAccessToken();
+    if (!streamData.ytAccessToken) {
+        return { success: false, error: "Bot YouTube account not connected. Please login again in AI Persona tab." };
     }
 
     if (!streamData.ytLiveChatId) {
-        return { success: false, error: "Live Chat ID missing! Paste stream link above & click 'Link Chat ID'." };
+        return { success: false, error: "Live Chat ID not found. Ensure stream is online or click 'Link Chat ID'." };
     }
 
     try {
@@ -400,7 +396,19 @@ async function postToYouTubeChat(messageText) {
             })
         });
 
-        const data = await res.json();
+        // If token was rejected (401), force refresh and retry once!
+        if (res.status === 401) {
+            const refreshed = await forceRefreshToken();
+            if (refreshed) {
+                return await postToYouTubeChat(messageText, isTest);
+            }
+        }
+
+        const rawText = await res.text();
+        let data = {};
+        if (rawText && rawText.trim().length > 0) {
+            try { data = JSON.parse(rawText); } catch(e) {}
+        }
 
         if (res.ok) {
             streamData.ytMessagesSentToday++;
@@ -408,7 +416,7 @@ async function postToYouTubeChat(messageText) {
             broadcastState();
             return { success: true };
         } else {
-            const errMsg = (data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+            const errMsg = (data && data.error && data.error.message) ? data.error.message : (rawText || `HTTP ${res.status}: ${res.statusText}`);
             if (res.status === 403 && errMsg.toLowerCase().includes('quota')) {
                 streamData.ytQuotaExhausted = true;
                 saveDataToDisk();
@@ -433,7 +441,7 @@ function broadcastResponse(text, isTTS = true) {
     });
 
     if (streamData.enableYTChatSend && !streamData.ytQuotaExhausted) {
-        postToYouTubeChat(text);
+        postToYouTubeChat(text, false);
     }
 }
 
@@ -499,15 +507,16 @@ function recordHistory(username, userPrompt, aiReply) {
 }
 
 // ========================================================
-// 🔍 STREAM RESOLVER & LIVE CHAT ID FETCHER
+// 🔍 AUTOMATIC MULTI-ENGINE STREAM DETECTOR (ZERO MANUAL EFFORT)
 // ========================================================
 let liveChatInstance = null;
+let isSearchingStream = false;
 
 async function resolveLiveChatId(videoId) {
     if (!videoId) return null;
     try {
-        const hasToken = await ensureValidAccessToken();
-        if (hasToken && streamData.ytAccessToken) {
+        await ensureValidAccessToken();
+        if (streamData.ytAccessToken) {
             const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${videoId}`, {
                 headers: { Authorization: `Bearer ${streamData.ytAccessToken}` }
             });
@@ -562,30 +571,47 @@ function attachLiveChatStream(videoId) {
     }).catch(() => {});
 }
 
-// Auto RSS Scanner for stream detection
+// 🌟 3-TIER LIVE DETECTOR (Runs automatically every 12 seconds)
 async function autoDetectStreamLoop() {
-    if (currentStatus === 'online') return;
+    if (currentStatus === 'online' || isSearchingStream) return;
+    isSearchingStream = true;
+
     try {
-        const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${MAIN_CHANNEL_ID}`, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        // Tier 1: Canonical /live check
+        const livePageRes = await fetch(`https://www.youtube.com/channel/${MAIN_CHANNEL_ID}/live`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
+            redirect: 'follow'
         });
-        if (res.ok) {
-            const xml = await res.text();
-            const matches = [...xml.matchAll(/<yt:videoId>([a-zA-Z0-9_-]{11})<\/yt:videoId>/g)];
-            if (matches.length > 0) {
-                const latestId = matches[0][1];
-                if (latestId && latestId !== streamData.currentVideoId) {
-                    attachLiveChatStream(latestId);
-                }
+        const finalUrl = livePageRes.url || '';
+        const match = finalUrl.match(/[?&]v=([a-zA-Z0-9_-]{11})/) || finalUrl.match(/live\/([a-zA-Z0-9_-]{11})/);
+        if (match && match[1]) {
+            attachLiveChatStream(match[1]);
+            isSearchingStream = false;
+            return;
+        }
+
+        // Tier 2: YouTube Official Search API
+        await ensureValidAccessToken();
+        if (streamData.ytAccessToken) {
+            const apiRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${MAIN_CHANNEL_ID}&eventType=live&type=video`, {
+                headers: { Authorization: `Bearer ${streamData.ytAccessToken}` }
+            });
+            const apiData = await apiRes.json();
+            if (apiData.items && apiData.items.length > 0 && apiData.items[0].id && apiData.items[0].id.videoId) {
+                attachLiveChatStream(apiData.items[0].id.videoId);
+                isSearchingStream = false;
+                return;
             }
         }
     } catch(e) {}
+
+    isSearchingStream = false;
 }
 
-setInterval(autoDetectStreamLoop, 15000);
+setInterval(autoDetectStreamLoop, 12000);
 autoDetectStreamLoop();
 
-// Chat Message Handler
+// Chat Message Router
 async function handleChatMessage(chatItem) {
     const rawText = chatItem.message.map(m => m.text ? m.text : '').join('').trim();
     const message = rawText.toLowerCase();
@@ -619,7 +645,7 @@ async function handleChatMessage(chatItem) {
             const bannedList = ms.bannedWords.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
             for (const bad of bannedList) {
                 if (message.includes(bad)) {
-                    broadcastResponse(`⚠️️ @${username}, inappropriate words allowed nahi hain.`, false);
+                    broadcastResponse(`⚠️ @${username}, inappropriate words allowed nahi hain.`, false);
                     return;
                 }
             }
@@ -807,13 +833,12 @@ io.on('connection', (socket) => {
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     socket.emit('all-commands-catalog', getDynamicCommandCatalog());
 
-    // 🔗 LINK DIRECT STREAM CHAT ID EVENT
     socket.on('admin-link-stream-url', async (urlInput) => {
         let cleanId = (urlInput || '').trim();
         if (cleanId.includes('watch?v=')) cleanId = cleanId.split('watch?v=')[1].split('&')[0];
         if (cleanId.includes('live/')) cleanId = cleanId.split('live/')[1].split('?')[0];
 
-        if (!cleanId) return socket.emit('link-chat-result', { success: false, error: "Please paste a valid YouTube stream URL or Video ID." });
+        if (!cleanId) return socket.emit('link-chat-result', { success: false, error: "Valid YouTube URL or Video ID paste karein." });
 
         attachLiveChatStream(cleanId);
         const chatId = await resolveLiveChatId(cleanId);
@@ -823,14 +848,14 @@ io.on('connection', (socket) => {
             broadcastState();
             socket.emit('link-chat-result', { success: true, chatId });
         } else {
-            socket.emit('link-chat-result', { success: false, error: "Stream chat not active or YouTube API could not find it. Make sure stream is public/unlisted and currently LIVE." });
+            socket.emit('link-chat-result', { success: false, error: "Stream chat active nahi mili. Check karein ki stream live hai." });
         }
     });
 
     // 💬 TEST LIVE CHAT MESSAGE POST
     socket.on('admin-test-chat-post', async () => {
-        const testText = "Yo stream! @RajivMacAi bot is connected and ready to chat!";
-        const result = await postToYouTubeChat(testText);
+        const testText = "Yo stream! @rajivmacai bot is connected and ready to chat!";
+        const result = await postToYouTubeChat(testText, true); // isTest = true
         socket.emit('chat-post-result', result);
     });
 
