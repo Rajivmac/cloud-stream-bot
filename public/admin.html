@@ -492,12 +492,16 @@
                     <button class="btn-submit" onclick="connectStreamerBot()">⚡ Reconnect Streamer.bot</button>
                     <button style="background:var(--green); color:#000; font-weight:800;" onclick="testStreamerBotMessage()">💬 Send Test Chat via Bot</button>
                 </div>
-                <div id="sb-test-status" style="font-size:11px; color:#aaa; margin-top:6px;">Streamer.bot active hone par test message live chat me post karein!</div>
+                <div id="sb-test-status" style="font-size:11px; color:#aaa; margin-top:6px;">Streamer.bot status live hone par test karein!</div>
 
-                <div class="guide-box" style="margin-top:8px;">
-                    <b style="color:var(--cyan);">🔗 Local Webhook Endpoint for Streamer.bot:</b><br>
-                    Streamer.bot Sub-Action (Fetch URL) me yeh endpoint dalein:<br>
-                    <code id="webhook-url-display" style="color:var(--gold);">http://localhost:3000/api/streamerbot/chat</code>
+                <!-- 1-CLICK WEBHOOK URL BOX WITH COPY BUTTON -->
+                <div class="guide-box" style="margin-top:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                        <b style="color:var(--cyan);">🔗 Fetch URL for Streamer.bot:</b>
+                        <button style="background:var(--cyan); color:#000; font-size:10px; font-weight:800; padding:4px 10px; border-radius:5px;" onclick="copyWebhookUrl()">📋 Copy URL</button>
+                    </div>
+                    <input type="text" id="webhook-full-url" readonly style="font-size:11px; background:#0b0e14; color:var(--gold); border:1px solid #232c40;" value="">
+                    <small style="color:#888;">Streamer.bot Sub-Action (Fetch URL) me yeh exact URL paste karein.</small>
                 </div>
             </div>
 
@@ -507,7 +511,7 @@
                     <span style="font-size:10px; color:var(--green); font-weight:900;">🟢 ZERO-KEY UNLIMITED ACTIVE</span>
                 </div>
                 <div style="font-size:11px; color:#aaa; line-height:1.5;">
-                    Pollinations AI Cloud active hai. Ryomen Sukuna personality bina kisi API key ya quota limit ke 24/7 punchy replies dega!
+                    Pollinations AI Cloud active hai. AI personality bina kisi API key ya quota limit ke 24/7 punchy replies dega!
                 </div>
             </div>
 
@@ -551,7 +555,7 @@
                 <div class="grid-2" style="margin-top:6px;">
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Character Name</label>
-                        <input type="text" id="ai-name" value="Ryomen Sukuna">
+                        <input type="text" id="ai-name" value="AIBot">
                     </div>
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Command</label>
@@ -560,7 +564,7 @@
                 </div>
 
                 <label style="font-size:10px; color:var(--text-dim);">Behavior Prompt</label>
-                <textarea id="ai-persona" rows="3">You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal punchy sentences in the viewer's language.</textarea>
+                <textarea id="ai-persona" rows="3">You are a helpful, witty, and energetic live stream AI gaming co-host. Reply in 1-2 punchy sentences in the viewer's language.</textarea>
 
                 <div class="grid-2">
                     <button class="btn-gold" onclick="saveAISettings()">💾 Save AI Settings</button>
@@ -731,8 +735,18 @@
 
         let rawCatalogText = "";
 
-        // Set live webhook URL in guide
-        document.getElementById('webhook-url-display').innerText = `${window.location.origin}/api/streamerbot/chat`;
+        // Build exact webhook link
+        const targetHost = window.location.origin;
+        const completeWebhookUrl = `${targetHost}/api/streamerbot/chat?user=%user%&message=%rawInput%`;
+        document.getElementById('webhook-full-url').value = completeWebhookUrl;
+
+        function copyWebhookUrl() {
+            const input = document.getElementById('webhook-full-url');
+            input.select();
+            navigator.clipboard.writeText(input.value).then(() => {
+                alert("📋 Webhook URL copied! Streamer.bot ke Fetch URL box me paste karein.");
+            });
+        }
 
         // Restore permanent vault
         function restoreVaultFields() {
@@ -778,7 +792,7 @@
             localStorage.setItem('bot_sbPort', document.getElementById('sb-port').value.trim());
         }
 
-        // Streamer.bot WebSocket Auto-Connector
+        // Streamer.bot WebSocket Auto-Connector (Handles Endpoint /)
         function connectStreamerBot() {
             saveStreamerBotSettings();
             const ip = document.getElementById('sb-ip').value.trim() || '127.0.0.1';
@@ -790,14 +804,8 @@
 
                 sbSocket.onopen = () => {
                     isSbConnected = true;
-                    sbDot.className = 'dot dot-green';
-                    sbStatusText.innerText = 'Streamer.bot: Live';
-                    sbCardBadge.innerText = '🟢 Connected';
-                    sbCardBadge.style.color = '#2ecc71';
-                    document.getElementById('sb-test-status').innerText = '✅ Streamer.bot successfully connected!';
-                    document.getElementById('sb-test-status').style.color = '#2ecc71';
+                    setSbOnlineUI();
 
-                    // Subscribe to YouTube events
                     sbSocket.send(JSON.stringify({
                         request: "Subscribe",
                         events: {
@@ -816,58 +824,61 @@
                     } catch(e) {}
                 };
 
-                sbSocket.onclose = () => {
-                    isSbConnected = false;
-                    sbDot.className = 'dot dot-red';
-                    sbStatusText.innerText = 'Streamer.bot: Off';
-                    sbCardBadge.innerText = '🔴 Disconnected';
-                    sbCardBadge.style.color = '#ff4757';
-                };
-
-                sbSocket.onerror = () => {
-                    isSbConnected = false;
-                    sbDot.className = 'dot dot-red';
-                    sbStatusText.innerText = 'Streamer.bot: Off';
-                    sbCardBadge.innerText = '🔴 Disconnected';
-                    sbCardBadge.style.color = '#ff4757';
-                };
+                sbSocket.onclose = () => { if (!window.serverReportsSbOnline) setSbOfflineUI(); };
+                sbSocket.onerror = () => { if (!window.serverReportsSbOnline) setSbOfflineUI(); };
             } catch (err) {
-                isSbConnected = false;
+                if (!window.serverReportsSbOnline) setSbOfflineUI();
             }
         }
+
+        function setSbOnlineUI() {
+            sbDot.className = 'dot dot-green';
+            sbStatusText.innerText = 'Streamer.bot: Live';
+            sbCardBadge.innerText = '🟢 Connected';
+            sbCardBadge.style.color = '#2ecc71';
+            document.getElementById('sb-test-status').innerText = '✅ Streamer.bot successfully connected!';
+            document.getElementById('sb-test-status').style.color = '#2ecc71';
+        }
+
+        function setSbOfflineUI() {
+            isSbConnected = false;
+            sbDot.className = 'dot dot-red';
+            sbStatusText.innerText = 'Streamer.bot: Off';
+            sbCardBadge.innerText = '🔴 Disconnected';
+            sbCardBadge.style.color = '#ff4757';
+        }
+
+        socket.on('streamerbot-status', (data) => {
+            if (data.online) {
+                window.serverReportsSbOnline = true;
+                setSbOnlineUI();
+            } else if (!isSbConnected) {
+                window.serverReportsSbOnline = false;
+                setSbOfflineUI();
+            }
+        });
 
         setInterval(() => { if (!isSbConnected) connectStreamerBot(); }, 5000);
         connectStreamerBot();
 
         function testStreamerBotMessage() {
             const statusDiv = document.getElementById('sb-test-status');
-            const testText = "👑 Ryomen Sukuna AI Bot is connected via Streamer.bot!";
-
-            if (isSbConnected && sbSocket && sbSocket.readyState === WebSocket.OPEN) {
-                sbSocket.send(JSON.stringify({
-                    request: "DoAction",
-                    action: { name: "Send YouTube Message" },
-                    args: { message: testText },
-                    id: "test-msg"
-                }));
-                statusDiv.innerText = "✅ Test payload sent to Streamer.bot Action!";
-                statusDiv.style.color = "#2ecc71";
-            } else {
-                fetch('/api/streamerbot/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user: 'Rajiv Pal', message: '!ai yo Sukuna', isOwner: true })
-                })
-                .then(r => r.json())
-                .then(data => {
-                    statusDiv.innerText = `✅ Backend endpoint active! Reply: "${data.reply}"`;
+            fetch('/api/streamerbot/chat?user=Rajiv&message=!ai hello test')
+            .then(r => r.text())
+            .then(replyText => {
+                if (replyText) {
+                    statusDiv.innerText = `✅ Test Success! AI Response: "${replyText}"`;
                     statusDiv.style.color = "#2ecc71";
-                })
-                .catch(e => {
-                    statusDiv.innerText = "❌ Streamer.bot connect nahi hai (Streamer.bot PC par open karein).";
+                    setSbOnlineUI();
+                } else {
+                    statusDiv.innerText = "❌ Reply empty. Check console.";
                     statusDiv.style.color = "#ff4757";
-                });
-            }
+                }
+            })
+            .catch(e => {
+                statusDiv.innerText = "❌ Backend connect nahi ho paya: " + e.message;
+                statusDiv.style.color = "#ff4757";
+            });
         }
 
         socket.on('stream-status', (data) => {
@@ -938,7 +949,7 @@
 
         function testVoiceInOBS() {
             socket.emit('admin-test-voice-preview', {
-                characterName: document.getElementById('ai-name').value.trim() || 'Ryomen Sukuna',
+                characterName: document.getElementById('ai-name').value.trim() || 'AIBot',
                 characterImage: document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg',
                 ttsVoice: document.getElementById('ai-voice-select').value,
                 ttsPitch: parseFloat(document.getElementById('ai-pitch').value) || 1.0,
