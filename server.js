@@ -14,7 +14,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const DATA_FILE = path.join(__dirname, 'stream_data.json');
-const MAIN_CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ'; // Aapka Main Channel
+const MAIN_CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ'; // Streamer Main Channel
 
 let streamData = {
     deathCount: 0,
@@ -221,6 +221,21 @@ app.get('/api/tts', async (req, res) => {
                     }
                 }
             } catch(e) {}
+
+            try {
+                const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
+                const seRes = await fetch(seUrl, {
+                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
+                });
+                if (seRes.ok) {
+                    const buf = Buffer.from(await seRes.arrayBuffer());
+                    if (buf.length > 300) {
+                        res.setHeader('Content-Type', 'audio/mpeg');
+                        res.setHeader('Access-Control-Allow-Origin', '*');
+                        return res.send(buf);
+                    }
+                }
+            } catch(e) {}
         }
         res.status(500).send("TTS Error");
     } catch(err) {
@@ -228,7 +243,9 @@ app.get('/api/tts', async (req, res) => {
     }
 });
 
-// OAuth Routes
+// ========================================================
+// 🔗 OAUTH WITH STRICT YOUTUBE BRAND CHANNEL SELECTOR
+// ========================================================
 const REDIRECT_URI = "https://stream-bot-hqlh.onrender.com/oauth2callback";
 
 app.get('/auth/google', (req, res) => {
@@ -237,8 +254,9 @@ app.get('/auth/google', (req, res) => {
         return res.send("<script>alert('Pehle Dashboard mein Google Client ID daal kar Save karein!'); window.location.href='/admin.html';</script>");
     }
 
-    const scope = encodeURIComponent("https://www.googleapis.com/auth/youtube.force-ssl https://www.googleapis.com/auth/userinfo.profile");
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent`;
+    const scope = encodeURIComponent("https://www.googleapis.com/auth/youtube.force-ssl");
+    // prompt=select_account consent forces Google to show YouTube Channel Switcher!
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&response_type=code&scope=${scope}&access_type=offline&prompt=consent%20select_account`;
     res.redirect(authUrl);
 });
 
@@ -271,14 +289,20 @@ app.get('/oauth2callback', async (req, res) => {
             streamData.enableYTChatSend = true;
             streamData.ytQuotaExhausted = false;
 
+            // Fetch actual YouTube Channel Title & Custom Handle
             try {
-                const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+                const ytRes = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
                     headers: { Authorization: `Bearer ${tokenData.access_token}` }
                 });
-                const userData = await userRes.json();
-                streamData.ytAccountName = userData.name || "YouTube Bot Connected";
+                const ytData = await ytRes.json();
+                if (ytData.items && ytData.items.length > 0) {
+                    const snip = ytData.items[0].snippet;
+                    streamData.ytAccountName = `${snip.title} (${snip.customUrl || '@RajivMacAi'})`;
+                } else {
+                    streamData.ytAccountName = "AIBot (@RajivMacAi)";
+                }
             } catch (e) {
-                streamData.ytAccountName = "Connected Account";
+                streamData.ytAccountName = "AIBot (@RajivMacAi)";
             }
 
             saveDataToDisk();
@@ -289,6 +313,7 @@ app.get('/oauth2callback', async (req, res) => {
                 account: streamData.ytAccountName,
                 refresh: streamData.ytRefreshToken || '',
                 access: streamData.ytAccessToken || '',
+                expiresAt: streamData.ytTokenExpiresAt.toString(),
                 clientId: streamData.googleClientId || '',
                 clientSecret: streamData.googleClientSecret || ''
             });
@@ -303,44 +328,48 @@ app.get('/oauth2callback', async (req, res) => {
 });
 
 async function ensureValidAccessToken() {
-    if (!streamData.ytRefreshToken) return false;
-
-    if (Date.now() > (streamData.ytTokenExpiresAt - 300000)) {
-        try {
-            const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
-            const clientSecret = streamData.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
-
-            const res = await fetch("https://oauth2.googleapis.com/token", {
-                method: "POST",
-                headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                body: new URLSearchParams({
-                    client_id: clientId,
-                    client_secret: clientSecret,
-                    refresh_token: streamData.ytRefreshToken,
-                    grant_type: "refresh_token"
-                })
-            });
-
-            const data = await res.json();
-            if (data.access_token) {
-                streamData.ytAccessToken = data.access_token;
-                streamData.ytTokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
-                saveDataToDisk();
-                return true;
-            }
-        } catch (e) {
-            return false;
-        }
+    // If token exists and is valid for at least 5 more minutes, use it
+    if (streamData.ytAccessToken && Date.now() < (streamData.ytTokenExpiresAt - 300000)) {
+        return true;
     }
-    return true;
+
+    if (!streamData.ytRefreshToken) {
+        return !!streamData.ytAccessToken;
+    }
+
+    try {
+        const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
+        const clientSecret = streamData.googleClientSecret || process.env.GOOGLE_CLIENT_SECRET;
+
+        const res = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+                client_id: clientId,
+                client_secret: clientSecret,
+                refresh_token: streamData.ytRefreshToken,
+                grant_type: "refresh_token"
+            })
+        });
+
+        const data = await res.json();
+        if (data.access_token) {
+            streamData.ytAccessToken = data.access_token;
+            streamData.ytTokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
+            saveDataToDisk();
+            return true;
+        }
+    } catch (e) {}
+
+    return !!streamData.ytAccessToken;
 }
 
 // ========================================================
-// 🤖 ROBUST POST TO YOUTUBE LIVE CHAT (DETAILED ERROR REPORTING)
+// 🤖 ROBUST POST TO YOUTUBE LIVE CHAT (DIRECT FEEDBACK)
 // ========================================================
 async function postToYouTubeChat(messageText) {
     if (!streamData.enableYTChatSend) {
-        return { success: false, error: "Chat sending is disabled in settings." };
+        return { success: false, error: "Chat sending is disabled in settings checkbox." };
     }
     if (streamData.ytQuotaExhausted) {
         return { success: false, error: "Daily YouTube quota reached (180 msgs)." };
@@ -348,16 +377,11 @@ async function postToYouTubeChat(messageText) {
 
     const hasToken = await ensureValidAccessToken();
     if (!hasToken || !streamData.ytAccessToken) {
-        return { success: false, error: "Bot YouTube account not connected. Please login in AI Persona tab." };
-    }
-
-    // If liveChatId is missing, attempt to fetch it
-    if (!streamData.ytLiveChatId && streamData.currentVideoId) {
-        await fetchLiveChatIdFromVideoId(streamData.currentVideoId);
+        return { success: false, error: "Bot YouTube account not connected. Please login again." };
     }
 
     if (!streamData.ytLiveChatId) {
-        return { success: false, error: "Live Chat ID not found. Ensure stream is online." };
+        return { success: false, error: "Live Chat ID missing! Paste stream link above & click 'Link Chat ID'." };
     }
 
     try {
@@ -384,21 +408,16 @@ async function postToYouTubeChat(messageText) {
             broadcastState();
             return { success: true };
         } else {
-            const errMsg = data.error && data.error.message ? data.error.message : JSON.stringify(data);
-            if (res.status === 403 && (errMsg.includes('quota') || errMsg.includes('Quota'))) {
-                handleQuotaExceeded();
+            const errMsg = (data.error && data.error.message) ? data.error.message : JSON.stringify(data);
+            if (res.status === 403 && errMsg.toLowerCase().includes('quota')) {
+                streamData.ytQuotaExhausted = true;
+                saveDataToDisk();
             }
             return { success: false, error: errMsg };
         }
     } catch (err) {
         return { success: false, error: err.message };
     }
-}
-
-function handleQuotaExceeded() {
-    streamData.ytQuotaExhausted = true;
-    saveDataToDisk();
-    broadcastState();
 }
 
 function broadcastResponse(text, isTTS = true) {
@@ -440,7 +459,7 @@ function generateInstantPersonaReply(userPrompt, username, userRole) {
     const cName = streamData.characterName || 'Bot';
     if (userRole === 'owner') {
         const bossReplies = [
-            `Streamer Boss, aapka aadesh sar ankhon par! Game par focus karein!`,
+            `Streamer Boss, aapka hukum sar ankhon par! Game par focus karein!`,
             `Aadab Boss! Match mein enemy ko tabah kardo!`,
             `Boss! Match mein enemy ki dhajjiyan uda do, Sukuna aapke sath hai!`
         ];
@@ -480,29 +499,25 @@ function recordHistory(username, userPrompt, aiReply) {
 }
 
 // ========================================================
-// 🔍 AUTOMATIC STREAM & LIVE CHAT ID DETECTOR
+// 🔍 STREAM RESOLVER & LIVE CHAT ID FETCHER
 // ========================================================
 let liveChatInstance = null;
-let isSearchingStream = false;
 
-async function fetchLiveChatIdFromVideoId(videoId) {
-    if (!streamData.ytAccessToken || !videoId) return false;
+async function resolveLiveChatId(videoId) {
+    if (!videoId) return null;
     try {
-        const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${videoId}`, {
-            headers: { Authorization: `Bearer ${streamData.ytAccessToken}` }
-        });
-        const data = await res.json();
-        if (data.items && data.items.length > 0 && data.items[0].liveStreamingDetails) {
-            const chatId = data.items[0].liveStreamingDetails.activeLiveChatId;
-            if (chatId) {
-                streamData.ytLiveChatId = chatId;
-                saveDataToDisk();
-                broadcastState();
-                return true;
+        const hasToken = await ensureValidAccessToken();
+        if (hasToken && streamData.ytAccessToken) {
+            const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${videoId}`, {
+                headers: { Authorization: `Bearer ${streamData.ytAccessToken}` }
+            });
+            const data = await res.json();
+            if (data.items && data.items.length > 0 && data.items[0].liveStreamingDetails) {
+                return data.items[0].liveStreamingDetails.activeLiveChatId || null;
             }
         }
     } catch(e) {}
-    return false;
+    return null;
 }
 
 function attachLiveChatStream(videoId) {
@@ -512,45 +527,45 @@ function attachLiveChatStream(videoId) {
 
     liveChatInstance = new LiveChat({ liveId: videoId });
 
-    liveChatInstance.on("start", () => {
+    liveChatInstance.on("start", async () => {
         currentStatus = 'online';
         streamData.currentVideoId = videoId;
+        const chatId = await resolveLiveChatId(videoId);
+        if (chatId) streamData.ytLiveChatId = chatId;
         saveDataToDisk();
-        io.emit('stream-status', { status: currentStatus, videoId });
-        fetchLiveChatIdFromVideoId(videoId);
+        broadcastState();
     });
 
     liveChatInstance.on("end", () => {
         currentStatus = 'offline';
         streamData.currentVideoId = '';
         saveDataToDisk();
-        io.emit('stream-status', { status: currentStatus });
+        broadcastState();
     });
 
     liveChatInstance.on("error", () => {
         currentStatus = 'offline';
-        io.emit('stream-status', { status: currentStatus });
+        broadcastState();
     });
 
     liveChatInstance.on("chat", handleChatMessage);
 
-    liveChatInstance.start().then(ok => {
+    liveChatInstance.start().then(async (ok) => {
         if (ok) {
             currentStatus = 'online';
             streamData.currentVideoId = videoId;
+            const chatId = await resolveLiveChatId(videoId);
+            if (chatId) streamData.ytLiveChatId = chatId;
             saveDataToDisk();
-            io.emit('stream-status', { status: currentStatus, videoId });
-            fetchLiveChatIdFromVideoId(videoId);
+            broadcastState();
         }
     }).catch(() => {});
 }
 
+// Auto RSS Scanner for stream detection
 async function autoDetectStreamLoop() {
-    if (isSearchingStream || currentStatus === 'online') return;
-    isSearchingStream = true;
-
+    if (currentStatus === 'online') return;
     try {
-        // 1. Try RSS feed for latest videoId
         const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${MAIN_CHANNEL_ID}`, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
         });
@@ -565,8 +580,6 @@ async function autoDetectStreamLoop() {
             }
         }
     } catch(e) {}
-
-    isSearchingStream = false;
 }
 
 setInterval(autoDetectStreamLoop, 15000);
@@ -580,7 +593,7 @@ async function handleChatMessage(chatItem) {
     const authorChannelId = chatItem.author.channelId || '';
     const lowerName = username.toLowerCase();
 
-    // 👑 100% BULLETPROOF STREAMER RECOGNITION (0 COINS, ALWAYS BOSS!)
+    // 👑 100% BULLETPROOF STREAMER DETECTION (0 COINS, ALWAYS BOSS!)
     const isOwner = (authorChannelId === MAIN_CHANNEL_ID) || 
                     lowerName.includes('rajiv') || 
                     lowerName.includes('mac_s') ||
@@ -606,7 +619,7 @@ async function handleChatMessage(chatItem) {
             const bannedList = ms.bannedWords.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
             for (const bad of bannedList) {
                 if (message.includes(bad)) {
-                    broadcastResponse(`⚠️ @${username}, inappropriate words allowed nahi hain.`, false);
+                    broadcastResponse(`⚠️️ @${username}, inappropriate words allowed nahi hain.`, false);
                     return;
                 }
             }
@@ -794,9 +807,29 @@ io.on('connection', (socket) => {
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     socket.emit('all-commands-catalog', getDynamicCommandCatalog());
 
-    // 💬 TEST LIVE CHAT MESSAGE POST FROM DASHBOARD
+    // 🔗 LINK DIRECT STREAM CHAT ID EVENT
+    socket.on('admin-link-stream-url', async (urlInput) => {
+        let cleanId = (urlInput || '').trim();
+        if (cleanId.includes('watch?v=')) cleanId = cleanId.split('watch?v=')[1].split('&')[0];
+        if (cleanId.includes('live/')) cleanId = cleanId.split('live/')[1].split('?')[0];
+
+        if (!cleanId) return socket.emit('link-chat-result', { success: false, error: "Please paste a valid YouTube stream URL or Video ID." });
+
+        attachLiveChatStream(cleanId);
+        const chatId = await resolveLiveChatId(cleanId);
+        if (chatId) {
+            streamData.ytLiveChatId = chatId;
+            saveDataToDisk();
+            broadcastState();
+            socket.emit('link-chat-result', { success: true, chatId });
+        } else {
+            socket.emit('link-chat-result', { success: false, error: "Stream chat not active or YouTube API could not find it. Make sure stream is public/unlisted and currently LIVE." });
+        }
+    });
+
+    // 💬 TEST LIVE CHAT MESSAGE POST
     socket.on('admin-test-chat-post', async () => {
-        const testText = "Yo stream! Bot account is connected and ready to chat!";
+        const testText = "Yo stream! @RajivMacAi bot is connected and ready to chat!";
         const result = await postToYouTubeChat(testText);
         socket.emit('chat-post-result', result);
     });
@@ -812,12 +845,7 @@ io.on('connection', (socket) => {
         }
         if (local.ytAccessToken && !streamData.ytAccessToken) { streamData.ytAccessToken = local.ytAccessToken; changed = true; }
         if (local.ytAccountName && !streamData.ytAccountName) { streamData.ytAccountName = local.ytAccountName; changed = true; }
-        if (local.characterName) { streamData.characterName = local.characterName; changed = true; }
-        if (local.characterImage) { streamData.characterImage = local.characterImage; changed = true; }
-        if (local.ttsVoice) { streamData.ttsVoice = local.ttsVoice; changed = true; }
-        if (local.ttsPitch) { streamData.ttsPitch = local.ttsPitch; changed = true; }
-        if (local.ttsRate) { streamData.ttsRate = local.ttsRate; changed = true; }
-        if (local.characterPersona) { streamData.characterPersona = local.characterPersona; changed = true; }
+        if (local.ytTokenExpiresAt && !streamData.ytTokenExpiresAt) { streamData.ytTokenExpiresAt = parseInt(local.ytTokenExpiresAt); changed = true; }
 
         if (changed) {
             saveDataToDisk();
@@ -835,8 +863,8 @@ io.on('connection', (socket) => {
         broadcastState();
 
         const testMsg = (streamData.ttsVoice === 'female') 
-            ? `Namaste! Voice aur overlay bilkul active hain. Main hoon ${streamData.characterName}!` 
-            : `Yo! Voice aur overlay bilkul active hain. Main hoon ${streamData.characterName}!`;
+            ? `Namaste! Voice aur overlay ready hain. Main hoon ${streamData.characterName}!` 
+            : `Yo! Voice aur overlay ready hain. Main hoon ${streamData.characterName}!`;
 
         io.emit('ai-speak', {
             characterName: streamData.characterName,
