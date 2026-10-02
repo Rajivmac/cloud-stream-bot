@@ -2,7 +2,6 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const { LiveChat } = require('youtube-chat');
 const fs = require('fs');
 const path = require('path');
 
@@ -16,7 +15,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const DATA_FILE = path.join(__dirname, 'stream_data.json');
-const MAIN_CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ'; // Rajiv Pal Main Channel
+const MAIN_CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ'; // Streamer Rajiv Pal Main Channel
 
 let streamData = {
     deathCount: 0,
@@ -34,9 +33,9 @@ let streamData = {
     ttsPitch: 1.0,
     ttsRate: 1.0,
     aiCommand: '!ai',
-    characterName: 'Ryomen Sukuna',
+    characterName: 'AIBot',
     characterImage: 'https://images3.alphacoders.com/134/1344406.jpeg',
-    characterPersona: "You are the King of Curses, Ryomen Sukuna. Proud, condescending, and majestic. Treat ordinary viewers like mere brats. Reply in 1-2 royal punchy sentences in the viewer's language.",
+    characterPersona: "You are a witty, supportive, and energetic live stream AI gaming co-host. Reply in 1-2 punchy sentences in the viewer's language.",
     currentVideoId: '',
 
     modSettings: {
@@ -84,13 +83,14 @@ let userLastAiTime = {};
 let currentStatus = 'offline';
 let isTimerRunning = false;
 let lastEarnedTime = {};
+let lastStreamerBotPing = 0;
 
 function getDynamicCommandCatalog() {
     const aiCmd = streamData.aiCommand || '!ai';
     const cName = streamData.coinSettings.currencyName || 'Coins';
 
     const core = [
-        { cmd: `${aiCmd} <sawal>`, desc: `Talk to AI character (Cost: ${streamData.coinSettings.aiCost} ${cName})` },
+        { cmd: `${aiCmd} <sawal>`, desc: `Talk to AI (Cost: ${streamData.coinSettings.aiCost} ${cName})` },
         { cmd: '!tts <message>', desc: 'Speak message in stream voice' },
         { cmd: '!coins / !balance', desc: 'Check your balance' },
         { cmd: '!daily', desc: 'Claim free 50 coins every 24h' },
@@ -251,16 +251,16 @@ async function queryZeroKeyNeuralCloud(systemPrompt, userPrompt) {
 function generateInstantPersonaReply(userPrompt, username, userRole) {
     if (userRole === 'owner') {
         const bossReplies = [
-            `Streamer Boss, aapka hukum sar ankhon par! Game par focus karein!`,
-            `Aadab Boss! Match mein enemy ko tabah kardo!`,
-            `Boss! Match mein enemy ki dhajjiyan uda do, Sukuna aapke sath hai!`
+            `Streamer Boss, game par pura dhyan hai! Aaj match jeet kar rahenge!`,
+            `Aadab Boss! Aapka hukum sar ankhon par, game tabah kardo!`,
+            `Boss! Match mein enemy ki dhajjiyan uda do, main live chat sambhal raha hoon!`
         ];
         return bossReplies[Math.floor(Math.random() * bossReplies.length)];
     }
     if (userRole === 'mod') {
         return `Moderator ji! Chat discipline mein hai, aap game dekhein!`;
     }
-    return `@${username}, tera sawal sun kar maza aaya! Agla round dekh mera.`;
+    return `@${username}, tera sawal badiya hai! Round par focus karo.`;
 }
 
 async function askAI(userPrompt, username, userRole) {
@@ -290,10 +290,15 @@ function recordHistory(username, userPrompt, aiReply) {
     saveDataToDisk();
 }
 
-// 👑 Universal Chat Logic Processor (For both youtube-chat & Streamer.bot Webhook)
+// 👑 Universal Chat Logic Processor (Supports Streamer.bot & Webhook)
 async function processCoreChatLogic({ rawText, username, authorChannelId, isOwnerOverride, isModOverride, userAvatar }) {
-    const message = rawText.toLowerCase().trim();
+    let cleanRaw = (rawText || '').trim();
     const lowerName = (username || '').toLowerCase();
+
+    // Ignore bot's own echo
+    if (lowerName.includes('rajivmacai') || lowerName.includes('aibot')) {
+        return null;
+    }
 
     // 👑 100% BULLETPROOF STREAMER DETECTION (0 COINS, ALWAYS BOSS!)
     const isOwner = isOwnerOverride || 
@@ -309,16 +314,16 @@ async function processCoreChatLogic({ rawText, username, authorChannelId, isOwne
     // Auto-Moderation
     if (!isOwner && !isMod) {
         const ms = streamData.modSettings || {};
-        if (ms.blockLinks && /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|in|org|net|io|gg|tv)\b)/i.test(rawText)) {
+        if (ms.blockLinks && /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|in|org|net|io|gg|tv)\b)/i.test(cleanRaw)) {
             broadcastResponse(`⚠️ @${username}, live chat mein links allow nahi hain!`, false);
-            return { reply: `@${username}, links allow nahi hain!`, posted: true };
+            return { reply: `@${username}, links allow nahi hain!` };
         }
         if (ms.bannedWords) {
             const bannedList = ms.bannedWords.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0);
             for (const bad of bannedList) {
-                if (message.includes(bad)) {
+                if (cleanRaw.toLowerCase().includes(bad)) {
                     broadcastResponse(`⚠️ @${username}, inappropriate words allowed nahi hain.`, false);
-                    return { reply: `@${username}, language control karein.`, posted: true };
+                    return { reply: `@${username}, language control karein.` };
                 }
             }
         }
@@ -333,177 +338,38 @@ async function processCoreChatLogic({ rawText, username, authorChannelId, isOwne
         saveDataToDisk();
     }
 
-    // Commands List
-    if (message === '!commands' || message === '!help' || message === '!cmds') {
-        const catalog = getDynamicCommandCatalog();
-        const coreStr = catalog.core.map(c => c.cmd.split(' ')[0]).join(', ');
-        const gamesStr = "!gamble, !slots, !duel, !bet";
-        const resText = `📜 Commands 👉 [Core: ${coreStr}] | [Games: ${gamesStr}]`;
-        broadcastResponse(resText, false);
-        return { reply: resText, posted: true };
-    }
+    const message = cleanRaw.toLowerCase();
 
-    // Daily Claim
-    if (message === '!daily' || message === '!claim') {
-        if (!streamData.userDailyClaim) streamData.userDailyClaim = {};
-        const lastClaim = streamData.userDailyClaim[userKey] || 0;
-        const elapsed = now - lastClaim;
-        const twentyFourHours = 24 * 60 * 60 * 1000;
-
-        if (elapsed >= twentyFourHours) {
-            if (!streamData.userCoins[userKey]) streamData.userCoins[userKey] = 0;
-            streamData.userCoins[userKey] += 50;
-            streamData.userDailyClaim[userKey] = now;
-            saveDataToDisk();
-            broadcastState();
-            const resText = `🎁 @${username} ne Daily Bonus 🪙 50 ${cName} claim kiye! Balance: 🪙 ${streamData.userCoins[userKey]}`;
-            broadcastResponse(resText, false);
-            return { reply: resText, posted: true };
-        } else {
-            const remH = Math.floor((twentyFourHours - elapsed) / (1000 * 60 * 60));
-            const resText = `⏳ @${username}, already claimed! Next bonus in ${remH}h.`;
-            broadcastResponse(resText, false);
-            return { reply: resText, posted: true };
-        }
-    }
-
-    // Top Coins
-    if (message === '!topcoins' || message === '!leaderboard' || message === '!ranks') {
-        const entries = Object.entries(streamData.userCoins || {});
-        if (entries.length === 0) return { reply: `Abhi kisi ke paas ${cName} nahi hain!` };
-        entries.sort((a, b) => b[1] - a[1]);
-        const top3 = entries.slice(0, 3).map((e, idx) => `${idx + 1}. @${e[0]} (🪙${e[1]})`).join(' | ');
-        const resText = `🏆 Top Rich Viewers 👉 ${top3}`;
-        broadcastResponse(resText, false);
-        return { reply: resText, posted: true };
-    }
-
-    // Mini Game: Gamble
-    if (message.startsWith('!gamble ') || message.startsWith('!roulette ')) {
-        const parts = rawText.split(' ');
-        const amount = parseInt(parts[1]);
-        const currentBalance = streamData.userCoins[userKey] || 0;
-
-        if (isNaN(amount) || amount <= 0) return null;
-        if (currentBalance < amount) {
-            const resText = `@${username}, aapke paas gamble karne ke liye sirf 🪙 ${currentBalance} ${cName} hain!`;
-            broadcastResponse(resText, false);
-            return { reply: resText, posted: true };
-        }
-
-        const isWin = Math.random() < 0.50;
-        let resText = "";
-        if (isWin) {
-            streamData.userCoins[userKey] += amount;
-            resText = `🎲 [WIN!] @${username} ne 🪙 ${amount} gamble kiya aur JEET GAYA! Balance: 🪙 ${streamData.userCoins[userKey]} ${cName}`;
-        } else {
-            streamData.userCoins[userKey] -= amount;
-            resText = `💀 [LOSS!] @${username} ne 🪙 ${amount} gamble kiya aur HAAR GAYA! Balance: 🪙 ${streamData.userCoins[userKey]} ${cName}`;
-        }
-        saveDataToDisk();
-        broadcastState();
-        broadcastResponse(resText, false);
-        return { reply: resText, posted: true };
-    }
-
-    // Mini Game: Slots
-    if (message.startsWith('!slots ')) {
-        const parts = rawText.split(' ');
-        const amount = parseInt(parts[1]);
-        const currentBalance = streamData.userCoins[userKey] || 0;
-
-        if (isNaN(amount) || amount <= 0) return null;
-        if (currentBalance < amount) {
-            const resText = `@${username}, aapke paas slots ke liye sirf 🪙 ${currentBalance} ${cName} hain!`;
-            broadcastResponse(resText, false);
-            return { reply: resText, posted: true };
-        }
-
-        const symbols = ['🍒', '🍋', '🍇', '💎', '7️⃣'];
-        const s1 = symbols[Math.floor(Math.random() * symbols.length)];
-        const s2 = symbols[Math.floor(Math.random() * symbols.length)];
-        const s3 = symbols[Math.floor(Math.random() * symbols.length)];
-
-        let resText = "";
-        if (s1 === s2 && s2 === s3) {
-            const win = amount * 5;
-            streamData.userCoins[userKey] += (win - amount);
-            resText = `🎰 [${s1} | ${s2} | ${s3}] JACKPOT!! @${username} ne 5x jeeta (+🪙 ${win} ${cName})!`;
-        } else if (s1 === s2 || s2 === s3 || s1 === s3) {
-            const win = amount * 2;
-            streamData.userCoins[userKey] += (win - amount);
-            resText = `🎰 [${s1} | ${s2} | ${s3}] 2 MATCH! @${username} ne 2x jeeta (+🪙 ${win} ${cName})!`;
-        } else {
-            streamData.userCoins[userKey] -= amount;
-            resText = `🎰 [${s1} | ${s2} | ${s3}] No match! @${username} lost 🪙 ${amount} ${cName}.`;
-        }
-        saveDataToDisk();
-        broadcastState();
-        broadcastResponse(resText, false);
-        return { reply: resText, posted: true };
-    }
-
-    // Balance Check
-    if (message === '!coins' || message === '!balance' || message === '!maccoins') {
-        const balance = streamData.userCoins[userKey] || 0;
-        const resText = `@${username}, aapke paas 🪙 ${balance} ${cName} hain!`;
-        broadcastResponse(resText, false);
-        return { reply: resText, posted: true };
-    }
-
-    // Triggers / Redeems
-    const matchedTrigger = streamData.triggers.find(t => t.cmd && t.cmd.toLowerCase() === message);
-    if (matchedTrigger) {
-        const cost = parseInt(matchedTrigger.cost) || 0;
-        const currentBalance = streamData.userCoins[userKey] || 0;
-
-        if (cost > 0 && !isOwner && currentBalance < cost) {
-            const resText = `@${username}, '${matchedTrigger.name}' ke liye 🪙 ${cost} ${cName} chahiye!`;
-            broadcastResponse(resText, true);
-            return { reply: resText, posted: true };
-        }
-
-        if (cost > 0 && !isOwner) {
-            streamData.userCoins[userKey] -= cost;
-            saveDataToDisk();
-            broadcastState();
-        }
-
-        if (matchedTrigger.type === 'video') io.emit('play-meme', { mediaUrl: matchedTrigger.url, name: matchedTrigger.name, redeemedBy: username });
-        if (matchedTrigger.type === 'sfx') io.emit('play-sfx', { sfxUrl: matchedTrigger.url, name: matchedTrigger.name, redeemedBy: username });
-        return { reply: `Redeemed ${matchedTrigger.name}!`, posted: true };
-    }
-
-    // Custom Commands
-    const matchedCustom = streamData.customCommands.find(c => c.cmd.toLowerCase() === message);
-    if (matchedCustom) {
-        const replyPrefix = isOwner ? "Boss" : (isMod ? "Moderator ji" : `@${username}`);
-        const resText = `${replyPrefix}, ${matchedCustom.reply}`;
-        broadcastResponse(resText, matchedCustom.tts === true);
-        return { reply: resText, posted: true };
-    }
-
-    // AI Question (STREAMER KE LIYE 0 COINS - 100% FREE!)
+    // AI Question Detection (Handles both "!ai question" and direct "question" forwarded from Streamer.bot Command)
     const activeCommand = (streamData.aiCommand || '!ai').toLowerCase();
-    if (streamData.aiEnabled && (message.startsWith(activeCommand + ' ') || message === activeCommand)) {
+    const isAiTrigger = message.startsWith(activeCommand + ' ') || 
+                        message === activeCommand || 
+                        !cleanRaw.startsWith('!'); // If forwarded from !ai command in Streamer.bot, rawInput doesn't have "!"
+
+    if (streamData.aiEnabled && isAiTrigger) {
         if (!isOwner && !isMod) {
             const lastTime = userLastAiTime[userKey] || 0;
             if (Date.now() - lastTime < 15000) {
                 const resText = `⏳ @${username}, AI cooldown par ho!`;
                 broadcastResponse(resText, false);
-                return { reply: resText, posted: true };
+                return { reply: resText };
             }
             userLastAiTime[userKey] = Date.now();
         }
 
-        const question = rawText.slice(activeCommand.length).trim() || 'Kuch interesting batao!';
+        let question = cleanRaw;
+        if (question.toLowerCase().startsWith(activeCommand)) {
+            question = question.slice(activeCommand.length).trim();
+        }
+        question = question || 'Kuch interesting batao!';
+
         const currentCoins = streamData.userCoins[userKey] || 0;
         const cost = streamData.coinSettings.aiCost;
 
         if (cost > 0 && !isOwner && currentCoins < cost) {
-            const resText = `@${username}, AI se baat karne ke liye 🪙 ${cost} ${cName} chahiye!`;
+            const resText = `@${username}, AI ke liye 🪙 ${cost} ${cName} chahiye!`;
             broadcastResponse(resText, true);
-            return { reply: resText, posted: true };
+            return { reply: resText };
         }
 
         if (cost > 0 && !isOwner) {
@@ -514,33 +380,40 @@ async function processCoreChatLogic({ rawText, username, authorChannelId, isOwne
 
         const aiAnswer = await askAI(question, username, userRole);
         broadcastResponse(aiAnswer, true);
-        return { reply: aiAnswer, posted: true };
+        return { reply: aiAnswer };
     }
 
     return null;
 }
 
-// 🌐 Streamer.bot Webhook API Endpoint
-app.post('/api/streamerbot/chat', async (req, res) => {
+// 🌐 Streamer.bot Webhook API Endpoint (Plaintext Auto-Return)
+app.all('/api/streamerbot/chat', async (req, res) => {
     try {
-        const { user, message, isOwner, isMod, authorChannelId } = req.body;
-        if (!message) return res.status(400).json({ error: "No message" });
+        lastStreamerBotPing = Date.now();
+        io.emit('streamerbot-status', { online: true });
+
+        const user = req.body?.user || req.query?.user || 'Viewer';
+        const message = req.body?.message || req.query?.message || '';
+        const isOwner = Boolean(req.body?.isOwner || req.query?.isOwner);
+        const isMod = Boolean(req.body?.isMod || req.query?.isMod);
+
+        if (!message) return res.send("");
 
         const result = await processCoreChatLogic({
             rawText: message,
-            username: user || 'Viewer',
-            authorChannelId: authorChannelId || '',
-            isOwnerOverride: Boolean(isOwner),
-            isModOverride: Boolean(isMod),
+            username: user,
+            authorChannelId: '',
+            isOwnerOverride: isOwner,
+            isModOverride: isMod,
             userAvatar: 'https://cdn-icons-png.flaticon.com/512/847/847969.png'
         });
 
         if (result && result.reply) {
-            return res.json({ success: true, reply: result.reply });
+            return res.send(result.reply);
         }
-        return res.json({ success: true, reply: null });
+        return res.send("");
     } catch (err) {
-        return res.status(500).json({ error: err.message });
+        return res.send("");
     }
 });
 
@@ -553,6 +426,7 @@ const broadcastState = () => {
     io.emit('bet-update', getCalculatedBetData());
     io.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     io.emit('all-commands-catalog', getDynamicCommandCatalog());
+    io.emit('streamerbot-status', { online: (Date.now() - lastStreamerBotPing) < 60000 });
     saveDataToDisk();
 };
 
@@ -564,23 +438,7 @@ io.on('connection', (socket) => {
     socket.emit('bet-update', getCalculatedBetData());
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     socket.emit('all-commands-catalog', getDynamicCommandCatalog());
-
-    // Streamer.bot forward bridge
-    socket.on('streamerbot-event', async (data) => {
-        try {
-            if (data.event.type === 'Message') {
-                const item = data.data;
-                await processCoreChatLogic({
-                    rawText: item.message,
-                    username: item.user.name,
-                    authorChannelId: item.user.id,
-                    isOwnerOverride: Boolean(item.user.isOwner),
-                    isModOverride: Boolean(item.user.isModerator),
-                    userAvatar: item.user.avatarUrl
-                });
-            }
-        } catch(e) {}
-    });
+    socket.emit('streamerbot-status', { online: (Date.now() - lastStreamerBotPing) < 60000 });
 
     socket.on('admin-sync-local', (local) => {
         let changed = false;
