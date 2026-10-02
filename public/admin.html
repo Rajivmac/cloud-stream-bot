@@ -100,16 +100,17 @@
         .status-card {
             background: var(--surface);
             border: 1px solid var(--border);
-            padding: 10px 14px;
+            padding: 10px 12px;
             border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
+            gap: 6px;
         }
-        .status-badge { display: flex; align-items: center; gap: 6px; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        .status-badge { display: flex; align-items: center; gap: 5px; }
+        .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
         .dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
         .dot-orange { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
         .dot-red { background: var(--red); box-shadow: 0 0 8px var(--red); }
@@ -306,14 +307,19 @@
 
     <div class="main-viewport">
         
+        <!-- TRIPLE STATUS HEADER (STREAM, OBS, STREAMER.BOT) -->
         <div class="status-card">
             <div class="status-badge">
                 <span id="stream-dot" class="dot dot-red"></span>
-                <span id="stream-status-text">Stream Offline</span>
+                <span id="stream-status-text">Stream: Off</span>
             </div>
             <div class="status-badge">
                 <span id="obs-dot" class="dot dot-red"></span>
                 <span id="obs-status-text">OBS: Disconnected</span>
+            </div>
+            <div class="status-badge">
+                <span id="sb-dot" class="dot dot-red"></span>
+                <span id="sb-status-text">Streamer.bot: Off</span>
             </div>
         </div>
 
@@ -462,56 +468,36 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA -->
+        <!-- TAB 6: AI PERSONA (UPGRADED WITH STREAMER.BOT INTEGRATION) -->
         <div id="tab-ai" class="tab-content">
             
-            <div class="card">
+            <div class="card" style="border-left: 4px solid var(--cyan);">
                 <div class="section-title">
-                    <span>🔴 YouTube Bot Account (Posting in Live Chat)</span>
-                    <span id="google-status-badge" style="font-size:10px; color:var(--red);">Not Connected</span>
+                    <span>🤖 Streamer.bot Connection (Zero Quota / No 404)</span>
+                    <span id="sb-card-badge" style="font-size:10px; color:var(--red);">🔴 Disconnected</span>
                 </div>
 
-                <div id="google-logged-out-box">
-                    <label style="font-size:10px; color:var(--text-dim);">Google Client ID</label>
-                    <input type="text" id="google-client-id" placeholder="Paste Client ID here" style="font-size:11px;">
-
-                    <label style="font-size:10px; color:var(--text-dim);">Google Client Secret</label>
-                    <input type="password" id="google-client-secret" placeholder="Paste Client Secret here" style="font-size:11px;">
-
-                    <div class="grid-2">
-                        <button class="btn-submit" onclick="saveGoogleCredentials()">💾 Save IDs Permanently</button>
-                        <button style="background:linear-gradient(90deg, #ea4335, #c5221f); font-weight:800;" onclick="startGoogleLogin()">🔗 Sign in with Bot Channel</button>
+                <div class="grid-2">
+                    <div>
+                        <label style="font-size:10px; color:var(--text-dim);">Streamer.bot IP</label>
+                        <input type="text" id="sb-ip" placeholder="127.0.0.1" value="127.0.0.1" onchange="saveStreamerBotSettings()">
+                    </div>
+                    <div>
+                        <label style="font-size:10px; color:var(--text-dim);">WebSocket Port</label>
+                        <input type="text" id="sb-port" placeholder="8080" value="8080" onchange="saveStreamerBotSettings()">
                     </div>
                 </div>
 
-                <div id="google-logged-in-box" style="display:none; background:#161c2b; padding:12px; border-radius:8px; border:1px solid #2ecc71;">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <span style="font-size:10px; color:#2ecc71; font-weight:800;">CONNECTED AS BOT:</span>
-                            <div id="yt-account-display" style="font-size:13px; font-weight:700; color:#fff;">AIBot (@rajivmacai)</div>
-                            <span id="yt-quota-status" style="font-size:10px; color:var(--gold);">0 / 180 Msgs Sent Today</span>
-                        </div>
-                        <button style="background:#e74c3c; font-size:11px; padding:6px 10px;" onclick="disconnectGoogle()">Disconnect</button>
-                    </div>
+                <div class="grid-2" style="margin-top:2px;">
+                    <button class="btn-submit" onclick="connectStreamerBot()">⚡ Reconnect Streamer.bot</button>
+                    <button style="background:var(--green); color:#000; font-weight:800;" onclick="testStreamerBotMessage()">💬 Send Test Chat via Bot</button>
+                </div>
+                <div id="sb-test-status" style="font-size:11px; color:#aaa; margin-top:6px;">Streamer.bot active hone par test message live chat me post karein!</div>
 
-                    <!-- 🌟 1-CLICK LIVE STREAM CHAT LINKER -->
-                    <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #28334a;">
-                        <label style="font-size:10px; color:var(--cyan); font-weight:800; display:block; margin-bottom:4px;">⚡ LINK CURRENT LIVE STREAM CHAT</label>
-                        <div style="display:flex; gap:6px;">
-                            <input type="text" id="stream-link-input" placeholder="Paste live stream link (e.g. https://youtube.com/live/...)" style="margin-bottom:0; font-size:11px; flex:1;">
-                            <button id="btn-link-chat" style="background:var(--green); color:#000; font-weight:800; font-size:11px; padding:6px 14px; white-space:nowrap;" onclick="linkStreamChatId()">🔗 Link Chat ID</button>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
-                            <span id="livechat-id-badge" style="font-size:11px; color:var(--orange); font-weight:800;">Chat ID: 🔴 Not Linked</span>
-                            <button style="background:var(--cyan); color:#000; font-weight:800; font-size:11px; padding:6px 12px;" onclick="testPostToLiveChat()">💬 Send Test Message to Live Chat</button>
-                        </div>
-                        <div id="test-post-status" style="font-size:11px; color:#aaa; margin-top:4px;">Click button to verify if bot account can post in your YouTube live chat!</div>
-                    </div>
-
-                    <div class="row-toggle" style="margin-top:10px; margin-bottom:0;">
-                        <span>Post Bot Replies directly in Live Chat</span>
-                        <input type="checkbox" id="yt-enable-chat-send" checked onchange="toggleYTChatSend()">
-                    </div>
+                <div class="guide-box" style="margin-top:8px;">
+                    <b style="color:var(--cyan);">🔗 Local Webhook Endpoint for Streamer.bot:</b><br>
+                    Streamer.bot Sub-Action (Fetch URL) me yeh endpoint dalein:<br>
+                    <code id="webhook-url-display" style="color:var(--gold);">http://localhost:3000/api/streamerbot/chat</code>
                 </div>
             </div>
 
@@ -521,7 +507,7 @@
                     <span style="font-size:10px; color:var(--green); font-weight:900;">🟢 ZERO-KEY UNLIMITED ACTIVE</span>
                 </div>
                 <div style="font-size:11px; color:#aaa; line-height:1.5;">
-                    Kisi API key ki zaroorat nahi hai. Bot internal cloud se bina expire hue 24/7 unlimited replies dega!
+                    Pollinations AI Cloud active hai. Ryomen Sukuna personality bina kisi API key ya quota limit ke 24/7 punchy replies dega!
                 </div>
             </div>
 
@@ -720,12 +706,18 @@
     <script>
         const socket = io();
         const obs = new OBSWebSocket();
+        let sbSocket = null;
+        let isSbConnected = false;
 
         const streamDot = document.getElementById('stream-dot');
         const streamStatusText = document.getElementById('stream-status-text');
         const obsDot = document.getElementById('obs-dot');
         const obsStatusText = document.getElementById('obs-status-text');
         const obsInnerStatus = document.getElementById('obs-inner-status');
+        const sbDot = document.getElementById('sb-dot');
+        const sbStatusText = document.getElementById('sb-status-text');
+        const sbCardBadge = document.getElementById('sb-card-badge');
+
         const deathDisplay = document.getElementById('death-display');
         const adminTimerDisplay = document.getElementById('admin-timer-display');
         const scenesContainer = document.getElementById('scenes-container');
@@ -739,15 +731,8 @@
 
         let rawCatalogText = "";
 
-        // Safe Clean Video ID extractor
-        function extractCleanVideoId(input) {
-            if (!input) return "";
-            const str = input.trim();
-            const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:live\/|watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
-            if (match && match[1]) return match[1];
-            if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return str;
-            return str.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 11);
-        }
+        // Set live webhook URL in guide
+        document.getElementById('webhook-url-display').innerText = `${window.location.origin}/api/streamerbot/chat`;
 
         // Restore permanent vault
         function restoreVaultFields() {
@@ -756,8 +741,9 @@
             if (localStorage.getItem('bot_obsPass')) document.getElementById('obs-pass').value = localStorage.getItem('bot_obsPass');
             if (localStorage.getItem('bot_obsMic')) document.getElementById('obs-mic-name').value = localStorage.getItem('bot_obsMic');
 
-            if (localStorage.getItem('bot_googleClientId')) document.getElementById('google-client-id').value = localStorage.getItem('bot_googleClientId');
-            if (localStorage.getItem('bot_googleClientSecret')) document.getElementById('google-client-secret').value = localStorage.getItem('bot_googleClientSecret');
+            if (localStorage.getItem('bot_sbIp')) document.getElementById('sb-ip').value = localStorage.getItem('bot_sbIp');
+            if (localStorage.getItem('bot_sbPort')) document.getElementById('sb-port').value = localStorage.getItem('bot_sbPort');
+
             if (localStorage.getItem('bot_characterName')) document.getElementById('ai-name').value = localStorage.getItem('bot_characterName');
             if (localStorage.getItem('bot_characterImage')) {
                 document.getElementById('ai-image-url').value = localStorage.getItem('bot_characterImage');
@@ -766,45 +752,11 @@
             if (localStorage.getItem('bot_aiCmd')) document.getElementById('ai-cmd').value = localStorage.getItem('bot_aiCmd');
             if (localStorage.getItem('bot_ttsVoice')) document.getElementById('ai-voice-select').value = localStorage.getItem('bot_ttsVoice');
             if (localStorage.getItem('bot_characterPersona')) document.getElementById('ai-persona').value = localStorage.getItem('bot_characterPersona');
-
-            if (localStorage.getItem('bot_ytRefreshToken')) {
-                document.getElementById('google-logged-out-box').style.display = 'none';
-                document.getElementById('google-logged-in-box').style.display = 'block';
-                document.getElementById('google-status-badge').innerText = '🟢 Connected';
-                document.getElementById('google-status-badge').style.color = '#2ecc71';
-                document.getElementById('yt-account-display').innerText = localStorage.getItem('bot_ytAccountName') || 'AIBot (@rajivmacai)';
-            }
         }
         restoreVaultFields();
 
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('auth') === 'success') {
-            const acc = urlParams.get('account') || 'AIBot (@rajivmacai)';
-            const ref = urlParams.get('refresh') || '';
-            const accTok = urlParams.get('access') || '';
-            const exp = urlParams.get('expiresAt') || '';
-            const cid = urlParams.get('clientId') || '';
-            const csec = urlParams.get('clientSecret') || '';
-
-            localStorage.setItem('bot_ytAccountName', acc);
-            if (ref) localStorage.setItem('bot_ytRefreshToken', ref);
-            if (accTok) localStorage.setItem('bot_ytAccessToken', accTok);
-            if (exp) localStorage.setItem('bot_ytTokenExpiresAt', exp);
-            if (cid) localStorage.setItem('bot_googleClientId', cid);
-            if (csec) localStorage.setItem('bot_googleClientSecret', csec);
-
-            window.history.replaceState({}, document.title, window.location.pathname);
-            restoreVaultFields();
-        }
-
         socket.on('connect', () => {
             socket.emit('admin-sync-local', {
-                googleClientId: localStorage.getItem('bot_googleClientId') || '',
-                googleClientSecret: localStorage.getItem('bot_googleClientSecret') || '',
-                ytRefreshToken: localStorage.getItem('bot_ytRefreshToken') || '',
-                ytAccessToken: localStorage.getItem('bot_ytAccessToken') || '',
-                ytTokenExpiresAt: localStorage.getItem('bot_ytTokenExpiresAt') || '',
-                ytAccountName: localStorage.getItem('bot_ytAccountName') || '',
                 characterName: document.getElementById('ai-name').value.trim(),
                 characterImage: document.getElementById('ai-image-url').value.trim(),
                 ttsVoice: document.getElementById('ai-voice-select').value,
@@ -821,83 +773,110 @@
             localStorage.setItem('bot_obsMic', document.getElementById('obs-mic-name').value.trim());
         }
 
-        // 🔗 LINK STREAM CHAT ID (CLEANED REGEX PARSER)
-        function linkStreamChatId() {
-            const rawVal = document.getElementById('stream-link-input').value.trim();
-            const cleanId = extractCleanVideoId(rawVal);
-            const badge = document.getElementById('livechat-id-badge');
-            const statusDiv = document.getElementById('test-post-status');
-
-            if (!cleanId) {
-                alert("YouTube Live URL ya 11-digit Video ID enter karein!");
-                return;
-            }
-
-            badge.innerText = "Chat ID: 🟡 Connecting...";
-            badge.style.color = "var(--orange)";
-            statusDiv.innerText = "Live chat connect ki ja rahi hai...";
-            statusDiv.style.color = "var(--cyan)";
-            socket.emit('admin-link-stream-url', cleanId);
+        function saveStreamerBotSettings() {
+            localStorage.setItem('bot_sbIp', document.getElementById('sb-ip').value.trim());
+            localStorage.setItem('bot_sbPort', document.getElementById('sb-port').value.trim());
         }
 
-        socket.on('link-chat-result', (res) => {
-            const badge = document.getElementById('livechat-id-badge');
-            const statusDiv = document.getElementById('test-post-status');
-            if (res.success) {
-                badge.innerText = 'Chat ID: 🟢 Active';
-                badge.style.color = '#2ecc71';
-                statusDiv.innerText = `✅ Stream chat active (Chat ID: ${res.chatId.slice(0, 16)}...)`;
-                statusDiv.style.color = "#2ecc71";
-                alert("✅ Stream chat successfully linked!");
-            } else {
-                badge.innerText = 'Chat ID: 🔴 Not Linked';
-                badge.style.color = '#ff4757';
-                statusDiv.innerText = "❌ " + res.error;
-                statusDiv.style.color = "#ff4757";
-                alert("❌ Failed: " + res.error);
-            }
-        });
+        // Streamer.bot WebSocket Auto-Connector
+        function connectStreamerBot() {
+            saveStreamerBotSettings();
+            const ip = document.getElementById('sb-ip').value.trim() || '127.0.0.1';
+            const port = document.getElementById('sb-port').value.trim() || '8080';
 
-        // 💬 TEST LIVE CHAT MESSAGE POST
-        function testPostToLiveChat() {
-            const statusDiv = document.getElementById('test-post-status');
-            statusDiv.innerText = "Sending test message to live chat as AIBot...";
-            statusDiv.style.color = "var(--cyan)";
-            socket.emit('admin-test-chat-post');
+            try {
+                if (sbSocket) { sbSocket.close(); }
+                sbSocket = new WebSocket(`ws://${ip}:${port}/`);
+
+                sbSocket.onopen = () => {
+                    isSbConnected = true;
+                    sbDot.className = 'dot dot-green';
+                    sbStatusText.innerText = 'Streamer.bot: Live';
+                    sbCardBadge.innerText = '🟢 Connected';
+                    sbCardBadge.style.color = '#2ecc71';
+                    document.getElementById('sb-test-status').innerText = '✅ Streamer.bot successfully connected!';
+                    document.getElementById('sb-test-status').style.color = '#2ecc71';
+
+                    // Subscribe to YouTube events
+                    sbSocket.send(JSON.stringify({
+                        request: "Subscribe",
+                        events: {
+                            YouTube: ["Message", "SuperChat", "NewSubscriber", "NewSponsor"]
+                        },
+                        id: "stream-deck-sub"
+                    }));
+                };
+
+                sbSocket.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.event && msg.event.source === 'YouTube') {
+                            socket.emit('streamerbot-event', msg);
+                        }
+                    } catch(e) {}
+                };
+
+                sbSocket.onclose = () => {
+                    isSbConnected = false;
+                    sbDot.className = 'dot dot-red';
+                    sbStatusText.innerText = 'Streamer.bot: Off';
+                    sbCardBadge.innerText = '🔴 Disconnected';
+                    sbCardBadge.style.color = '#ff4757';
+                };
+
+                sbSocket.onerror = () => {
+                    isSbConnected = false;
+                    sbDot.className = 'dot dot-red';
+                    sbStatusText.innerText = 'Streamer.bot: Off';
+                    sbCardBadge.innerText = '🔴 Disconnected';
+                    sbCardBadge.style.color = '#ff4757';
+                };
+            } catch (err) {
+                isSbConnected = false;
+            }
         }
 
-        socket.on('chat-post-result', (res) => {
-            const statusDiv = document.getElementById('test-post-status');
-            const badge = document.getElementById('livechat-id-badge');
-            if (res.success) {
-                statusDiv.innerText = "✅ SUCCESS! Message posted in live chat by AIBot (@rajivmacai)!";
+        setInterval(() => { if (!isSbConnected) connectStreamerBot(); }, 5000);
+        connectStreamerBot();
+
+        function testStreamerBotMessage() {
+            const statusDiv = document.getElementById('sb-test-status');
+            const testText = "👑 Ryomen Sukuna AI Bot is connected via Streamer.bot!";
+
+            if (isSbConnected && sbSocket && sbSocket.readyState === WebSocket.OPEN) {
+                sbSocket.send(JSON.stringify({
+                    request: "DoAction",
+                    action: { name: "Send YouTube Message" },
+                    args: { message: testText },
+                    id: "test-msg"
+                }));
+                statusDiv.innerText = "✅ Test payload sent to Streamer.bot Action!";
                 statusDiv.style.color = "#2ecc71";
             } else {
-                statusDiv.innerText = "❌ " + res.error;
-                statusDiv.style.color = "#ff4757";
-                if (res.expired) {
-                    badge.innerText = 'Chat ID: 🔴 Expired / Offline';
-                    badge.style.color = '#ff4757';
-                }
+                fetch('/api/streamerbot/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user: 'Rajiv Pal', message: '!ai yo Sukuna', isOwner: true })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    statusDiv.innerText = `✅ Backend endpoint active! Reply: "${data.reply}"`;
+                    statusDiv.style.color = "#2ecc71";
+                })
+                .catch(e => {
+                    statusDiv.innerText = "❌ Streamer.bot connect nahi hai (Streamer.bot PC par open karein).";
+                    statusDiv.style.color = "#ff4757";
+                });
             }
-        });
+        }
 
         socket.on('stream-status', (data) => {
             if (data.status === 'online') {
                 streamDot.className = 'dot dot-green';
-                streamStatusText.innerText = 'Stream Online';
+                streamStatusText.innerText = 'Stream: Online';
             } else {
                 streamDot.className = 'dot dot-red';
-                streamStatusText.innerText = 'Stream Offline';
-            }
-
-            const chatBadge = document.getElementById('livechat-id-badge');
-            if (data.liveChatId) {
-                chatBadge.innerText = 'Chat ID: 🟢 Active';
-                chatBadge.style.color = '#2ecc71';
-            } else {
-                chatBadge.innerText = 'Chat ID: 🔴 Not Linked';
-                chatBadge.style.color = 'var(--orange)';
+                streamStatusText.innerText = 'Stream: Offline';
             }
         });
 
@@ -978,36 +957,6 @@
             alert("🛡️ Auto-Moderation settings saved!");
         }
 
-        function saveGoogleCredentials() {
-            const clientId = document.getElementById('google-client-id').value.trim();
-            const clientSecret = document.getElementById('google-client-secret').value.trim();
-            if (!clientId || !clientSecret) return alert("Credentials missing!");
-            localStorage.setItem('bot_googleClientId', clientId);
-            localStorage.setItem('bot_googleClientSecret', clientSecret);
-            socket.emit('admin-change-styles', { googleClientId: clientId, googleClientSecret: clientSecret });
-            alert("✅ Google IDs locked in Vault!");
-        }
-
-        function startGoogleLogin() {
-            saveGoogleCredentials();
-            window.location.href = "/auth/google";
-        }
-
-        function disconnectGoogle() {
-            if (confirm("Disconnect YouTube Bot Account?")) {
-                localStorage.removeItem('bot_ytRefreshToken');
-                localStorage.removeItem('bot_ytAccessToken');
-                localStorage.removeItem('bot_ytAccountName');
-                socket.emit('admin-disconnect-google');
-                document.getElementById('google-logged-out-box').style.display = 'block';
-                document.getElementById('google-logged-in-box').style.display = 'none';
-            }
-        }
-
-        function toggleYTChatSend() {
-            socket.emit('admin-change-styles', { enableYTChatSend: document.getElementById('yt-enable-chat-send').checked });
-        }
-
         function saveAISettings() {
             const img = document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg';
             const name = document.getElementById('ai-name').value.trim();
@@ -1036,32 +985,6 @@
         }
 
         socket.on('update-styles', (data) => {
-            if (data.googleClientId) document.getElementById('google-client-id').value = data.googleClientId;
-            if (data.googleClientSecret) document.getElementById('google-client-secret').value = data.googleClientSecret;
-
-            const loggedInBox = document.getElementById('google-logged-in-box');
-            const loggedOutBox = document.getElementById('google-logged-out-box');
-            const statusBadge = document.getElementById('google-status-badge');
-
-            if (data.ytRefreshToken || localStorage.getItem('bot_ytRefreshToken')) {
-                loggedOutBox.style.display = 'none';
-                loggedInBox.style.display = 'block';
-                statusBadge.innerText = '🟢 Connected';
-                statusBadge.style.color = '#2ecc71';
-                document.getElementById('yt-account-display').innerText = data.ytAccountName || localStorage.getItem('bot_ytAccountName') || "AIBot (@rajivmacai)";
-                document.getElementById('yt-enable-chat-send').checked = data.enableYTChatSend !== false;
-
-                const quotaBadge = document.getElementById('yt-quota-status');
-                const sent = data.ytMessagesSentToday || 0;
-                if (data.ytQuotaExhausted) {
-                    quotaBadge.innerText = '🔴 Quota Exhausted';
-                    quotaBadge.style.color = 'var(--red)';
-                } else {
-                    quotaBadge.innerText = `${sent} / 180 Msgs Sent Today`;
-                    quotaBadge.style.color = 'var(--gold)';
-                }
-            }
-
             if (data.characterName) document.getElementById('ai-name').value = data.characterName;
             if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
             if (data.characterImage) {
