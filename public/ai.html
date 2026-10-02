@@ -12,7 +12,6 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
-        /* 🌟 SINGLE MERGED ALERT CARD */
         #alert-box {
             display: none;
             align-items: center;
@@ -26,7 +25,6 @@
             box-sizing: border-box;
         }
 
-        /* 💎 DYNAMIC SUPER CHAT COLOR TIERS */
         .tier-blue {
             background: linear-gradient(135deg, #0984e3, #00cec9) !important;
             border: 3px solid #74b9ff !important;
@@ -80,7 +78,6 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.4);
             flex-shrink: 0;
             background: #111;
-            transition: all 0.2s ease;
         }
 
         .alert-content-col {
@@ -115,7 +112,6 @@
             line-height: 1.35;
         }
 
-        /* 💬 AI CHARACTER SPEECH BUBBLE */
         #ai-container {
             display: none;
             align-items: flex-start;
@@ -143,10 +139,8 @@
             box-shadow: 0 0 15px rgba(0, 210, 211, 0.6);
             flex-shrink: 0;
             background: #0b0e14;
-            transition: all 0.25s ease;
         }
 
-        /* 🎙️ REFINEMENT: TALKING GLOW PULSE ANIMATION */
         .talking-pulse {
             animation: pulseGlow 0.85s infinite alternate !important;
         }
@@ -191,7 +185,6 @@
 
     <audio id="tts-audio" style="display:none;"></audio>
 
-    <!-- 🌟 MERGED UNIFIED ALERT CARD -->
     <div id="alert-box">
         <img id="alert-user-img" class="alert-avatar-img" src="https://cdn-icons-png.flaticon.com/512/847/847969.png" alt="User">
         <div class="alert-content-col">
@@ -203,7 +196,6 @@
         </div>
     </div>
 
-    <!-- 💬 AI SPEECH BUBBLE -->
     <div id="ai-container">
         <img id="avatar" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar">
         <div class="content">
@@ -241,7 +233,6 @@
             try {
                 if (!audioCtx) {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    
                     bassFilter = audioCtx.createBiquadFilter();
                     bassFilter.type = "lowshelf";
                     bassFilter.frequency.value = 220;
@@ -261,7 +252,6 @@
             } catch(e) {}
         }
 
-        // 🔔 REFINEMENT: SOFT UI CHIME (SYNTHESIZED ZERO-DELAY TONE)
         function playSoftChime() {
             try {
                 initToneEqualizer();
@@ -270,8 +260,8 @@
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.type = 'sine';
-                osc.frequency.setValueAtTime(587.33, now); // D5
-                osc.frequency.exponentialRampToValueAtTime(880, now + 0.08); // A5
+                osc.frequency.setValueAtTime(587.33, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.08);
                 gain.gain.setValueAtTime(0.12, now);
                 gain.gain.exponentialRampToValueAtTime(0.001, now + 0.32);
                 osc.connect(gain);
@@ -319,7 +309,6 @@
             return parseFloat(num) || 0;
         }
 
-        // 🌟 MERGED ALERT + TTS AUDIO HANDLER
         function handleUnifiedAlert(data) {
             playSoftChime();
             alertBox.className = '';
@@ -327,8 +316,6 @@
 
             if (data.alertType === 'superchat') {
                 const numericAmount = parseAmountNumeric(data.amount);
-                
-                // DYNAMIC COLOR TIERS
                 if (numericAmount >= 500) {
                     alertBox.classList.add('tier-red');
                 } else if (numericAmount >= 100) {
@@ -424,7 +411,8 @@
             };
 
             audioPlayer.onended = done;
-            safetyTimeout = setTimeout(done, 9000);
+            audioPlayer.onerror = done; // Fail-safe: if audio fails, do not hang queue!
+            safetyTimeout = setTimeout(done, 8500);
 
             audioPlayer.src = `/api/tts?voice=${selectedVoice}&text=${encodeURIComponent(cleanText)}&t=${Date.now()}`;
             audioPlayer.volume = 1.0;
@@ -440,9 +428,6 @@
             }
         }
 
-        // ==========================================
-        // 📡 LISTENERS
-        // ==========================================
         socket.on('ai-speak', (data) => {
             enqueueEvent({
                 type: 'speak',
