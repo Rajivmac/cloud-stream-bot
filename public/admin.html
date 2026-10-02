@@ -494,11 +494,11 @@
                         <button style="background:#e74c3c; font-size:11px; padding:6px 10px;" onclick="disconnectGoogle()">Disconnect</button>
                     </div>
 
-                    <!-- 🌟 BULLETPROOF LIVE STREAM CHAT LINKER -->
+                    <!-- 🌟 1-CLICK LIVE STREAM CHAT LINKER -->
                     <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #28334a;">
                         <label style="font-size:10px; color:var(--cyan); font-weight:800; display:block; margin-bottom:4px;">⚡ LINK CURRENT LIVE STREAM CHAT</label>
                         <div style="display:flex; gap:6px;">
-                            <input type="text" id="stream-link-input" placeholder="Paste live stream link or Video ID" style="margin-bottom:0; font-size:11px; flex:1;">
+                            <input type="text" id="stream-link-input" placeholder="Paste live stream link (e.g. https://youtube.com/live/...)" style="margin-bottom:0; font-size:11px; flex:1;">
                             <button id="btn-link-chat" style="background:var(--green); color:#000; font-weight:800; font-size:11px; padding:6px 14px; white-space:nowrap;" onclick="linkStreamChatId()">🔗 Link Chat ID</button>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
@@ -826,14 +826,17 @@
             const rawVal = document.getElementById('stream-link-input').value.trim();
             const cleanId = extractCleanVideoId(rawVal);
             const badge = document.getElementById('livechat-id-badge');
+            const statusDiv = document.getElementById('test-post-status');
 
             if (!cleanId) {
                 alert("YouTube Live URL ya 11-digit Video ID enter karein!");
                 return;
             }
 
-            badge.innerText = "Linking Chat ID...";
+            badge.innerText = "Chat ID: 🟡 Connecting...";
             badge.style.color = "var(--orange)";
+            statusDiv.innerText = "Live chat connect ki ja rahi hai...";
+            statusDiv.style.color = "var(--cyan)";
             socket.emit('admin-link-stream-url', cleanId);
         }
 
@@ -849,7 +852,7 @@
             } else {
                 badge.innerText = 'Chat ID: 🔴 Not Linked';
                 badge.style.color = '#ff4757';
-                statusDiv.innerText = "❌ Link Failed: " + res.error;
+                statusDiv.innerText = "❌ " + res.error;
                 statusDiv.style.color = "#ff4757";
                 alert("❌ Failed: " + res.error);
             }
@@ -865,12 +868,17 @@
 
         socket.on('chat-post-result', (res) => {
             const statusDiv = document.getElementById('test-post-status');
+            const badge = document.getElementById('livechat-id-badge');
             if (res.success) {
                 statusDiv.innerText = "✅ SUCCESS! Message posted in live chat by AIBot (@rajivmacai)!";
                 statusDiv.style.color = "#2ecc71";
             } else {
-                statusDiv.innerText = "❌ FAILED: " + res.error;
+                statusDiv.innerText = "❌ " + res.error;
                 statusDiv.style.color = "#ff4757";
+                if (res.expired) {
+                    badge.innerText = 'Chat ID: 🔴 Expired / Offline';
+                    badge.style.color = '#ff4757';
+                }
             }
         });
 
