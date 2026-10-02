@@ -14,7 +14,7 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 
 const DATA_FILE = path.join(__dirname, 'stream_data.json');
-const MAIN_CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ'; // Aapka Main YouTube Channel
+const MAIN_CHANNEL_ID = 'UCjckDwkpw4xQAPlF5NEm2tQ'; // Aapka Main Channel ID
 
 let streamData = {
     deathCount: 0,
@@ -358,9 +358,7 @@ async function ensureValidAccessToken() {
     return true;
 }
 
-// ========================================================
-// 🤖 POST TO YOUTUBE CHAT (BOT ACCOUNT)
-// ========================================================
+// Post messages back to live chat via bot account
 async function postToYouTubeChat(messageText) {
     if (!streamData.enableYTChatSend || streamData.ytQuotaExhausted) return;
     const hasToken = await ensureValidAccessToken();
@@ -649,10 +647,7 @@ async function autoDetectStreamLoop() {
     isSearchingStream = true;
 
     try {
-        // Try API first
         let detectedId = await detectLiveIdViaAPI();
-        
-        // If not found, try Mobile Scraper
         if (!detectedId) {
             detectedId = await detectLiveIdViaMobileRedirect();
         }
@@ -676,7 +671,7 @@ async function handleChatMessage(chatItem) {
     const authorChannelId = chatItem.author.channelId || '';
     const lowerName = username.toLowerCase();
 
-    // 👑 100% BULLETPROOF STREAMER DETECTION (0 COINS, ALWAYS BOSS!)
+    // 👑 100% STREAMER DETECTION (0 COINS, ALWAYS BOSS!)
     const isOwner = (authorChannelId === MAIN_CHANNEL_ID) || 
                     lowerName.includes('rajiv') || 
                     lowerName.includes('mac_s') ||
@@ -812,7 +807,7 @@ async function handleChatMessage(chatItem) {
 
         if (isNaN(amount) || amount <= 0) return;
         if (currentBalance < amount) {
-            broadcastResponse(`@${username}, aapke paas gamble ke liye sirf 🪙 ${currentBalance} ${cName} hain!`, false);
+            broadcastResponse(`@${username}, aapke paas gamble karne ke liye sirf 🪙 ${currentBalance} ${cName} hain!`, false);
             return;
         }
 
@@ -1111,10 +1106,6 @@ io.on('connection', (socket) => {
     socket.emit('bet-update', getCalculatedBetData());
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     socket.emit('all-commands-catalog', getDynamicCommandCatalog());
-
-    socket.on('admin-force-detect-stream', () => {
-        autoDetectStreamLoop();
-    });
 
     socket.on('admin-sync-local', (local) => {
         let changed = false;
