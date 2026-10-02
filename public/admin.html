@@ -300,7 +300,7 @@
         <button class="nav-btn" onclick="switchTab('ai')"><span>🤖</span> AI Persona</button>
         <button class="nav-btn" onclick="switchTab('automod')"><span>🛡️</span> Auto-Mod</button>
         <button class="nav-btn" onclick="switchTab('commands')"><span>💬</span> Commands</button>
-        <button class="nav-btn" onclick="switchTab('customizer')"><span>🎨</span> Styles</button>
+        <button class="nav-btn" onclick="switchTab('customizer')"><span>🎨</span> Styles & OBS</button>
         <button class="nav-btn" onclick="switchTab('add')"><span>➕</span> Add Item</button>
     </div>
 
@@ -381,7 +381,7 @@
 
                     <div class="grid-2" style="margin-top:10px;">
                         <button style="background:var(--orange); font-size:12px;" onclick="socket.emit('admin-lock-bet')">🔒 Lock Voting</button>
-                        <button style="background:#e74c3c; font-size:12px;" onclick="endPollNow()">⏹️ End Poll (Hide)</button>
+                        <button style="background:#e74c3c; font-size:12px;" onclick="endPollNow()">⏹️️ End Poll (Hide)</button>
                     </div>
                 </div>
 
@@ -632,7 +632,7 @@
             </div>
         </div>
 
-        <!-- TAB 9: STYLES & OBS -->
+        <!-- TAB 9: STYLES & OBS (WITH PERMANENT PASSWORD VAULT) -->
         <div id="tab-customizer" class="tab-content">
             <div class="card">
                 <div class="section-title">🎨 Fonts & Themes</div>
@@ -658,15 +658,18 @@
                 </div>
             </div>
 
-            <div class="card">
-                <div class="section-title">🔌 OBS Connection</div>
-                <div class="grid-2">
-                    <input type="text" id="obs-ip" placeholder="IP (127.0.0.1)" value="127.0.0.1">
-                    <input type="text" id="obs-port" placeholder="Port (4455)" value="4455">
+            <div class="card" style="border-left: 4px solid var(--blue);">
+                <div class="section-title">
+                    <span>🔌 OBS WebSocket Auto-Connect (Permanent Vault)</span>
+                    <span id="obs-inner-status" style="font-size:10px; color:var(--red);">🔴 Disconnected</span>
                 </div>
-                <input type="password" id="obs-pass" placeholder="Password (Empty if none)">
-                <input type="text" id="obs-mic-name" placeholder="Mic Name" value="Mic/Aux">
-                <button class="btn-submit" onclick="manualSaveAndConnect()">Force Connect OBS</button>
+                <div class="grid-2">
+                    <input type="text" id="obs-ip" placeholder="IP (127.0.0.1)" value="127.0.0.1" onchange="saveObsSettings()">
+                    <input type="text" id="obs-port" placeholder="Port (4455)" value="4455" onchange="saveObsSettings()">
+                </div>
+                <input type="password" id="obs-pass" placeholder="OBS WebSocket Password" onchange="saveObsSettings()">
+                <input type="text" id="obs-mic-name" placeholder="Mic Name in OBS (e.g. Mic/Aux)" value="Mic/Aux" onchange="saveObsSettings()">
+                <button class="btn-submit" onclick="manualSaveAndConnect()">💾 Save Password & Connect OBS</button>
             </div>
         </div>
 
@@ -699,6 +702,7 @@
         const streamStatusText = document.getElementById('stream-status-text');
         const obsDot = document.getElementById('obs-dot');
         const obsStatusText = document.getElementById('obs-status-text');
+        const obsInnerStatus = document.getElementById('obs-inner-status');
         const deathDisplay = document.getElementById('death-display');
         const adminTimerDisplay = document.getElementById('admin-timer-display');
         const scenesContainer = document.getElementById('scenes-container');
@@ -729,7 +733,16 @@
             window.history.replaceState({}, document.title, window.location.pathname);
         }
 
+        // ==========================================
+        // 🔒 PERMANENT LOCALSTORAGE RESTORE
+        // ==========================================
         function restoreVaultFields() {
+            // Restore OBS settings & password
+            if (localStorage.getItem('bot_obsIp')) document.getElementById('obs-ip').value = localStorage.getItem('bot_obsIp');
+            if (localStorage.getItem('bot_obsPort')) document.getElementById('obs-port').value = localStorage.getItem('bot_obsPort');
+            if (localStorage.getItem('bot_obsPass')) document.getElementById('obs-pass').value = localStorage.getItem('bot_obsPass');
+            if (localStorage.getItem('bot_obsMic')) document.getElementById('obs-mic-name').value = localStorage.getItem('bot_obsMic');
+
             if (localStorage.getItem('bot_googleClientId')) {
                 document.getElementById('google-client-id').value = localStorage.getItem('bot_googleClientId');
             }
@@ -771,6 +784,13 @@
         }
         restoreVaultFields();
 
+        function saveObsSettings() {
+            localStorage.setItem('bot_obsIp', document.getElementById('obs-ip').value.trim());
+            localStorage.setItem('bot_obsPort', document.getElementById('obs-port').value.trim());
+            localStorage.setItem('bot_obsPass', document.getElementById('obs-pass').value.trim());
+            localStorage.setItem('bot_obsMic', document.getElementById('obs-mic-name').value.trim());
+        }
+
         socket.on('connect', () => {
             socket.emit('admin-sync-local', {
                 googleClientId: localStorage.getItem('bot_googleClientId') || '',
@@ -793,7 +813,7 @@
                 streamStatusText.innerText = 'Stream Online';
             } else if (data.status === 'retrying') {
                 streamDot.className = 'dot dot-orange';
-                streamStatusText.innerText = 'Searching Stream...';
+                streamStatusText.innerText = 'Auto-Detecting Stream...';
             } else {
                 streamDot.className = 'dot dot-red';
                 streamStatusText.innerText = 'Stream Offline';
@@ -1175,23 +1195,30 @@
             });
         }
 
+        // ==========================================
+        // 🔌 ROBUST OBS WEBSOCKET CONNECTION
+        // ==========================================
         let isObsConnected = false;
         async function connectToOBS() {
             if (isObsConnected) return;
-            const ip = document.getElementById('obs-ip').value.trim() || '127.0.0.1';
-            const port = document.getElementById('obs-port').value.trim() || '4455';
-            const password = document.getElementById('obs-pass').value.trim();
+            const ip = document.getElementById('obs-ip').value.trim() || localStorage.getItem('bot_obsIp') || '127.0.0.1';
+            const port = document.getElementById('obs-port').value.trim() || localStorage.getItem('bot_obsPort') || '4455';
+            const password = document.getElementById('obs-pass').value.trim() || localStorage.getItem('bot_obsPass') || '';
 
             try {
                 await obs.connect(`ws://${ip}:${port}`, password || undefined);
                 isObsConnected = true;
                 obsDot.className = 'dot dot-green';
                 obsStatusText.innerText = 'OBS: Connected';
+                obsInnerStatus.innerText = '🟢 Connected';
+                obsInnerStatus.style.color = '#2ecc71';
                 updateMicState();
             } catch (err) {
                 isObsConnected = false;
                 obsDot.className = 'dot dot-red';
                 obsStatusText.innerText = 'OBS: Disconnected';
+                obsInnerStatus.innerText = '🔴 Disconnected';
+                obsInnerStatus.style.color = '#ff4757';
             }
         }
 
@@ -1199,14 +1226,18 @@
             isObsConnected = false;
             obsDot.className = 'dot dot-red';
             obsStatusText.innerText = 'OBS: Disconnected';
+            obsInnerStatus.innerText = '🔴 Disconnected';
+            obsInnerStatus.style.color = '#ff4757';
         });
 
         function manualSaveAndConnect() {
+            saveObsSettings();
             isObsConnected = false;
             connectToOBS();
+            alert("Password saved in Vault! Reconnecting to OBS...");
         }
 
-        setInterval(() => { if (!isObsConnected) connectToOBS(); }, 5000);
+        setInterval(() => { if (!isObsConnected) connectToOBS(); }, 4000);
         connectToOBS();
 
         async function updateMicState() {
