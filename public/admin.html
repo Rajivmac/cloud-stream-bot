@@ -356,7 +356,7 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA & BOT LIVE CHAT TEST -->
+        <!-- TAB 6: AI PERSONA & BOT LIVE CHAT ACCOUNT -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
@@ -382,19 +382,24 @@
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
                             <span style="font-size:10px; color:#2ecc71; font-weight:800;">CONNECTED AS BOT:</span>
-                            <div id="yt-account-display" style="font-size:13px; font-weight:700; color:#fff;">Bot Channel</div>
+                            <div id="yt-account-display" style="font-size:13px; font-weight:700; color:#fff;">AIBot (@RajivMacAi)</div>
                             <span id="yt-quota-status" style="font-size:10px; color:var(--gold);">0 / 180 Msgs Sent Today</span>
                         </div>
                         <button style="background:#e74c3c; font-size:11px; padding:6px 10px;" onclick="disconnectGoogle()">Disconnect</button>
                     </div>
 
-                    <!-- 🌟 LIVE CHAT POSTING MONITOR & TEST BUTTON -->
+                    <!-- 🌟 1-CLICK LIVE STREAM CHAT LINKER -->
                     <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #28334a;">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                            <span id="livechat-id-badge" style="font-size:11px; color:var(--orange); font-weight:800;">Chat ID: Searching...</span>
+                        <label style="font-size:10px; color:var(--cyan); font-weight:800; display:block; margin-bottom:4px;">⚡ LINK CURRENT LIVE STREAM CHAT</label>
+                        <div style="display:flex; gap:6px;">
+                            <input type="text" id="stream-link-input" placeholder="Paste current live stream YouTube link or Video ID" style="margin-bottom:0; font-size:11px; flex:1;">
+                            <button style="background:var(--green); color:#000; font-weight:800; font-size:11px; padding:6px 14px; white-space:nowrap;" onclick="linkStreamChatId()">🔗 Link Chat ID</button>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                            <span id="livechat-id-badge" style="font-size:11px; color:var(--orange); font-weight:800;">Chat ID: 🔴 Not Linked</span>
                             <button style="background:var(--cyan); color:#000; font-weight:800; font-size:11px; padding:6px 12px;" onclick="testPostToLiveChat()">💬 Send Test Message to Live Chat</button>
                         </div>
-                        <div id="test-post-status" style="font-size:11px; color:#aaa;">Click button to verify if bot account can post in your YouTube live chat!</div>
+                        <div id="test-post-status" style="font-size:11px; color:#aaa; margin-top:4px;">Click button to verify if bot account can post in your YouTube live chat!</div>
                     </div>
 
                     <div class="row-toggle" style="margin-top:10px; margin-bottom:0;">
@@ -576,10 +581,30 @@
                 document.getElementById('google-logged-in-box').style.display = 'block';
                 document.getElementById('google-status-badge').innerText = '🟢 Connected';
                 document.getElementById('google-status-badge').style.color = '#2ecc71';
-                document.getElementById('yt-account-display').innerText = localStorage.getItem('bot_ytAccountName') || 'YouTube Bot Connected';
+                document.getElementById('yt-account-display').innerText = localStorage.getItem('bot_ytAccountName') || 'AIBot (@RajivMacAi)';
             }
         }
         restoreVaultFields();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('auth') === 'success') {
+            const acc = urlParams.get('account') || 'AIBot (@RajivMacAi)';
+            const ref = urlParams.get('refresh') || '';
+            const accTok = urlParams.get('access') || '';
+            const exp = urlParams.get('expiresAt') || '';
+            const cid = urlParams.get('clientId') || '';
+            const csec = urlParams.get('clientSecret') || '';
+
+            localStorage.setItem('bot_ytAccountName', acc);
+            if (ref) localStorage.setItem('bot_ytRefreshToken', ref);
+            if (accTok) localStorage.setItem('bot_ytAccessToken', accTok);
+            if (exp) localStorage.setItem('bot_ytTokenExpiresAt', exp);
+            if (cid) localStorage.setItem('bot_googleClientId', cid);
+            if (csec) localStorage.setItem('bot_googleClientSecret', csec);
+
+            window.history.replaceState({}, document.title, window.location.pathname);
+            restoreVaultFields();
+        }
 
         function saveObsSettings() {
             localStorage.setItem('bot_obsIp', document.getElementById('obs-ip').value.trim());
@@ -588,10 +613,32 @@
             localStorage.setItem('bot_obsMic', document.getElementById('obs-mic-name').value.trim());
         }
 
+        // 🔗 LINK STREAM CHAT ID
+        function linkStreamChatId() {
+            const inputVal = document.getElementById('stream-link-input').value.trim();
+            const badge = document.getElementById('livechat-id-badge');
+            badge.innerText = "Linking Chat ID...";
+            badge.style.color = "var(--orange)";
+            socket.emit('admin-link-stream-url', inputVal);
+        }
+
+        socket.on('link-chat-result', (res) => {
+            const badge = document.getElementById('livechat-id-badge');
+            if (res.success) {
+                badge.innerText = 'Chat ID: 🟢 Active';
+                badge.style.color = '#2ecc71';
+                alert("✅ Successfully connected to stream live chat!");
+            } else {
+                badge.innerText = 'Chat ID: 🔴 Not Linked';
+                badge.style.color = '#ff4757';
+                alert("❌ Failed: " + res.error);
+            }
+        });
+
         // 💬 TEST LIVE CHAT MESSAGE POST
         function testPostToLiveChat() {
             const statusDiv = document.getElementById('test-post-status');
-            statusDiv.innerText = "Sending test message to live chat as bot...";
+            statusDiv.innerText = "Sending test message to live chat as AIBot...";
             statusDiv.style.color = "var(--cyan)";
             socket.emit('admin-test-chat-post');
         }
@@ -599,7 +646,7 @@
         socket.on('chat-post-result', (res) => {
             const statusDiv = document.getElementById('test-post-status');
             if (res.success) {
-                statusDiv.innerText = "✅ SUCCESS! Message posted in live chat by your bot channel!";
+                statusDiv.innerText = "✅ SUCCESS! Message posted in live chat by AIBot (@RajivMacAi)!";
                 statusDiv.style.color = "#2ecc71";
             } else {
                 statusDiv.innerText = "❌ FAILED: " + res.error;
