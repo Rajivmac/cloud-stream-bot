@@ -221,21 +221,6 @@ app.get('/api/tts', async (req, res) => {
                     }
                 }
             } catch(e) {}
-
-            try {
-                const seUrl = `https://api.streamelements.com/kappa/v2/speech?voice=Brian&text=${encodeURIComponent(text)}`;
-                const seRes = await fetch(seUrl, {
-                    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
-                });
-                if (seRes.ok) {
-                    const buf = Buffer.from(await seRes.arrayBuffer());
-                    if (buf.length > 300) {
-                        res.setHeader('Content-Type', 'audio/mpeg');
-                        res.setHeader('Access-Control-Allow-Origin', '*');
-                        return res.send(buf);
-                    }
-                }
-            } catch(e) {}
         }
         res.status(500).send("TTS Error");
     } catch(err) {
@@ -277,7 +262,9 @@ app.get('/oauth2callback', async (req, res) => {
             })
         });
 
-        const tokenData = await tokenRes.json();
+        const tokenText = await tokenRes.text();
+        let tokenData = {};
+        try { tokenData = JSON.parse(tokenText); } catch(e) {}
 
         if (tokenData.access_token) {
             streamData.ytAccessToken = tokenData.access_token;
@@ -316,14 +303,14 @@ app.get('/oauth2callback', async (req, res) => {
 
             res.redirect(`/admin.html?${params.toString()}`);
         } else {
-            res.send("Token Exchange Error: " + JSON.stringify(tokenData));
+            res.send("Token Exchange Error: " + tokenText);
         }
     } catch (err) {
         res.send("OAuth Error: " + err.message);
     }
 });
 
-// Force Token Refresh
+// Safe Token Refresh
 async function forceRefreshToken() {
     if (!streamData.ytRefreshToken) return false;
     const clientId = streamData.googleClientId || process.env.GOOGLE_CLIENT_ID;
@@ -341,7 +328,13 @@ async function forceRefreshToken() {
                 grant_type: "refresh_token"
             })
         });
-        const tokenData = await tokenRes.json();
+
+        const tokenText = await tokenRes.text();
+        if (!tokenText || tokenText.trim().length === 0) return false;
+
+        let tokenData = {};
+        try { tokenData = JSON.parse(tokenText); } catch(e) { return false; }
+
         if (tokenData.access_token) {
             streamData.ytAccessToken = tokenData.access_token;
             streamData.ytTokenExpiresAt = Date.now() + ((tokenData.expires_in || 3600) * 1000);
@@ -360,24 +353,22 @@ async function ensureValidAccessToken() {
     return await forceRefreshToken();
 }
 
-// ========================================================
-// 🤖 ROBUST POST TO YOUTUBE LIVE CHAT (AUTO-RETRY ON 401)
-// ========================================================
+// Post Message to Live Chat
 async function postToYouTubeChat(messageText, isTest = false) {
     if (!isTest && !streamData.enableYTChatSend) {
-        return { success: false, error: "Settings mein 'Post Bot Replies directly in Live Chat' ko check karein!" };
+        return { success: false, error: "Settings mein 'Post Bot Replies directly in Live Chat' checked nahi hai." };
     }
     if (streamData.ytQuotaExhausted) {
-        return { success: false, error: "Daily YouTube quota reached (180 msgs)." };
+        return { success: false, error: "Daily YouTube quota reached (180 messages)." };
     }
 
     await ensureValidAccessToken();
     if (!streamData.ytAccessToken) {
-        return { success: false, error: "Bot YouTube account not connected. Please login again in AI Persona tab." };
+        return { success: false, error: "Bot YouTube account not connected. AI Persona tab se login karein." };
     }
 
     if (!streamData.ytLiveChatId) {
-        return { success: false, error: "Live Chat ID not found. Ensure stream is online or click 'Link Chat ID'." };
+        return { success: false, error: "Live Chat ID not found. Ensure stream is online." };
     }
 
     try {
@@ -396,12 +387,9 @@ async function postToYouTubeChat(messageText, isTest = false) {
             })
         });
 
-        // If token was rejected (401), force refresh and retry once!
         if (res.status === 401) {
             const refreshed = await forceRefreshToken();
-            if (refreshed) {
-                return await postToYouTubeChat(messageText, isTest);
-            }
+            if (refreshed) return await postToYouTubeChat(messageText, isTest);
         }
 
         const rawText = await res.text();
@@ -416,7 +404,7 @@ async function postToYouTubeChat(messageText, isTest = false) {
             broadcastState();
             return { success: true };
         } else {
-            const errMsg = (data && data.error && data.error.message) ? data.error.message : (rawText || `HTTP ${res.status}: ${res.statusText}`);
+            const errMsg = (data && data.error && data.error.message) ? data.error.message : (rawText || `HTTP ${res.status}`);
             if (res.status === 403 && errMsg.toLowerCase().includes('quota')) {
                 streamData.ytQuotaExhausted = true;
                 saveDataToDisk();
@@ -506,9 +494,7 @@ function recordHistory(username, userPrompt, aiReply) {
     saveDataToDisk();
 }
 
-// ========================================================
-// 🔍 AUTOMATIC MULTI-ENGINE STREAM DETECTOR (ZERO MANUAL EFFORT)
-// ========================================================
+// Stream Resolver & Chat Fetcher
 let liveChatInstance = null;
 let isSearchingStream = false;
 
@@ -571,13 +557,13 @@ function attachLiveChatStream(videoId) {
     }).catch(() => {});
 }
 
-// 🌟 3-TIER LIVE DETECTOR (Runs automatically every 12 seconds)
+// Background Auto-Detector Loop (Runs every 10 seconds)
 async function autoDetectStreamLoop() {
     if (currentStatus === 'online' || isSearchingStream) return;
     isSearchingStream = true;
 
     try {
-        // Tier 1: Canonical /live check
+        // Method 1: Canonical /live check
         const livePageRes = await fetch(`https://www.youtube.com/channel/${MAIN_CHANNEL_ID}/live`, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36' },
             redirect: 'follow'
@@ -590,7 +576,7 @@ async function autoDetectStreamLoop() {
             return;
         }
 
-        // Tier 2: YouTube Official Search API
+        // Method 2: YouTube Search API via Token
         await ensureValidAccessToken();
         if (streamData.ytAccessToken) {
             const apiRes = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${MAIN_CHANNEL_ID}&eventType=live&type=video`, {
@@ -608,10 +594,10 @@ async function autoDetectStreamLoop() {
     isSearchingStream = false;
 }
 
-setInterval(autoDetectStreamLoop, 12000);
+setInterval(autoDetectStreamLoop, 10000);
 autoDetectStreamLoop();
 
-// Chat Message Router
+// Chat Message Handler
 async function handleChatMessage(chatItem) {
     const rawText = chatItem.message.map(m => m.text ? m.text : '').join('').trim();
     const message = rawText.toLowerCase();
@@ -634,7 +620,7 @@ async function handleChatMessage(chatItem) {
     const cName = streamData.coinSettings.currencyName;
     const userAvatar = (chatItem.author && chatItem.author.thumbnailUrl) ? chatItem.author.thumbnailUrl : 'https://cdn-icons-png.flaticon.com/512/847/847969.png';
 
-    // Auto-Moderation
+    // Auto-Moderation (Streamer & Mods exempt)
     if (!isOwner && !isMod) {
         const ms = streamData.modSettings || {};
         if (ms.blockLinks && /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.(com|in|org|net|io|gg|tv)\b)/i.test(rawText)) {
@@ -712,6 +698,169 @@ async function handleChatMessage(chatItem) {
             broadcastResponse(`⏳ @${username}, already claimed! Next in ${remH}h.`, false);
         }
         return;
+    }
+
+    if (message === '!topcoins' || message === '!leaderboard' || message === '!ranks') {
+        const entries = Object.entries(streamData.userCoins || {});
+        if (entries.length === 0) {
+            broadcastResponse(`Abhi kisi ke paas ${cName} nahi hain!`, false);
+            return;
+        }
+        entries.sort((a, b) => b[1] - a[1]);
+        const top3 = entries.slice(0, 3).map((e, idx) => `${idx + 1}. @${e[0]} (🪙${e[1]})`).join(' | ');
+        broadcastResponse(`🏆 Top Rich Viewers 👉 ${top3}`, false);
+        return;
+    }
+
+    // Mini-Games
+    if (message.startsWith('!gamble ') || message.startsWith('!roulette ')) {
+        const parts = rawText.split(' ');
+        const amount = parseInt(parts[1]);
+        const currentBalance = streamData.userCoins[userKey] || 0;
+
+        if (isNaN(amount) || amount <= 0) return;
+        if (currentBalance < amount) {
+            broadcastResponse(`@${username}, aapke paas gamble karne ke liye sirf 🪙 ${currentBalance} ${cName} hain!`, false);
+            return;
+        }
+
+        const isWin = Math.random() < 0.50;
+        if (isWin) {
+            streamData.userCoins[userKey] += amount;
+            broadcastResponse(`🎲 [WIN!] @${username} ne 🪙 ${amount} gamble kiya aur JEET GAYA! Balance: 🪙 ${streamData.userCoins[userKey]} ${cName}`, false);
+        } else {
+            streamData.userCoins[userKey] -= amount;
+            broadcastResponse(`💀 [LOSS!] @${username} ne 🪙 ${amount} gamble kiya aur HAAR GAYA! Balance: 🪙 ${streamData.userCoins[userKey]} ${cName}`, false);
+        }
+        saveDataToDisk();
+        broadcastState();
+        return;
+    }
+
+    if (message.startsWith('!slots ')) {
+        const parts = rawText.split(' ');
+        const amount = parseInt(parts[1]);
+        const currentBalance = streamData.userCoins[userKey] || 0;
+
+        if (isNaN(amount) || amount <= 0) return;
+        if (currentBalance < amount) {
+            broadcastResponse(`@${username}, aapke paas slots ke liye sirf 🪙 ${currentBalance} ${cName} hain!`, false);
+            return;
+        }
+
+        const symbols = ['🍒', '🍋', '🍇', '💎', '7️⃣'];
+        const s1 = symbols[Math.floor(Math.random() * symbols.length)];
+        const s2 = symbols[Math.floor(Math.random() * symbols.length)];
+        const s3 = symbols[Math.floor(Math.random() * symbols.length)];
+
+        if (s1 === s2 && s2 === s3) {
+            const win = amount * 5;
+            streamData.userCoins[userKey] += (win - amount);
+            broadcastResponse(`🎰 [${s1} | ${s2} | ${s3}] JACKPOT!! @${username} ne 5x jeeta (+🪙 ${win} ${cName})!`, false);
+        } else if (s1 === s2 || s2 === s3 || s1 === s3) {
+            const win = amount * 2;
+            streamData.userCoins[userKey] += (win - amount);
+            broadcastResponse(`🎰 [${s1} | ${s2} | ${s3}] 2 MATCH! @${username} ne 2x jeeta (+🪙 ${win} ${cName})!`, false);
+        } else {
+            streamData.userCoins[userKey] -= amount;
+            broadcastResponse(`🎰 [${s1} | ${s2} | ${s3}] No match! @${username} lost 🪙 ${amount} ${cName}.`, false);
+        }
+        saveDataToDisk();
+        broadcastState();
+        return;
+    }
+
+    if (message.startsWith('!duel ')) {
+        const parts = rawText.split(' ');
+        if (parts.length >= 3) {
+            const targetUser = parts[1].replace('@', '').toLowerCase();
+            const amount = parseInt(parts[2]);
+            const challengerBalance = streamData.userCoins[userKey] || 0;
+            const targetBalance = streamData.userCoins[targetUser] || 0;
+
+            if (targetUser === userKey) return;
+            if (isNaN(amount) || amount <= 0) return;
+            if (challengerBalance < amount || targetBalance < amount) return;
+
+            activeDuels[targetUser] = {
+                challenger: username,
+                challengerKey: userKey,
+                amount: amount,
+                expires: Date.now() + 60000
+            };
+
+            broadcastResponse(`⚔️ DUEL! @${username} ne @${targetUser} ko 🪙 ${amount} ${cName} duel ka challenge diya! Accept: !accept`, false);
+            return;
+        }
+    }
+
+    if (message === '!accept') {
+        const duel = activeDuels[userKey];
+        if (duel && Date.now() < duel.expires) {
+            const amount = duel.amount;
+            const challengerKey = duel.challengerKey;
+            const challengerName = duel.challenger;
+
+            if ((streamData.userCoins[challengerKey] || 0) >= amount && (streamData.userCoins[userKey] || 0) >= amount) {
+                const challengerWins = Math.random() < 0.5;
+                if (challengerWins) {
+                    streamData.userCoins[challengerKey] += amount;
+                    streamData.userCoins[userKey] -= amount;
+                    broadcastResponse(`⚔️ DUEL OVER: @${challengerName} ne @${username} ko hara kar 🪙 ${amount} ${cName} jeet liye!`, true);
+                } else {
+                    streamData.userCoins[userKey] += amount;
+                    streamData.userCoins[challengerKey] -= amount;
+                    broadcastResponse(`⚔️ DUEL OVER: @${username} ne @${challengerName} ko hara kar 🪙 ${amount} ${cName} jeet liye!`, true);
+                }
+                delete activeDuels[userKey];
+                saveDataToDisk();
+                broadcastState();
+                return;
+            }
+        }
+    }
+
+    if (message === '!coins' || message === '!balance' || message === '!maccoins') {
+        const balance = streamData.userCoins[userKey] || 0;
+        broadcastResponse(`@${username}, aapke paas 🪙 ${balance} ${cName} hain!`, false);
+        return;
+    }
+
+    if (message.startsWith('!givecoins ') || message.startsWith('!addcoins ')) {
+        if (!isOwner) return;
+        const parts = rawText.split(' ');
+        if (parts.length >= 3) {
+            const targetUser = parts[1].replace('@', '').toLowerCase();
+            const amount = parseInt(parts[2]);
+            if (!isNaN(amount) && amount > 0) {
+                if (!streamData.userCoins[targetUser]) streamData.userCoins[targetUser] = 0;
+                streamData.userCoins[targetUser] += amount;
+                saveDataToDisk();
+                broadcastState();
+                broadcastResponse(`Streamer Boss ne @${targetUser} ko 🪙 ${amount} ${cName} diye!`, true);
+                return;
+            }
+        }
+    }
+
+    if (message.startsWith('!pay ') || message.startsWith('!transfer ')) {
+        const parts = rawText.split(' ');
+        if (parts.length >= 3) {
+            const recipient = parts[1].replace('@', '').toLowerCase();
+            const amount = parseInt(parts[2]);
+            if (recipient !== userKey && !isNaN(amount) && amount > 0) {
+                const senderBalance = streamData.userCoins[userKey] || 0;
+                if (senderBalance >= amount) {
+                    streamData.userCoins[userKey] -= amount;
+                    if (!streamData.userCoins[recipient]) streamData.userCoins[recipient] = 0;
+                    streamData.userCoins[recipient] += amount;
+                    saveDataToDisk();
+                    broadcastState();
+                    broadcastResponse(`💸 @${username} ne @${recipient} ko 🪙 ${amount} ${cName} transfer kiye!`, true);
+                }
+            }
+            return;
+        }
     }
 
     // Media Triggers & Redeems (Streamer ke liye 100% FREE!)
@@ -833,12 +982,13 @@ io.on('connection', (socket) => {
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     socket.emit('all-commands-catalog', getDynamicCommandCatalog());
 
+    // Link Stream Chat URL Event
     socket.on('admin-link-stream-url', async (urlInput) => {
         let cleanId = (urlInput || '').trim();
         if (cleanId.includes('watch?v=')) cleanId = cleanId.split('watch?v=')[1].split('&')[0];
         if (cleanId.includes('live/')) cleanId = cleanId.split('live/')[1].split('?')[0];
 
-        if (!cleanId) return socket.emit('link-chat-result', { success: false, error: "Valid YouTube URL or Video ID paste karein." });
+        if (!cleanId) return socket.emit('link-chat-result', { success: false, error: "Valid YouTube URL ya Video ID paste karein." });
 
         attachLiveChatStream(cleanId);
         const chatId = await resolveLiveChatId(cleanId);
@@ -848,14 +998,14 @@ io.on('connection', (socket) => {
             broadcastState();
             socket.emit('link-chat-result', { success: true, chatId });
         } else {
-            socket.emit('link-chat-result', { success: false, error: "Stream chat active nahi mili. Check karein ki stream live hai." });
+            socket.emit('link-chat-result', { success: false, error: "Stream chat active nahi mili. Make sure stream live hai." });
         }
     });
 
-    // 💬 TEST LIVE CHAT MESSAGE POST
+    // Test Live Chat Message Post
     socket.on('admin-test-chat-post', async () => {
         const testText = "Yo stream! @rajivmacai bot is connected and ready to chat!";
-        const result = await postToYouTubeChat(testText, true); // isTest = true
+        const result = await postToYouTubeChat(testText, true);
         socket.emit('chat-post-result', result);
     });
 
@@ -903,6 +1053,55 @@ io.on('connection', (socket) => {
         });
     });
 
+    socket.on('admin-test-superchat-tier', (tierAmount) => {
+        const amt = tierAmount || '₹500';
+        io.emit('stream-alert', {
+            type: 'superchat',
+            user: 'Rahul Gamer',
+            amount: amt,
+            avatar: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?w=150',
+            msg: 'Bhai gaming level bohot mast hai! Keep grinding!',
+            ttsText: `Rahul Gamer ne ${amt} ka Super Chat bheja: Bhai gaming level bohot mast hai!`,
+            voice: streamData.ttsVoice,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
+        });
+    });
+
+    socket.on('admin-test-member', () => {
+        io.emit('stream-alert', {
+            type: 'member',
+            user: 'Amit Sharma',
+            amount: 'MEMBER',
+            avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+            msg: 'Joined channel membership! Proud Member!',
+            ttsText: 'Welcome Amit Sharma to the stream membership family! GG!',
+            voice: streamData.ttsVoice,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
+        });
+    });
+
+    socket.on('admin-test-sub', () => {
+        io.emit('stream-alert', {
+            type: 'subscriber',
+            user: 'Vikram Singh',
+            amount: 'NEW SUB',
+            avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
+            msg: 'Subscribed to the channel!',
+            ttsText: 'Welcome Vikram Singh to the stream family! Thanks for subscribing!',
+            voice: streamData.ttsVoice,
+            pitch: streamData.ttsPitch,
+            rate: streamData.ttsRate
+        });
+    });
+
+    socket.on('admin-save-automod', (modConfig) => {
+        streamData.modSettings = { ...streamData.modSettings, ...modConfig };
+        saveDataToDisk();
+        broadcastState();
+    });
+
     socket.on('admin-disconnect-google', () => {
         streamData.ytAccessToken = '';
         streamData.ytRefreshToken = '';
@@ -923,6 +1122,14 @@ io.on('connection', (socket) => {
     socket.on('admin-death-add', () => { streamData.deathCount++; broadcastState(); });
     socket.on('admin-death-sub', () => { if (streamData.deathCount > 0) streamData.deathCount--; broadcastState(); });
     socket.on('admin-death-reset', () => { streamData.deathCount = 0; broadcastState(); });
+
+    socket.on('admin-timer-start', () => { isTimerRunning = true; broadcastState(); });
+    socket.on('admin-timer-pause', () => { isTimerRunning = false; broadcastState(); });
+    socket.on('admin-timer-reset', () => { streamData.gameTimeSeconds = 0; broadcastState(); });
+    socket.on('admin-timer-set', ({ hours, minutes, seconds }) => {
+        streamData.gameTimeSeconds = ((parseInt(hours) || 0) * 3600) + ((parseInt(minutes) || 0) * 60) + (parseInt(seconds) || 0);
+        broadcastState();
+    });
 
     socket.on('admin-change-styles', (newSettings) => {
         streamData = { ...streamData, ...newSettings };
@@ -954,6 +1161,64 @@ io.on('connection', (socket) => {
 
     socket.on('admin-del-trigger', (id) => {
         streamData.triggers = streamData.triggers.filter(t => t.id !== id);
+        broadcastState();
+    });
+
+    socket.on('admin-start-bet', ({ title, options }) => {
+        const parsedOptions = (options && options.length > 0) ? options.map((optName, index) => ({
+            id: index + 1,
+            name: optName.trim(),
+            pool: 0,
+            votes: 0
+        })) : [
+            { id: 1, name: "Option 1", pool: 0, votes: 0 },
+            { id: 2, name: "Option 2", pool: 0, votes: 0 }
+        ];
+
+        activeBet = { isOpen: true, locked: false, title: title || "Who will win?", options: parsedOptions, bets: {} };
+        broadcastState();
+
+        const optionsText = parsedOptions.map(o => `[${o.id}: ${o.name}]`).join(' vs ');
+        broadcastResponse(`🚨 POLL OPEN: "${activeBet.title}" 👉 ${optionsText}. Vote: !bet <num> <amount> or !vote <num>`, true);
+    });
+
+    socket.on('admin-lock-bet', () => {
+        activeBet.locked = true;
+        broadcastState();
+    });
+
+    socket.on('admin-resolve-bet', ({ winningOptionId }) => {
+        if (!activeBet.isOpen) return;
+        const totalPool = activeBet.options.reduce((sum, o) => sum + (o.pool || 0), 0);
+        const winningOption = activeBet.options.find(o => o.id === parseInt(winningOptionId));
+        if (!winningOption) return;
+
+        const winningPool = winningOption.pool || 0;
+        if (winningPool > 0) {
+            for (const [user, bet] of Object.entries(activeBet.bets)) {
+                if (bet.optionId === winningOption.id && bet.amount > 0) {
+                    const payout = Math.floor((bet.amount / winningPool) * totalPool);
+                    streamData.userCoins[user] = (streamData.userCoins[user] || 0) + payout;
+                }
+            }
+        }
+
+        io.emit('bet-winner', { winnerName: winningOption.name, winnerId: winningOption.id, totalPool });
+        broadcastResponse(`🏆 RESULT: "${winningOption.name}" JEET GAYA! Total 🪙 ${totalPool} Mac-Coins distribute ho gaye!`, true);
+
+        setTimeout(() => {
+            activeBet = { isOpen: false, locked: false, title: "", options: [], bets: {} };
+            saveDataToDisk();
+            broadcastState();
+        }, 12000);
+    });
+
+    socket.on('admin-end-bet', () => {
+        for (const [user, bet] of Object.entries(activeBet.bets)) {
+            if (bet.amount > 0) streamData.userCoins[user] = (streamData.userCoins[user] || 0) + bet.amount;
+        }
+        activeBet = { isOpen: false, locked: false, title: "", options: [], bets: {} };
+        saveDataToDisk();
         broadcastState();
     });
 
