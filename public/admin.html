@@ -114,16 +114,6 @@
         .dot-orange { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
         .dot-red { background: var(--red); box-shadow: 0 0 8px var(--red); }
 
-        .live-connect-bar {
-            background: #151a26;
-            border: 1px solid var(--border);
-            padding: 8px 12px;
-            border-radius: 8px;
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-
         .tab-content { display: none; flex-direction: column; gap: 10px; }
         .tab-content.active { display: flex; }
 
@@ -327,12 +317,6 @@
             </div>
         </div>
 
-        <!-- 🌟 DIRECT LIVE STREAM CONNECT BAR -->
-        <div class="live-connect-bar">
-            <input type="text" id="stream-direct-link" placeholder="Paste YouTube Live Link or Video ID (e.g. https://youtube.com/live/...)" style="margin-bottom:0; font-size:11px; flex:1;">
-            <button style="background:var(--green); color:#000; font-weight:800; font-size:11px; padding:8px 12px; white-space:nowrap;" onclick="forceConnectLiveStream()">🚀 Connect Stream</button>
-        </div>
-
         <!-- TAB 1: LIVE DECK -->
         <div id="tab-deck" class="tab-content active">
             <div class="card">
@@ -472,7 +456,7 @@
             
             <div class="card">
                 <div class="section-title">
-                    <span>🔴 YouTube Bot Account (Posting in Chat)</span>
+                    <span>🔴 YouTube Bot Account (Auto-Post in Live Chat)</span>
                     <span id="google-status-badge" style="font-size:10px; color:var(--red);">Not Connected</span>
                 </div>
 
@@ -803,23 +787,13 @@
             });
         });
 
-        // 🌟 FORCE CONNECT BUTTON FUNCTION
-        function forceConnectLiveStream() {
-            const inputVal = document.getElementById('stream-direct-link').value.trim();
-            socket.emit('admin-connect-stream-url', inputVal);
-        }
-
-        socket.on('stream-connect-result', (data) => {
-            alert("Connecting to live stream... Check status above in 2 seconds!");
-        });
-
         socket.on('stream-status', (data) => {
             if (data.status === 'online') {
                 streamDot.className = 'dot dot-green';
                 streamStatusText.innerText = 'Stream Online';
             } else if (data.status === 'retrying') {
                 streamDot.className = 'dot dot-orange';
-                streamStatusText.innerText = 'Stream Searching...';
+                streamStatusText.innerText = 'Searching Stream...';
             } else {
                 streamDot.className = 'dot dot-red';
                 streamStatusText.innerText = 'Stream Offline';
@@ -832,14 +806,14 @@
 
             cat.core.forEach(c => {
                 html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--cyan);">${c.cmd}</b> - <span style="color:#aaa;">${c.desc}</span></div>`;
-                textAcc += `${c.cmd} -${c.desc}\n`;
+                textAcc += `${c.cmd} - ${c.desc}\n`;
             });
 
             html += `<div style="margin-top:6px; font-weight:800; color:var(--gold);">[MINI-GAMES & ECONOMY]</div>`;
             textAcc += `\n[GAMES & ECONOMY]\n`;
             cat.games.forEach(g => {
                 html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--gold);">${g.cmd}</b> - <span style="color:#aaa;">${g.desc}</span></div>`;
-                textAcc += `${g.cmd} -${g.desc}\n`;
+                textAcc += `${g.cmd} - ${g.desc}\n`;
             });
 
             html += `<div style="margin-top:6px; font-weight:800; color:var(--orange);">[MEME REDEEMS]</div>`;
@@ -847,7 +821,7 @@
             if (cat.redeems.length === 0) html += `<div style="color:#777;">No redeems configured</div>`;
             cat.redeems.forEach(r => {
                 html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--orange);">${r.cmd}</b> - <span style="color:#aaa;">${r.desc}</span></div>`;
-                textAcc += `${r.cmd} -${r.desc}\n`;
+                textAcc += `${r.cmd} - ${r.desc}\n`;
             });
 
             html += `<div style="margin-top:6px; font-weight:800; color:var(--green);">[INFO COMMANDS]</div>`;
@@ -855,7 +829,7 @@
             if (cat.customs.length === 0) html += `<div style="color:#777;">No custom commands</div>`;
             cat.customs.forEach(c => {
                 html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--green);">${c.cmd}</b> - <span style="color:#aaa;">${c.desc}</span></div>`;
-                textAcc += `${c.cmd} -${c.desc}\n`;
+                textAcc += `${c.cmd} - ${c.desc}\n`;
             });
 
             autoCatalogDisplay.innerHTML = html;
@@ -1102,7 +1076,7 @@
                     row.className = 'opt-item-row';
                     row.innerHTML = `
                         <div>
-                            <b>[${opt.id}]${opt.name}</b>
+                            <b>[${opt.id}] ${opt.name}</b>
                             <span style="color:var(--text-dim); margin-left:6px;">${opt.votes} votes • 🪙${opt.pool} (${opt.pct}%)</span>
                         </div>
                         <button style="background:var(--cyan); color:#000; padding:4px 8px; font-size:11px;" onclick="resolveWinnerOption(${opt.id}, '${opt.name}')">🏆 Won</button>
@@ -1271,7 +1245,7 @@
             const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
             const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
             const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${h}h ${m}m${s}s`;
+            return `${h}h ${m}m ${s}s`;
         }
 
         socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
