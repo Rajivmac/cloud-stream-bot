@@ -96,6 +96,16 @@ let currentStatus = 'offline';
 let isTimerRunning = false;
 let lastEarnedTime = {};
 
+// Helper: Extract clean 11 character video ID
+function cleanYouTubeVideoId(input) {
+    if (!input) return "";
+    const str = input.trim();
+    const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:live\/|watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+    if (match && match[1]) return match[1];
+    if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return str;
+    return str.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 11);
+}
+
 function getDynamicCommandCatalog() {
     const aiCmd = streamData.aiCommand || '!ai';
     const cName = streamData.coinSettings.currencyName || 'Coins';
@@ -367,8 +377,18 @@ async function postToYouTubeChat(messageText, isTest = false) {
         return { success: false, error: "Bot YouTube account not connected. AI Persona tab se login karein." };
     }
 
+    // Auto resolve liveChatId if missing but videoId is present
+    if (!streamData.ytLiveChatId && streamData.currentVideoId) {
+        const resolvedChatId = await resolveLiveChatId(streamData.currentVideoId);
+        if (resolvedChatId) {
+            streamData.ytLiveChatId = resolvedChatId;
+            saveDataToDisk();
+            broadcastState();
+        }
+    }
+
     if (!streamData.ytLiveChatId) {
-        return { success: false, error: "Live Chat ID not found. Ensure stream is online." };
+        return { success: false, error: "Live Chat ID not found. Ensure stream is active and link karo." };
     }
 
     try {
@@ -405,6 +425,15 @@ async function postToYouTubeChat(messageText, isTest = false) {
             return { success: true };
         } else {
             const errMsg = (data && data.error && data.error.message) ? data.error.message : (rawText || `HTTP ${res.status}`);
+            
+            // If live chat ID expired (404), clear it so user can re-link immediately
+            if (res.status === 404) {
+                streamData.ytLiveChatId = '';
+                saveDataToDisk();
+                broadcastState();
+                return { success: false, error: "HTTP 404: Live chat session expired ya stream end ho chuki hai. 'Link Chat ID' dobara karein." };
+            }
+
             if (res.status === 403 && errMsg.toLowerCase().includes('quota')) {
                 streamData.ytQuotaExhausted = true;
                 saveDataToDisk();
@@ -500,10 +529,11 @@ let isSearchingStream = false;
 
 async function resolveLiveChatId(videoId) {
     if (!videoId) return null;
+    const cleanId = cleanYouTubeVideoId(videoId);
     try {
         await ensureValidAccessToken();
         if (streamData.ytAccessToken) {
-            const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${videoId}`, {
+            const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${cleanId}`, {
                 headers: { Authorization: `Bearer ${streamData.ytAccessToken}` }
             });
             const data = await res.json();
@@ -516,16 +546,19 @@ async function resolveLiveChatId(videoId) {
 }
 
 function attachLiveChatStream(videoId) {
+    const cleanId = cleanYouTubeVideoId(videoId);
+    if (!cleanId) return;
+
     if (liveChatInstance) {
         try { liveChatInstance.stop(); } catch(e) {}
     }
 
-    liveChatInstance = new LiveChat({ liveId: videoId });
+    liveChatInstance = new LiveChat({ liveId: cleanId });
 
     liveChatInstance.on("start", async () => {
         currentStatus = 'online';
-        streamData.currentVideoId = videoId;
-        const chatId = await resolveLiveChatId(videoId);
+        streamData.currentVideoId = cleanId;
+        const chatId = await resolveLiveChatId(cleanId);
         if (chatId) streamData.ytLiveChatId = chatId;
         saveDataToDisk();
         broadcastState();
@@ -548,8 +581,8 @@ function attachLiveChatStream(videoId) {
     liveChatInstance.start().then(async (ok) => {
         if (ok) {
             currentStatus = 'online';
-            streamData.currentVideoId = videoId;
-            const chatId = await resolveLiveChatId(videoId);
+            streamData.currentVideoId = cleanId;
+            const chatId = await resolveLiveChatId(cleanId);
             if (chatId) streamData.ytLiveChatId = chatId;
             saveDataToDisk();
             broadcastState();
@@ -569,9 +602,9 @@ async function autoDetectStreamLoop() {
             redirect: 'follow'
         });
         const finalUrl = livePageRes.url || '';
-        const match = finalUrl.match(/[?&]v=([a-zA-Z0-9_-]{11})/) || finalUrl.match(/live\/([a-zA-Z0-9_-]{11})/);
-        if (match && match[1]) {
-            attachLiveChatStream(match[1]);
+        const cleanId = cleanYouTubeVideoId(finalUrl);
+        if (cleanId && cleanId.length === 11) {
+            attachLiveChatStream(cleanId);
             isSearchingStream = false;
             return;
         }
@@ -806,7 +839,7 @@ async function handleChatMessage(chatItem) {
                 if (challengerWins) {
                     streamData.userCoins[challengerKey] += amount;
                     streamData.userCoins[userKey] -= amount;
-                    broadcastResponse(`⚔️ DUEL OVER: @${challengerName} ne @${username} ko hara kar 🪙 ${amount} ${cName} jeet liye!`, true);
+                    broadcastResponse(`⚔️️ DUEL OVER: @${challengerName} ne @${username} ko hara kar 🪙 ${amount} ${cName} jeet liye!`, true);
                 } else {
                     streamData.userCoins[userKey] += amount;
                     streamData.userCoins[challengerKey] -= amount;
@@ -982,27 +1015,28 @@ io.on('connection', (socket) => {
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     socket.emit('all-commands-catalog', getDynamicCommandCatalog());
 
-    // Link Stream Chat URL Event
+    // 🔗 Link Stream Chat URL Event (Robust Clean Extraction)
     socket.on('admin-link-stream-url', async (urlInput) => {
-        let cleanId = (urlInput || '').trim();
-        if (cleanId.includes('watch?v=')) cleanId = cleanId.split('watch?v=')[1].split('&')[0];
-        if (cleanId.includes('live/')) cleanId = cleanId.split('live/')[1].split('?')[0];
+        const cleanId = cleanYouTubeVideoId(urlInput);
 
-        if (!cleanId) return socket.emit('link-chat-result', { success: false, error: "Valid YouTube URL ya Video ID paste karein." });
+        if (!cleanId || cleanId.length < 11) {
+            return socket.emit('link-chat-result', { success: false, error: "Valid YouTube URL ya 11-digit Video ID paste karein." });
+        }
 
         attachLiveChatStream(cleanId);
         const chatId = await resolveLiveChatId(cleanId);
         if (chatId) {
             streamData.ytLiveChatId = chatId;
+            streamData.currentVideoId = cleanId;
             saveDataToDisk();
             broadcastState();
             socket.emit('link-chat-result', { success: true, chatId });
         } else {
-            socket.emit('link-chat-result', { success: false, error: "Stream chat active nahi mili. Make sure stream live hai." });
+            socket.emit('link-chat-result', { success: false, error: "Stream chat active nahi mili. Make sure stream live hai aur Bot authorized hai." });
         }
     });
 
-    // Test Live Chat Message Post
+    // 💬 Test Live Chat Message Post
     socket.on('admin-test-chat-post', async () => {
         const testText = "Yo stream! @rajivmacai bot is connected and ready to chat!";
         const result = await postToYouTubeChat(testText, true);
@@ -1015,7 +1049,7 @@ io.on('connection', (socket) => {
         if (local.googleClientSecret && !streamData.googleClientSecret) { streamData.googleClientSecret = local.googleClientSecret; changed = true; }
         if (local.ytRefreshToken && !streamData.ytRefreshToken) { 
             streamData.ytRefreshToken = local.ytRefreshToken; 
-            streamData.enableYTChatSend = true;
+            streamData.enableYTChatSend = true; 
             changed = true; 
         }
         if (local.ytAccessToken && !streamData.ytAccessToken) { streamData.ytAccessToken = local.ytAccessToken; changed = true; }
