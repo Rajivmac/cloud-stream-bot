@@ -363,7 +363,48 @@ async function ensureValidAccessToken() {
     return await forceRefreshToken();
 }
 
-// Post Message to Live Chat
+// Stream Resolver & Detailed Chat Fetcher
+let liveChatInstance = null;
+let isSearchingStream = false;
+
+async function resolveLiveChatId(videoId) {
+    if (!videoId) return { success: false, error: "Video ID missing hai" };
+    const cleanId = cleanYouTubeVideoId(videoId);
+    try {
+        await ensureValidAccessToken();
+        if (!streamData.ytAccessToken) {
+            return { success: false, error: "Bot YouTube account connected nahi hai. Dashboard se login karein." };
+        }
+
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails,snippet,status&id=${cleanId}`, {
+            headers: { Authorization: `Bearer ${streamData.ytAccessToken}` }
+        });
+        const data = await res.json();
+
+        if (!data.items || data.items.length === 0) {
+            return { success: false, error: `Video ID (${cleanId}) nahi mili. Stream Link verify karein.` };
+        }
+
+        const item = data.items[0];
+        const details = item.liveStreamingDetails;
+        if (!details) {
+            return { success: false, error: "Yeh normal uploaded video hai, Live Stream nahi hai." };
+        }
+
+        if (!details.activeLiveChatId) {
+            if (details.actualEndTime) {
+                return { success: false, error: "Yeh live stream END ho chuki hai. YouTube ended stream ki chat allow nahi karta." };
+            }
+            return { success: false, error: "Stream abhi LIVE nahi hui hai (OBS se broadcast start karein)." };
+        }
+
+        return { success: true, chatId: details.activeLiveChatId };
+    } catch(e) {
+        return { success: false, error: "YouTube API Error: " + e.message };
+    }
+}
+
+// Post Message to Live Chat (with HTTP 404 Auto-Eviction)
 async function postToYouTubeChat(messageText, isTest = false) {
     if (!isTest && !streamData.enableYTChatSend) {
         return { success: false, error: "Settings mein 'Post Bot Replies directly in Live Chat' checked nahi hai." };
@@ -377,18 +418,17 @@ async function postToYouTubeChat(messageText, isTest = false) {
         return { success: false, error: "Bot YouTube account not connected. AI Persona tab se login karein." };
     }
 
-    // Auto resolve liveChatId if missing but videoId is present
     if (!streamData.ytLiveChatId && streamData.currentVideoId) {
-        const resolvedChatId = await resolveLiveChatId(streamData.currentVideoId);
-        if (resolvedChatId) {
-            streamData.ytLiveChatId = resolvedChatId;
+        const resolved = await resolveLiveChatId(streamData.currentVideoId);
+        if (resolved.success && resolved.chatId) {
+            streamData.ytLiveChatId = resolved.chatId;
             saveDataToDisk();
             broadcastState();
         }
     }
 
     if (!streamData.ytLiveChatId) {
-        return { success: false, error: "Live Chat ID not found. Ensure stream is active and link karo." };
+        return { success: false, error: "Live Chat ID missing! OBS se live hone ke baad 'Link Chat ID' click karein." };
     }
 
     try {
@@ -426,12 +466,16 @@ async function postToYouTubeChat(messageText, isTest = false) {
         } else {
             const errMsg = (data && data.error && data.error.message) ? data.error.message : (rawText || `HTTP ${res.status}`);
             
-            // If live chat ID expired (404), clear it so user can re-link immediately
+            // 404 means the linked live chat is dead / offline / expired
             if (res.status === 404) {
                 streamData.ytLiveChatId = '';
                 saveDataToDisk();
                 broadcastState();
-                return { success: false, error: "HTTP 404: Live chat session expired ya stream end ho chuki hai. 'Link Chat ID' dobara karein." };
+                return { 
+                    success: false, 
+                    expired: true, 
+                    error: "FAILED (HTTP 404): Stream offline ya chat session expire ho chuka hai. Stream LIVE karke dobara 'Link Chat ID' dabayein." 
+                };
             }
 
             if (res.status === 403 && errMsg.toLowerCase().includes('quota')) {
@@ -481,7 +525,6 @@ async function queryZeroKeyNeuralCloud(systemPrompt, userPrompt) {
 }
 
 function generateInstantPersonaReply(userPrompt, username, userRole) {
-    const cName = streamData.characterName || 'Bot';
     if (userRole === 'owner') {
         const bossReplies = [
             `Streamer Boss, aapka hukum sar ankhon par! Game par focus karein!`,
@@ -523,28 +566,6 @@ function recordHistory(username, userPrompt, aiReply) {
     saveDataToDisk();
 }
 
-// Stream Resolver & Chat Fetcher
-let liveChatInstance = null;
-let isSearchingStream = false;
-
-async function resolveLiveChatId(videoId) {
-    if (!videoId) return null;
-    const cleanId = cleanYouTubeVideoId(videoId);
-    try {
-        await ensureValidAccessToken();
-        if (streamData.ytAccessToken) {
-            const res = await fetch(`https://www.googleapis.com/youtube/v3/videos?part=liveStreamingDetails&id=${cleanId}`, {
-                headers: { Authorization: `Bearer ${streamData.ytAccessToken}` }
-            });
-            const data = await res.json();
-            if (data.items && data.items.length > 0 && data.items[0].liveStreamingDetails) {
-                return data.items[0].liveStreamingDetails.activeLiveChatId || null;
-            }
-        }
-    } catch(e) {}
-    return null;
-}
-
 function attachLiveChatStream(videoId) {
     const cleanId = cleanYouTubeVideoId(videoId);
     if (!cleanId) return;
@@ -558,8 +579,8 @@ function attachLiveChatStream(videoId) {
     liveChatInstance.on("start", async () => {
         currentStatus = 'online';
         streamData.currentVideoId = cleanId;
-        const chatId = await resolveLiveChatId(cleanId);
-        if (chatId) streamData.ytLiveChatId = chatId;
+        const res = await resolveLiveChatId(cleanId);
+        if (res.success && res.chatId) streamData.ytLiveChatId = res.chatId;
         saveDataToDisk();
         broadcastState();
     });
@@ -567,6 +588,7 @@ function attachLiveChatStream(videoId) {
     liveChatInstance.on("end", () => {
         currentStatus = 'offline';
         streamData.currentVideoId = '';
+        streamData.ytLiveChatId = '';
         saveDataToDisk();
         broadcastState();
     });
@@ -582,8 +604,8 @@ function attachLiveChatStream(videoId) {
         if (ok) {
             currentStatus = 'online';
             streamData.currentVideoId = cleanId;
-            const chatId = await resolveLiveChatId(cleanId);
-            if (chatId) streamData.ytLiveChatId = chatId;
+            const res = await resolveLiveChatId(cleanId);
+            if (res.success && res.chatId) streamData.ytLiveChatId = res.chatId;
             saveDataToDisk();
             broadcastState();
         }
@@ -839,7 +861,7 @@ async function handleChatMessage(chatItem) {
                 if (challengerWins) {
                     streamData.userCoins[challengerKey] += amount;
                     streamData.userCoins[userKey] -= amount;
-                    broadcastResponse(`⚔️️ DUEL OVER: @${challengerName} ne @${username} ko hara kar 🪙 ${amount} ${cName} jeet liye!`, true);
+                    broadcastResponse(`⚔️ DUEL OVER: @${challengerName} ne @${username} ko hara kar 🪙 ${amount} ${cName} jeet liye!`, true);
                 } else {
                     streamData.userCoins[userKey] += amount;
                     streamData.userCoins[challengerKey] -= amount;
@@ -1015,7 +1037,7 @@ io.on('connection', (socket) => {
     socket.emit('timer-tick', { seconds: streamData.gameTimeSeconds, running: isTimerRunning });
     socket.emit('all-commands-catalog', getDynamicCommandCatalog());
 
-    // 🔗 Link Stream Chat URL Event (Robust Clean Extraction)
+    // 🔗 Link Stream Chat URL Event (Robust Clean Extraction & Instant Verification)
     socket.on('admin-link-stream-url', async (urlInput) => {
         const cleanId = cleanYouTubeVideoId(urlInput);
 
@@ -1023,16 +1045,21 @@ io.on('connection', (socket) => {
             return socket.emit('link-chat-result', { success: false, error: "Valid YouTube URL ya 11-digit Video ID paste karein." });
         }
 
-        attachLiveChatStream(cleanId);
-        const chatId = await resolveLiveChatId(cleanId);
-        if (chatId) {
-            streamData.ytLiveChatId = chatId;
+        const result = await resolveLiveChatId(cleanId);
+        if (result.success && result.chatId) {
+            streamData.ytLiveChatId = result.chatId;
             streamData.currentVideoId = cleanId;
+            currentStatus = 'online';
+            attachLiveChatStream(cleanId);
             saveDataToDisk();
             broadcastState();
-            socket.emit('link-chat-result', { success: true, chatId });
+            socket.emit('link-chat-result', { success: true, chatId: result.chatId });
         } else {
-            socket.emit('link-chat-result', { success: false, error: "Stream chat active nahi mili. Make sure stream live hai aur Bot authorized hai." });
+            // Evict dead ID immediately so status turns RED and not falsely GREEN
+            streamData.ytLiveChatId = '';
+            saveDataToDisk();
+            broadcastState();
+            socket.emit('link-chat-result', { success: false, error: result.error });
         }
     });
 
