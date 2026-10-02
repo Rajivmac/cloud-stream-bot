@@ -237,36 +237,6 @@
         .cmd-reply { color: var(--text-dim); font-size: 11px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .btn-del { background: #e74c3c; color: white; border: none; padding: 4px 8px; border-radius: 5px; cursor: pointer; font-size: 11px; }
 
-        .bet-box {
-            background: #151a26;
-            border: 1px solid #232c40;
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 8px;
-        }
-        .opt-item-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: #0a0d13;
-            padding: 7px 10px;
-            border-radius: 6px;
-            margin-bottom: 6px;
-            font-size: 12px;
-        }
-        .guide-box {
-            background: rgba(0, 210, 211, 0.08);
-            border: 1px dashed var(--cyan);
-            border-radius: 8px;
-            padding: 10px;
-            margin-top: 10px;
-            font-size: 12px;
-            line-height: 1.5;
-        }
-        .opt-input-row { display: flex; gap: 6px; margin-bottom: 6px; }
-        .opt-input-row input { margin-bottom: 0; }
-        .btn-icon-del { background: #e74c3c; width: 36px; min-width: 36px; padding: 0; font-size: 14px; }
-
         .avatar-preview-box {
             display: flex;
             align-items: center;
@@ -356,14 +326,6 @@
                     <button style="background:var(--orange);" onclick="socket.emit('admin-timer-pause')">⏸ Pause</button>
                     <button class="btn-reset" onclick="socket.emit('admin-timer-reset')">🔄 Reset</button>
                 </div>
-
-                <div class="section-title" style="margin-top:16px;">⏱️ Set Custom Playtime</div>
-                <div class="grid-3">
-                    <input type="number" id="set-timer-h" placeholder="Hours" min="0">
-                    <input type="number" id="set-timer-m" placeholder="Minutes" min="0" max="59">
-                    <input type="number" id="set-timer-s" placeholder="Seconds" min="0" max="59">
-                </div>
-                <button class="btn-submit" onclick="setCustomPlaytime()">Update Timer Value</button>
             </div>
         </div>
 
@@ -374,40 +336,7 @@
                     <span>🎲 Active Prediction Status</span>
                     <span id="bet-status-badge" style="color:var(--orange); font-size:10px;">INACTIVE</span>
                 </div>
-
-                <div class="bet-box">
-                    <h4 id="bet-title-display" style="margin:2px 0 8px 0; font-size:15px; color:#fff;">No active poll</h4>
-                    <div id="active-options-list"></div>
-
-                    <div class="grid-2" style="margin-top:10px;">
-                        <button style="background:var(--orange); font-size:12px;" onclick="socket.emit('admin-lock-bet')">🔒 Lock Voting</button>
-                        <button style="background:#e74c3c; font-size:12px;" onclick="endPollNow()">⏹️️ End Poll (Hide)</button>
-                    </div>
-                </div>
-
-                <div class="guide-box">
-                    <b style="color:var(--cyan);">📖 Live Chat Voting Guide:</b><br>
-                    • <code>!bet 1 50</code> ➔ Option 1 par 50 Mac-Coins lagana<br>
-                    • <code>!bet 2 100</code> ➔ Option 2 par 100 Mac-Coins lagana<br>
-                    • <code>!vote 1</code> ➔ Free voting (0 coins)
-                </div>
-
-                <div class="section-title" style="margin-top:14px;">➕ Launch Custom Multi-Option Poll</div>
-                <input type="text" id="bet-new-title" placeholder="Question (e.g. Kaun Jeetega?)">
-                
-                <div id="poll-custom-options-container">
-                    <div class="opt-input-row">
-                        <input type="text" class="custom-opt-input" placeholder="Option 1" value="Win">
-                    </div>
-                    <div class="opt-input-row">
-                        <input type="text" class="custom-opt-input" placeholder="Option 2" value="Lose">
-                    </div>
-                </div>
-
-                <div class="grid-2" style="margin-top:4px;">
-                    <button style="background:#2f384d; font-size:12px;" onclick="addOptionField()">➕ Add Option</button>
-                    <button class="btn-gold" onclick="launchCustomPoll()">🚀 Launch on Stream</button>
-                </div>
+                <div id="active-options-list"></div>
             </div>
         </div>
 
@@ -421,42 +350,18 @@
                 </div>
                 <button class="btn-gold" onclick="grantCoinsDirect()">⚡ Update Balance</button>
             </div>
-
-            <div class="card">
-                <div class="section-title">⚙ Economy Rates</div>
-                <div class="row-toggle">
-                    <span>Free for Mods/Streamer</span>
-                    <input type="checkbox" id="coin-free-mods" checked>
-                </div>
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Coins / Msg</label>
-                        <input type="number" id="coin-per-msg" value="5">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Cooldown (s)</label>
-                        <input type="number" id="coin-cooldown" value="30">
-                    </div>
-                </div>
-                <div>
-                    <label style="font-size:10px; color:var(--text-dim);">AI Question Cost</label>
-                    <input type="number" id="coin-ai-cost" value="50">
-                </div>
-                <button class="btn-submit" onclick="saveCoinRules()">💾 Save Rates</button>
-            </div>
-
             <div class="card">
                 <div class="section-title">🏆 Viewer Balances</div>
                 <div class="contained-list" id="coin-balances-list"></div>
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA -->
+        <!-- TAB 6: AI PERSONA & BOT LIVE CHAT TEST -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
                 <div class="section-title">
-                    <span>🔴 YouTube Bot Account (Auto-Post in Live Chat)</span>
+                    <span>🔴 YouTube Bot Account (Posting in Live Chat)</span>
                     <span id="google-status-badge" style="font-size:10px; color:var(--red);">Not Connected</span>
                 </div>
 
@@ -483,6 +388,15 @@
                         <button style="background:#e74c3c; font-size:11px; padding:6px 10px;" onclick="disconnectGoogle()">Disconnect</button>
                     </div>
 
+                    <!-- 🌟 LIVE CHAT POSTING MONITOR & TEST BUTTON -->
+                    <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #28334a;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <span id="livechat-id-badge" style="font-size:11px; color:var(--orange); font-weight:800;">Chat ID: Searching...</span>
+                            <button style="background:var(--cyan); color:#000; font-weight:800; font-size:11px; padding:6px 12px;" onclick="testPostToLiveChat()">💬 Send Test Message to Live Chat</button>
+                        </div>
+                        <div id="test-post-status" style="font-size:11px; color:#aaa;">Click button to verify if bot account can post in your YouTube live chat!</div>
+                    </div>
+
                     <div class="row-toggle" style="margin-top:10px; margin-bottom:0;">
                         <span>Post Bot Replies directly in Live Chat</span>
                         <input type="checkbox" id="yt-enable-chat-send" onchange="toggleYTChatSend()">
@@ -504,7 +418,7 @@
                 <div class="section-title">🎭 Character Setup & Voice</div>
 
                 <div class="avatar-preview-box">
-                    <img id="avatar-preview" class="avatar-preview-img" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3233/3233514.png'">
+                    <img id="avatar-preview" class="avatar-preview-img" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar">
                     <div style="flex:1;">
                         <label style="font-size:10px; color:var(--text-dim); margin-bottom:3px; display:block;">Avatar Image URL</label>
                         <input type="text" id="ai-image-url" value="https://images3.alphacoders.com/134/1344406.jpeg" placeholder="Direct Image URL" style="margin-bottom:0; font-size:11px;" oninput="updateImagePreview()">
@@ -530,12 +444,10 @@
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Voice Tone / Pitch (<span id="val-pitch">1.0</span>)</label>
                         <input type="range" id="ai-pitch" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-pitch').innerText=this.value">
-                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Deep Tone | Sharp Tone →</small>
                     </div>
                     <div>
                         <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
                         <input type="range" id="ai-rate" min="0.6" max="1.6" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
-                        <small style="font-size:9px; color:var(--text-dim); display:block;">← Slow | Fast →</small>
                     </div>
                 </div>
 
@@ -564,7 +476,6 @@
         <div id="tab-automod" class="tab-content">
             <div class="card">
                 <div class="section-title">🛡️ Auto-Moderation & Chat Shield</div>
-                
                 <div class="row-toggle">
                     <span>Block Links & URLs in Chat</span>
                     <input type="checkbox" id="mod-block-links" checked>
@@ -572,24 +483,6 @@
                 <div class="row-toggle">
                     <span>CAPS Lock Spam Filter</span>
                     <input type="checkbox" id="mod-caps-filter" checked>
-                </div>
-
-                <label style="font-size:10px; color:var(--text-dim);">Banned Words Blacklist (Comma separated)</label>
-                <textarea id="mod-banned-words" rows="2" placeholder="badword1, badword2, ...">mc,bc,bhenchod,madarchod,gandu,chutiya,randi,bsdk</textarea>
-
-                <button class="btn-submit" onclick="saveAutoModSettings()">💾 Save Auto-Mod Shield</button>
-            </div>
-
-            <div class="card">
-                <div class="section-title">🎉 Live Alerts Tier Simulator</div>
-                <div class="grid-3">
-                    <button style="background:linear-gradient(135deg, #0984e3, #00cec9); color:#fff; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-superchat-tier', '₹50')">💙 ₹50 Blue Tier</button>
-                    <button style="background:linear-gradient(135deg, #f1c40f, #e67e22); color:#000; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-superchat-tier', '₹200')">💛 ₹200 Gold Tier</button>
-                    <button style="background:linear-gradient(135deg, #ff4757, #8e44ad); color:#fff; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-superchat-tier', '₹1000')">💖 ₹1000 VIP Red</button>
-                </div>
-                <div class="grid-2" style="margin-top:6px;">
-                    <button style="background:linear-gradient(135deg, #00d2d3, #2ecc71); color:#000; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-member')">👑 Test Member</button>
-                    <button style="background:linear-gradient(135deg, #ff4757, #c0392b); color:#fff; font-weight:800; font-size:11px;" onclick="socket.emit('admin-test-sub')">🔴 Test Subscriber</button>
                 </div>
             </div>
         </div>
@@ -600,64 +493,16 @@
                 <div class="section-title">➕ Add New Custom Command</div>
                 <input type="text" id="new-cmd-name" placeholder="Trigger (e.g. !specs)">
                 <textarea id="new-cmd-reply" placeholder="Bot reply text" rows="2"></textarea>
-                
-                <label style="font-size:10px; color:var(--text-dim);">Mac-Coin Cost (0 = Free)</label>
-                <input type="number" id="new-cmd-cost" placeholder="Coins required" value="0">
-
-                <div class="row-toggle">
-                    <span>Show on Screen Bubble</span>
-                    <input type="checkbox" id="cmd-show-bubble" checked>
-                </div>
-                <div class="row-toggle">
-                    <span>Speak with TTS Voice</span>
-                    <input type="checkbox" id="cmd-show-tts">
-                </div>
-
                 <button class="btn-submit" onclick="addCustomCommand()">Save Command</button>
             </div>
-
-            <div class="card">
-                <div class="section-title">
-                    <span>📖 Live Auto-Updating Command Catalog</span>
-                    <button style="background:rgba(0, 210, 211, 0.2); color:var(--cyan); padding:3px 8px; font-size:10px; border-radius:5px;" onclick="copyCommandsToClipboard()">📋 Copy List for Description</button>
-                </div>
-                <div class="contained-list" id="auto-catalog-display" style="max-height: 220px; font-size: 11px;">
-                    <small style="color:var(--text-dim);">Loading commands...</small>
-                </div>
-            </div>
-
             <div class="card">
                 <div class="section-title">📋 Configured Custom Commands</div>
                 <div class="contained-list" id="custom-commands-list"></div>
             </div>
         </div>
 
-        <!-- TAB 9: STYLES & OBS (WITH PERMANENT PASSWORD VAULT) -->
+        <!-- TAB 9: STYLES & OBS (PERMANENT PASSWORD LOCK) -->
         <div id="tab-customizer" class="tab-content">
-            <div class="card">
-                <div class="section-title">🎨 Fonts & Themes</div>
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Counter Font</label>
-                        <select id="cust-counter-font" onchange="applyVisualStyles()">
-                            <option value="Teko">Teko</option>
-                            <option value="Orbitron">Orbitron</option>
-                            <option value="Russo One">Russo One</option>
-                            <option value="Share Tech Mono">Share Tech Mono</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Accent Color</label>
-                        <select id="cust-color" onchange="applyVisualStyles()">
-                            <option value="#ff4757">Blood Red</option>
-                            <option value="#00d2d3">Cyan Neon</option>
-                            <option value="#ffa502">Flame Gold</option>
-                            <option value="#2ed573">Acid Green</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
             <div class="card" style="border-left: 4px solid var(--blue);">
                 <div class="section-title">
                     <span>🔌 OBS WebSocket Auto-Connect (Permanent Vault)</span>
@@ -703,81 +548,33 @@
         const obsDot = document.getElementById('obs-dot');
         const obsStatusText = document.getElementById('obs-status-text');
         const obsInnerStatus = document.getElementById('obs-inner-status');
-        const deathDisplay = document.getElementById('death-display');
-        const adminTimerDisplay = document.getElementById('admin-timer-display');
         const scenesContainer = document.getElementById('scenes-container');
         const triggersContainer = document.getElementById('triggers-container');
         const commandsContainer = document.getElementById('custom-commands-list');
-        const autoCatalogDisplay = document.getElementById('auto-catalog-display');
-        const coinsListContainer = document.getElementById('coin-balances-list');
-        const activeOptionsList = document.getElementById('active-options-list');
-        const customOptionsContainer = document.getElementById('poll-custom-options-container');
         const micBtn = document.getElementById('mic-btn');
 
-        let rawCatalogText = "";
-
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('auth') === 'success') {
-            const acc = urlParams.get('account') || '';
-            const ref = urlParams.get('refresh') || '';
-            const accTok = urlParams.get('access') || '';
-            const cid = urlParams.get('clientId') || '';
-            const csec = urlParams.get('clientSecret') || '';
-
-            if (acc) localStorage.setItem('bot_ytAccountName', acc);
-            if (ref) localStorage.setItem('bot_ytRefreshToken', ref);
-            if (accTok) localStorage.setItem('bot_ytAccessToken', accTok);
-            if (cid) localStorage.setItem('bot_googleClientId', cid);
-            if (csec) localStorage.setItem('bot_googleClientSecret', csec);
-
-            window.history.replaceState({}, document.title, window.location.pathname);
-        }
-
-        // ==========================================
-        // 🔒 PERMANENT LOCALSTORAGE RESTORE
-        // ==========================================
+        // Restore permanent vault
         function restoreVaultFields() {
-            // Restore OBS settings & password
             if (localStorage.getItem('bot_obsIp')) document.getElementById('obs-ip').value = localStorage.getItem('bot_obsIp');
             if (localStorage.getItem('bot_obsPort')) document.getElementById('obs-port').value = localStorage.getItem('bot_obsPort');
             if (localStorage.getItem('bot_obsPass')) document.getElementById('obs-pass').value = localStorage.getItem('bot_obsPass');
             if (localStorage.getItem('bot_obsMic')) document.getElementById('obs-mic-name').value = localStorage.getItem('bot_obsMic');
 
-            if (localStorage.getItem('bot_googleClientId')) {
-                document.getElementById('google-client-id').value = localStorage.getItem('bot_googleClientId');
-            }
-            if (localStorage.getItem('bot_googleClientSecret')) {
-                document.getElementById('google-client-secret').value = localStorage.getItem('bot_googleClientSecret');
-            }
-            if (localStorage.getItem('bot_characterName')) {
-                document.getElementById('ai-name').value = localStorage.getItem('bot_characterName');
-            }
+            if (localStorage.getItem('bot_googleClientId')) document.getElementById('google-client-id').value = localStorage.getItem('bot_googleClientId');
+            if (localStorage.getItem('bot_googleClientSecret')) document.getElementById('google-client-secret').value = localStorage.getItem('bot_googleClientSecret');
+            if (localStorage.getItem('bot_characterName')) document.getElementById('ai-name').value = localStorage.getItem('bot_characterName');
             if (localStorage.getItem('bot_characterImage')) {
                 document.getElementById('ai-image-url').value = localStorage.getItem('bot_characterImage');
                 document.getElementById('avatar-preview').src = localStorage.getItem('bot_characterImage');
             }
-            if (localStorage.getItem('bot_aiCmd')) {
-                document.getElementById('ai-cmd').value = localStorage.getItem('bot_aiCmd');
-            }
-            if (localStorage.getItem('bot_ttsVoice')) {
-                document.getElementById('ai-voice-select').value = localStorage.getItem('bot_ttsVoice');
-            }
-            if (localStorage.getItem('bot_ttsPitch')) {
-                document.getElementById('ai-pitch').value = localStorage.getItem('bot_ttsPitch');
-                document.getElementById('val-pitch').innerText = localStorage.getItem('bot_ttsPitch');
-            }
-            if (localStorage.getItem('bot_ttsRate')) {
-                document.getElementById('ai-rate').value = localStorage.getItem('bot_ttsRate');
-                document.getElementById('val-rate').innerText = localStorage.getItem('bot_ttsRate');
-            }
-            if (localStorage.getItem('bot_characterPersona')) {
-                document.getElementById('ai-persona').value = localStorage.getItem('bot_characterPersona');
-            }
+            if (localStorage.getItem('bot_aiCmd')) document.getElementById('ai-cmd').value = localStorage.getItem('bot_aiCmd');
+            if (localStorage.getItem('bot_ttsVoice')) document.getElementById('ai-voice-select').value = localStorage.getItem('bot_ttsVoice');
+            if (localStorage.getItem('bot_characterPersona')) document.getElementById('ai-persona').value = localStorage.getItem('bot_characterPersona');
 
             if (localStorage.getItem('bot_ytRefreshToken')) {
                 document.getElementById('google-logged-out-box').style.display = 'none';
                 document.getElementById('google-logged-in-box').style.display = 'block';
-                document.getElementById('google-status-badge').innerText = '🟢 Connected & Auto-Refreshing';
+                document.getElementById('google-status-badge').innerText = '🟢 Connected';
                 document.getElementById('google-status-badge').style.color = '#2ecc71';
                 document.getElementById('yt-account-display').innerText = localStorage.getItem('bot_ytAccountName') || 'YouTube Bot Connected';
             }
@@ -791,413 +588,45 @@
             localStorage.setItem('bot_obsMic', document.getElementById('obs-mic-name').value.trim());
         }
 
-        socket.on('connect', () => {
-            socket.emit('admin-sync-local', {
-                googleClientId: localStorage.getItem('bot_googleClientId') || '',
-                googleClientSecret: localStorage.getItem('bot_googleClientSecret') || '',
-                ytRefreshToken: localStorage.getItem('bot_ytRefreshToken') || '',
-                ytAccessToken: localStorage.getItem('bot_ytAccessToken') || '',
-                ytAccountName: localStorage.getItem('bot_ytAccountName') || '',
-                characterName: document.getElementById('ai-name').value.trim(),
-                characterImage: document.getElementById('ai-image-url').value.trim(),
-                ttsVoice: document.getElementById('ai-voice-select').value,
-                ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
-                ttsRate: parseFloat(document.getElementById('ai-rate').value),
-                characterPersona: document.getElementById('ai-persona').value.trim()
-            });
+        // 💬 TEST LIVE CHAT MESSAGE POST
+        function testPostToLiveChat() {
+            const statusDiv = document.getElementById('test-post-status');
+            statusDiv.innerText = "Sending test message to live chat as bot...";
+            statusDiv.style.color = "var(--cyan)";
+            socket.emit('admin-test-chat-post');
+        }
+
+        socket.on('chat-post-result', (res) => {
+            const statusDiv = document.getElementById('test-post-status');
+            if (res.success) {
+                statusDiv.innerText = "✅ SUCCESS! Message posted in live chat by your bot channel!";
+                statusDiv.style.color = "#2ecc71";
+            } else {
+                statusDiv.innerText = "❌ FAILED: " + res.error;
+                statusDiv.style.color = "#ff4757";
+            }
         });
 
         socket.on('stream-status', (data) => {
             if (data.status === 'online') {
                 streamDot.className = 'dot dot-green';
                 streamStatusText.innerText = 'Stream Online';
-            } else if (data.status === 'retrying') {
-                streamDot.className = 'dot dot-orange';
-                streamStatusText.innerText = 'Auto-Detecting Stream...';
             } else {
                 streamDot.className = 'dot dot-red';
                 streamStatusText.innerText = 'Stream Offline';
             }
-        });
 
-        socket.on('all-commands-catalog', (cat) => {
-            let html = "";
-            let textAcc = "=== STREAM COMMANDS ===\n\n[CORE & AI]\n";
-
-            cat.core.forEach(c => {
-                html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--cyan);">${c.cmd}</b> - <span style="color:#aaa;">${c.desc}</span></div>`;
-                textAcc += `${c.cmd} - ${c.desc}\n`;
-            });
-
-            html += `<div style="margin-top:6px; font-weight:800; color:var(--gold);">[MINI-GAMES & ECONOMY]</div>`;
-            textAcc += `\n[GAMES & ECONOMY]\n`;
-            cat.games.forEach(g => {
-                html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--gold);">${g.cmd}</b> - <span style="color:#aaa;">${g.desc}</span></div>`;
-                textAcc += `${g.cmd} - ${g.desc}\n`;
-            });
-
-            html += `<div style="margin-top:6px; font-weight:800; color:var(--orange);">[MEME REDEEMS]</div>`;
-            textAcc += `\n[MEME REDEEMS]\n`;
-            if (cat.redeems.length === 0) html += `<div style="color:#777;">No redeems configured</div>`;
-            cat.redeems.forEach(r => {
-                html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--orange);">${r.cmd}</b> - <span style="color:#aaa;">${r.desc}</span></div>`;
-                textAcc += `${r.cmd} - ${r.desc}\n`;
-            });
-
-            html += `<div style="margin-top:6px; font-weight:800; color:var(--green);">[INFO COMMANDS]</div>`;
-            textAcc += `\n[INFO COMMANDS]\n`;
-            if (cat.customs.length === 0) html += `<div style="color:#777;">No custom commands</div>`;
-            cat.customs.forEach(c => {
-                html += `<div style="padding:4px 0; border-bottom:1px solid #1a2232;"><b style="color:var(--green);">${c.cmd}</b> - <span style="color:#aaa;">${c.desc}</span></div>`;
-                textAcc += `${c.cmd} - ${c.desc}\n`;
-            });
-
-            autoCatalogDisplay.innerHTML = html;
-            rawCatalogText = textAcc;
-        });
-
-        function copyCommandsToClipboard() {
-            if (!rawCatalogText) return;
-            navigator.clipboard.writeText(rawCatalogText).then(() => {
-                alert("📋 All active commands copied to clipboard!");
-            });
-        }
-
-        function updateImagePreview() {
-            const url = document.getElementById('ai-image-url').value.trim();
-            if (url) document.getElementById('avatar-preview').src = url;
-        }
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-            const tabMap = { 
-                'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 
-                'coins': 4, 'ai': 5, 'automod': 6, 'commands': 7, 
-                'customizer': 8, 'add': 9 
-            };
-            document.querySelectorAll('.nav-btn')[tabMap[tabName]].classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-        }
-
-        function testVoiceInOBS() {
-            const data = {
-                characterName: document.getElementById('ai-name').value.trim() || 'Ryomen Sukuna',
-                characterImage: document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg',
-                ttsVoice: document.getElementById('ai-voice-select').value,
-                ttsPitch: parseFloat(document.getElementById('ai-pitch').value) || 1.0,
-                ttsRate: parseFloat(document.getElementById('ai-rate').value) || 1.0,
-                enableBubble: document.getElementById('ai-bubble').checked,
-                enableTTS: document.getElementById('ai-tts').checked
-            };
-
-            saveAISettings(false);
-            socket.emit('admin-test-voice-preview', data);
-        }
-
-        function saveAutoModSettings() {
-            const blockLinks = document.getElementById('mod-block-links').checked;
-            const capsFilter = document.getElementById('mod-caps-filter').checked;
-            const bannedWords = document.getElementById('mod-banned-words').value.trim();
-
-            socket.emit('admin-save-automod', { blockLinks, capsFilter, bannedWords });
-            alert("🛡️ Auto-Moderation settings saved!");
-        }
-
-        function saveGoogleCredentials() {
-            const clientId = document.getElementById('google-client-id').value.trim();
-            const clientSecret = document.getElementById('google-client-secret').value.trim();
-            if (!clientId || !clientSecret) return alert("Client ID aur Client Secret dono zaroori hain!");
-
-            localStorage.setItem('bot_googleClientId', clientId);
-            localStorage.setItem('bot_googleClientSecret', clientSecret);
-
-            socket.emit('admin-change-styles', {
-                googleClientId: clientId,
-                googleClientSecret: clientSecret
-            });
-            alert("✅ Google Client IDs permanently locked in Vault!");
-        }
-
-        function startGoogleLogin() {
-            const clientId = document.getElementById('google-client-id').value.trim() || localStorage.getItem('bot_googleClientId');
-            if (!clientId) return alert("Pehle Client ID daal kar Save karein!");
-            saveGoogleCredentials();
-            window.location.href = "/auth/google";
-        }
-
-        function disconnectGoogle() {
-            if (confirm("Disconnect YouTube Account?")) {
-                localStorage.removeItem('bot_ytRefreshToken');
-                localStorage.removeItem('bot_ytAccessToken');
-                localStorage.removeItem('bot_ytAccountName');
-                socket.emit('admin-disconnect-google');
-                document.getElementById('google-logged-out-box').style.display = 'block';
-                document.getElementById('google-logged-in-box').style.display = 'none';
-                document.getElementById('google-status-badge').innerText = '🔴 Not Connected';
-                document.getElementById('google-status-badge').style.color = 'var(--red)';
-            }
-        }
-
-        function toggleYTChatSend() {
-            socket.emit('admin-change-styles', {
-                enableYTChatSend: document.getElementById('yt-enable-chat-send').checked
-            });
-        }
-
-        function saveAISettings(showAlert = true) {
-            const img = document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg';
-            const name = document.getElementById('ai-name').value.trim();
-            const cmd = document.getElementById('ai-cmd').value.trim();
-            const voice = document.getElementById('ai-voice-select').value;
-            const pitch = parseFloat(document.getElementById('ai-pitch').value);
-            const rate = parseFloat(document.getElementById('ai-rate').value);
-            const persona = document.getElementById('ai-persona').value.trim();
-
-            localStorage.setItem('bot_characterImage', img);
-            localStorage.setItem('bot_characterName', name);
-            localStorage.setItem('bot_aiCmd', cmd);
-            localStorage.setItem('bot_ttsVoice', voice);
-            localStorage.setItem('bot_ttsPitch', pitch);
-            localStorage.setItem('bot_ttsRate', rate);
-            localStorage.setItem('bot_characterPersona', persona);
-
-            socket.emit('admin-change-styles', {
-                enableBubble: document.getElementById('ai-bubble').checked,
-                enableTTS: document.getElementById('ai-tts').checked,
-                ttsVoice: voice,
-                ttsPitch: pitch,
-                ttsRate: rate,
-                characterName: name,
-                characterImage: img,
-                characterPersona: persona,
-                aiCommand: cmd
-            });
-
-            if (showAlert) alert('✅ Character & Unlimited AI Settings Saved!');
-        }
-
-        socket.on('update-styles', (data) => {
-            if (data.googleClientId) {
-                document.getElementById('google-client-id').value = data.googleClientId;
-                localStorage.setItem('bot_googleClientId', data.googleClientId);
-            }
-            if (data.googleClientSecret) {
-                document.getElementById('google-client-secret').value = data.googleClientSecret;
-                localStorage.setItem('bot_googleClientSecret', data.googleClientSecret);
-            }
-
-            const loggedInBox = document.getElementById('google-logged-in-box');
-            const loggedOutBox = document.getElementById('google-logged-out-box');
-            const statusBadge = document.getElementById('google-status-badge');
-
-            if (data.ytRefreshToken || localStorage.getItem('bot_ytRefreshToken')) {
-                loggedOutBox.style.display = 'none';
-                loggedInBox.style.display = 'block';
-                statusBadge.innerText = '🟢 Connected & Auto-Refreshing';
-                statusBadge.style.color = '#2ecc71';
-                document.getElementById('yt-account-display').innerText = data.ytAccountName || localStorage.getItem('bot_ytAccountName') || "YouTube Bot Connected";
-                document.getElementById('yt-enable-chat-send').checked = data.enableYTChatSend !== false;
-
-                const quotaBadge = document.getElementById('yt-quota-status');
-                const sent = data.ytMessagesSentToday || 0;
-                if (data.ytQuotaExhausted) {
-                    quotaBadge.innerText = '🔴 Quota Exhausted (TTS Active)';
-                    quotaBadge.style.color = 'var(--red)';
-                } else {
-                    quotaBadge.innerText = `${sent} / 180 Msgs Sent Today`;
-                    quotaBadge.style.color = 'var(--gold)';
-                }
-            }
-
-            if (data.characterName) document.getElementById('ai-name').value = data.characterName;
-            if (data.aiCommand) document.getElementById('ai-cmd').value = data.aiCommand;
-            if (data.characterImage) {
-                document.getElementById('ai-image-url').value = data.characterImage;
-                document.getElementById('avatar-preview').src = data.characterImage;
-            }
-            if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
-
-            if (data.ttsVoice) {
-                document.getElementById('ai-voice-select').value = data.ttsVoice;
-                localStorage.setItem('bot_ttsVoice', data.ttsVoice);
-            }
-            if (data.ttsPitch) {
-                document.getElementById('ai-pitch').value = data.ttsPitch;
-                document.getElementById('val-pitch').innerText = data.ttsPitch;
-                localStorage.setItem('bot_ttsPitch', data.ttsPitch);
-            }
-            if (data.ttsRate) {
-                document.getElementById('ai-rate').value = data.ttsRate;
-                document.getElementById('val-rate').innerText = data.ttsRate;
-                localStorage.setItem('bot_ttsRate', data.ttsRate);
-            }
-
-            if (data.modSettings) {
-                document.getElementById('mod-block-links').checked = data.modSettings.blockLinks !== false;
-                document.getElementById('mod-caps-filter').checked = data.modSettings.capsFilter !== false;
-                if (data.modSettings.bannedWords) document.getElementById('mod-banned-words').value = data.modSettings.bannedWords;
-            }
-
-            if (data.userCoins) renderCoinBalances(data.userCoins);
-            if (data.customCommands) renderCustomCommands(data.customCommands);
-        });
-
-        function addOptionField() {
-            const count = customOptionsContainer.children.length + 1;
-            const div = document.createElement('div');
-            div.className = 'opt-input-row';
-            div.innerHTML = `
-                <input type="text" class="custom-opt-input" placeholder="Option ${count}">
-                <button class="btn-icon-del" onclick="this.parentElement.remove()">✕</button>
-            `;
-            customOptionsContainer.appendChild(div);
-        }
-
-        function launchCustomPoll() {
-            const title = document.getElementById('bet-new-title').value.trim();
-            const inputs = document.querySelectorAll('.custom-opt-input');
-            const options = [];
-            inputs.forEach(inp => { const val = inp.value.trim(); if (val) options.push(val); });
-
-            if (!title) return alert('Poll question zaroori hai!');
-            if (options.length < 2) return alert('Kam se kam 2 options daalein!');
-
-            socket.emit('admin-start-bet', { title, options });
-            document.getElementById('bet-new-title').value = '';
-        }
-
-        function resolveWinnerOption(id, name) {
-            if (confirm(`Declare "${name}" as winner?`)) socket.emit('admin-resolve-bet', { winningOptionId: id });
-        }
-
-        function endPollNow() {
-            if (confirm('Poll end karein?')) socket.emit('admin-end-bet');
-        }
-
-        socket.on('bet-update', (bet) => {
-            const badge = document.getElementById('bet-status-badge');
-            const title = document.getElementById('bet-title-display');
-
-            if (!bet.isOpen) {
-                badge.innerText = 'INACTIVE';
-                badge.style.color = 'var(--text-dim)';
-                title.innerText = 'No active poll';
-                activeOptionsList.innerHTML = '<small style="color:var(--text-dim);">Launch a poll below to start.</small>';
+            const chatBadge = document.getElementById('livechat-id-badge');
+            if (data.liveChatId) {
+                chatBadge.innerText = 'Chat ID: 🟢 Active';
+                chatBadge.style.color = '#2ecc71';
             } else {
-                badge.innerText = bet.locked ? '🔒 LOCKED' : '🟢 ACTIVE';
-                badge.style.color = bet.locked ? 'var(--orange)' : 'var(--green)';
-                title.innerText = `${bet.title} (🪙 ${bet.totalPool} Pool • ${bet.totalVotes} Votes)`;
-
-                activeOptionsList.innerHTML = '';
-                bet.options.forEach(opt => {
-                    const row = document.createElement('div');
-                    row.className = 'opt-item-row';
-                    row.innerHTML = `
-                        <div>
-                            <b>[${opt.id}] ${opt.name}</b>
-                            <span style="color:var(--text-dim); margin-left:6px;">${opt.votes} votes • 🪙${opt.pool} (${opt.pct}%)</span>
-                        </div>
-                        <button style="background:var(--cyan); color:#000; padding:4px 8px; font-size:11px;" onclick="resolveWinnerOption(${opt.id}, '${opt.name}')">🏆 Won</button>
-                    `;
-                    activeOptionsList.appendChild(row);
-                });
+                chatBadge.innerText = 'Chat ID: 🔴 Not Linked';
+                chatBadge.style.color = 'var(--orange)';
             }
         });
 
-        function setCustomPlaytime() {
-            const hours = document.getElementById('set-timer-h').value || 0;
-            const minutes = document.getElementById('set-timer-m').value || 0;
-            const seconds = document.getElementById('set-timer-s').value || 0;
-            socket.emit('admin-timer-set', { hours, minutes, seconds });
-            alert('Playtime updated!');
-        }
-
-        function grantCoinsDirect() {
-            const username = document.getElementById('grant-user').value.trim();
-            const amount = document.getElementById('grant-amount').value.trim();
-            if (!username || !amount) return alert('Username aur amount dono zaroori hain!');
-            socket.emit('admin-modify-user-coins', { username, amount });
-            document.getElementById('grant-user').value = '';
-            document.getElementById('grant-amount').value = '';
-        }
-
-        function saveCoinRules() {
-            socket.emit('admin-save-coins', {
-                coinsPerMsg: parseInt(document.getElementById('coin-per-msg').value) || 5,
-                cooldownSeconds: parseInt(document.getElementById('coin-cooldown').value) || 30,
-                aiCost: parseInt(document.getElementById('coin-ai-cost').value) || 50
-            });
-            alert('Coin Rules Saved!');
-        }
-
-        function renderCoinBalances(userCoins) {
-            coinsListContainer.innerHTML = '';
-            const users = Object.keys(userCoins || {});
-            if (users.length === 0) {
-                coinsListContainer.innerHTML = '<small style="color:var(--text-dim); padding:4px;">No coins recorded yet.</small>';
-                return;
-            }
-            users.sort((a,b) => userCoins[b] - userCoins[a]);
-            users.forEach(u => {
-                const row = document.createElement('div');
-                row.className = 'cmd-item';
-                row.style.borderLeftColor = 'var(--gold)';
-                row.innerHTML = `<span>👤 @${u}</span><strong style="color:var(--gold);">🪙 ${userCoins[u]}</strong>`;
-                coinsListContainer.appendChild(row);
-            });
-        }
-
-        function addCustomCommand() {
-            let cmd = document.getElementById('new-cmd-name').value.trim();
-            const reply = document.getElementById('new-cmd-reply').value.trim();
-            const cost = parseInt(document.getElementById('new-cmd-cost').value) || 0;
-            const bubble = document.getElementById('cmd-show-bubble').checked;
-            const tts = document.getElementById('cmd-show-tts').checked;
-
-            if (!cmd || !reply) return alert('Command aur Reply dono likhein!');
-            if (!cmd.startsWith('!')) cmd = '!' + cmd;
-
-            socket.emit('admin-add-custom-cmd', { cmd, reply, bubble, tts, cost });
-            document.getElementById('new-cmd-name').value = '';
-            document.getElementById('new-cmd-reply').value = '';
-            document.getElementById('new-cmd-cost').value = '0';
-        }
-
-        function deleteCustomCommand(cmd) {
-            if (confirm(`Delete command: "${cmd}"?`)) socket.emit('admin-del-custom-cmd', cmd);
-        }
-
-        function renderCustomCommands(commands) {
-            commandsContainer.innerHTML = '';
-            if (!commands || commands.length === 0) {
-                commandsContainer.innerHTML = '<small style="color:var(--text-dim); padding:4px;">No custom commands.</small>';
-                return;
-            }
-            commands.forEach(c => {
-                const div = document.createElement('div');
-                div.className = 'cmd-item';
-                let tags = [];
-                if (c.bubble !== false) tags.push('💬');
-                if (c.tts) tags.push('🔊');
-                const costBadge = (c.cost > 0) ? `🪙${c.cost}` : 'FREE';
-
-                div.innerHTML = `
-                    <div class="cmd-info">
-                        <span class="cmd-tag">${c.cmd}</span>
-                        <span class="cmd-meta">[${costBadge}] [${tags.join(' ')}]</span>
-                        <span class="cmd-reply">${c.reply}</span>
-                    </div>
-                    <button class="btn-del" onclick="deleteCustomCommand('${c.cmd}')">🗑️</button>
-                `;
-                commandsContainer.appendChild(div);
-            });
-        }
-
-        // ==========================================
-        // 🔌 ROBUST OBS WEBSOCKET CONNECTION
-        // ==========================================
+        // OBS Auto-Connect
         let isObsConnected = false;
         async function connectToOBS() {
             if (isObsConnected) return;
@@ -1234,7 +663,7 @@
             saveObsSettings();
             isObsConnected = false;
             connectToOBS();
-            alert("Password saved in Vault! Reconnecting to OBS...");
+            alert("Password saved! Connecting to OBS...");
         }
 
         setInterval(() => { if (!isObsConnected) connectToOBS(); }, 4000);
@@ -1263,24 +692,80 @@
             catch (err) { alert(`Scene '${sceneName}' nahi mila!`); }
         }
 
-        function toggleFormFields() {
-            const type = document.getElementById('trig-type').value;
-            const isScene = type === 'scene';
-            document.getElementById('trig-scene-name').style.display = isScene ? 'block' : 'none';
-            document.getElementById('trig-cmd').style.display = isScene ? 'none' : 'block';
-            document.getElementById('trig-cost').style.display = isScene ? 'none' : 'block';
-            document.getElementById('trig-url').style.display = isScene ? 'none' : 'block';
+        function switchTab(tabName) {
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 'coins': 4, 'ai': 5, 'automod': 6, 'commands': 7, 'customizer': 8, 'add': 9 };
+            document.querySelectorAll('.nav-btn')[tabMap[tabName]].classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
         }
 
-        function formatTime(totalSeconds) {
-            const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
-            const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-            const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${h}h ${m}m ${s}s`;
+        function testVoiceInOBS() {
+            socket.emit('admin-test-voice-preview', {
+                characterName: document.getElementById('ai-name').value.trim() || 'Ryomen Sukuna',
+                characterImage: document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg',
+                ttsVoice: document.getElementById('ai-voice-select').value,
+                ttsPitch: parseFloat(document.getElementById('ai-pitch').value) || 1.0,
+                ttsRate: parseFloat(document.getElementById('ai-rate').value) || 1.0,
+                enableBubble: document.getElementById('ai-bubble').checked,
+                enableTTS: document.getElementById('ai-tts').checked
+            });
         }
 
-        socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
-        socket.on('update-counter', (data) => deathDisplay.innerText = data.count);
+        function saveGoogleCredentials() {
+            const clientId = document.getElementById('google-client-id').value.trim();
+            const clientSecret = document.getElementById('google-client-secret').value.trim();
+            if (!clientId || !clientSecret) return alert("Credentials missing!");
+            localStorage.setItem('bot_googleClientId', clientId);
+            localStorage.setItem('bot_googleClientSecret', clientSecret);
+            socket.emit('admin-change-styles', { googleClientId: clientId, googleClientSecret: clientSecret });
+            alert("✅ Google IDs locked in Vault!");
+        }
+
+        function startGoogleLogin() {
+            saveGoogleCredentials();
+            window.location.href = "/auth/google";
+        }
+
+        function disconnectGoogle() {
+            if (confirm("Disconnect YouTube Bot Account?")) {
+                localStorage.removeItem('bot_ytRefreshToken');
+                localStorage.removeItem('bot_ytAccessToken');
+                localStorage.removeItem('bot_ytAccountName');
+                socket.emit('admin-disconnect-google');
+                document.getElementById('google-logged-out-box').style.display = 'block';
+                document.getElementById('google-logged-in-box').style.display = 'none';
+            }
+        }
+
+        function toggleYTChatSend() {
+            socket.emit('admin-change-styles', { enableYTChatSend: document.getElementById('yt-enable-chat-send').checked });
+        }
+
+        function saveAISettings() {
+            const img = document.getElementById('ai-image-url').value.trim() || 'https://images3.alphacoders.com/134/1344406.jpeg';
+            const name = document.getElementById('ai-name').value.trim();
+            const cmd = document.getElementById('ai-cmd').value.trim();
+            const voice = document.getElementById('ai-voice-select').value;
+            const persona = document.getElementById('ai-persona').value.trim();
+
+            localStorage.setItem('bot_characterImage', img);
+            localStorage.setItem('bot_characterName', name);
+            localStorage.setItem('bot_aiCmd', cmd);
+            localStorage.setItem('bot_ttsVoice', voice);
+            localStorage.setItem('bot_characterPersona', persona);
+
+            socket.emit('admin-change-styles', {
+                enableBubble: document.getElementById('ai-bubble').checked,
+                enableTTS: document.getElementById('ai-tts').checked,
+                ttsVoice: voice,
+                characterName: name,
+                characterImage: img,
+                characterPersona: persona,
+                aiCommand: cmd
+            });
+            alert('✅ Settings Saved!');
+        }
 
         socket.on('load-triggers', (triggers) => {
             scenesContainer.innerHTML = '';
@@ -1293,25 +778,20 @@
                 const delBtn = document.createElement('button');
                 delBtn.className = 'deck-del-btn';
                 delBtn.innerText = '✕';
-                delBtn.title = 'Delete Item';
-                delBtn.onclick = (e) => {
-                    e.stopPropagation();
-                    if (confirm(`Delete "${t.name}"?`)) socket.emit('admin-del-trigger', t.id);
-                };
+                delBtn.onclick = (e) => { e.stopPropagation(); socket.emit('admin-del-trigger', t.id); };
                 wrapper.appendChild(delBtn);
 
                 if (t.type === 'scene') {
                     const btn = document.createElement('button');
                     btn.className = 'btn-scene';
-                    btn.innerHTML = `🖥️ ${t.name}<br><small style="font-size:10px; opacity:0.7;">[${t.sceneName}]</small>`;
+                    btn.innerHTML = `🖥️ ${t.name}`;
                     btn.onclick = () => switchScene(t.sceneName);
                     wrapper.appendChild(btn);
                     scenesContainer.appendChild(wrapper);
                 } else {
                     const btn = document.createElement('button');
                     btn.className = t.type === 'video' ? 'btn-video' : 'btn-sfx';
-                    const costBadge = t.cost > 0 ? `🪙${t.cost}` : `FREE`;
-                    btn.innerHTML = `${t.type === 'video' ? '🎬' : '🔊'} ${t.name}<br><small style="font-size:10px; opacity:0.9;">${t.cmd} [${costBadge}]</small>`;
+                    btn.innerHTML = `${t.type === 'video' ? '🎬' : '🔊'} ${t.name}<br><small>${t.cmd}</small>`;
                     btn.onclick = () => {
                         if (t.type === 'video') socket.emit('admin-play-meme', { mediaUrl: t.url });
                         if (t.type === 'sfx') socket.emit('admin-play-sfx', { sfxUrl: t.url });
@@ -1322,28 +802,28 @@
             });
         });
 
+        function toggleFormFields() {
+            const type = document.getElementById('trig-type').value;
+            const isScene = type === 'scene';
+            document.getElementById('trig-scene-name').style.display = isScene ? 'block' : 'none';
+            document.getElementById('trig-cmd').style.display = isScene ? 'none' : 'block';
+            document.getElementById('trig-cost').style.display = isScene ? 'none' : 'block';
+            document.getElementById('trig-url').style.display = isScene ? 'none' : 'block';
+        }
+
         function addNewTrigger() {
             const type = document.getElementById('trig-type').value;
             const name = document.getElementById('trig-name').value.trim();
-            if (!name) return alert('Name zaroori hai!');
-
             if (type === 'scene') {
-                const sceneName = document.getElementById('trig-scene-name').value.trim();
-                if (!sceneName) return alert('Scene Name zaroori hai!');
-                socket.emit('admin-add-trigger', { name, type, sceneName, cost: 0 });
+                socket.emit('admin-add-trigger', { name, type, sceneName: document.getElementById('trig-scene-name').value.trim(), cost: 0 });
             } else {
-                const cmd = document.getElementById('trig-cmd').value.trim().toLowerCase();
-                const url = document.getElementById('trig-url').value.trim();
-                const cost = parseInt(document.getElementById('trig-cost').value) || 0;
-                if (!cmd || !url) return alert('Command aur Media URL zaroori hain!');
-                socket.emit('admin-add-trigger', { name, type, cmd, url, cost });
+                socket.emit('admin-add-trigger', { 
+                    name, type, 
+                    cmd: document.getElementById('trig-cmd').value.trim().toLowerCase(), 
+                    url: document.getElementById('trig-url').value.trim(), 
+                    cost: parseInt(document.getElementById('trig-cost').value) || 0 
+                });
             }
-
-            document.getElementById('trig-name').value = '';
-            document.getElementById('trig-cmd').value = '';
-            document.getElementById('trig-url').value = '';
-            document.getElementById('trig-cost').value = '0';
-            document.getElementById('trig-scene-name').value = '';
             switchTab('deck');
         }
     </script>
