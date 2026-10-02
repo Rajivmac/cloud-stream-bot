@@ -494,12 +494,12 @@
                         <button style="background:#e74c3c; font-size:11px; padding:6px 10px;" onclick="disconnectGoogle()">Disconnect</button>
                     </div>
 
-                    <!-- 🌟 1-CLICK LIVE STREAM CHAT LINKER -->
+                    <!-- 🌟 BULLETPROOF LIVE STREAM CHAT LINKER -->
                     <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #28334a;">
                         <label style="font-size:10px; color:var(--cyan); font-weight:800; display:block; margin-bottom:4px;">⚡ LINK CURRENT LIVE STREAM CHAT</label>
                         <div style="display:flex; gap:6px;">
-                            <input type="text" id="stream-link-input" placeholder="Paste live stream link (e.g. https://youtube.com/live/...)" style="margin-bottom:0; font-size:11px; flex:1;">
-                            <button style="background:var(--green); color:#000; font-weight:800; font-size:11px; padding:6px 14px; white-space:nowrap;" onclick="linkStreamChatId()">🔗 Link Chat ID</button>
+                            <input type="text" id="stream-link-input" placeholder="Paste live stream link or Video ID" style="margin-bottom:0; font-size:11px; flex:1;">
+                            <button id="btn-link-chat" style="background:var(--green); color:#000; font-weight:800; font-size:11px; padding:6px 14px; white-space:nowrap;" onclick="linkStreamChatId()">🔗 Link Chat ID</button>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
                             <span id="livechat-id-badge" style="font-size:11px; color:var(--orange); font-weight:800;">Chat ID: 🔴 Not Linked</span>
@@ -739,6 +739,16 @@
 
         let rawCatalogText = "";
 
+        // Safe Clean Video ID extractor
+        function extractCleanVideoId(input) {
+            if (!input) return "";
+            const str = input.trim();
+            const match = str.match(/(?:youtu\.be\/|youtube\.com\/(?:live\/|watch\?v=|embed\/|shorts\/))([a-zA-Z0-9_-]{11})/);
+            if (match && match[1]) return match[1];
+            if (/^[a-zA-Z0-9_-]{11}$/.test(str)) return str;
+            return str.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 11);
+        }
+
         // Restore permanent vault
         function restoreVaultFields() {
             if (localStorage.getItem('bot_obsIp')) document.getElementById('obs-ip').value = localStorage.getItem('bot_obsIp');
@@ -811,24 +821,36 @@
             localStorage.setItem('bot_obsMic', document.getElementById('obs-mic-name').value.trim());
         }
 
-        // 🔗 LINK STREAM CHAT ID
+        // 🔗 LINK STREAM CHAT ID (CLEANED REGEX PARSER)
         function linkStreamChatId() {
-            const inputVal = document.getElementById('stream-link-input').value.trim();
+            const rawVal = document.getElementById('stream-link-input').value.trim();
+            const cleanId = extractCleanVideoId(rawVal);
             const badge = document.getElementById('livechat-id-badge');
+
+            if (!cleanId) {
+                alert("YouTube Live URL ya 11-digit Video ID enter karein!");
+                return;
+            }
+
             badge.innerText = "Linking Chat ID...";
             badge.style.color = "var(--orange)";
-            socket.emit('admin-link-stream-url', inputVal);
+            socket.emit('admin-link-stream-url', cleanId);
         }
 
         socket.on('link-chat-result', (res) => {
             const badge = document.getElementById('livechat-id-badge');
+            const statusDiv = document.getElementById('test-post-status');
             if (res.success) {
                 badge.innerText = 'Chat ID: 🟢 Active';
                 badge.style.color = '#2ecc71';
+                statusDiv.innerText = `✅ Stream chat active (Chat ID: ${res.chatId.slice(0, 16)}...)`;
+                statusDiv.style.color = "#2ecc71";
                 alert("✅ Stream chat successfully linked!");
             } else {
                 badge.innerText = 'Chat ID: 🔴 Not Linked';
                 badge.style.color = '#ff4757';
+                statusDiv.innerText = "❌ Link Failed: " + res.error;
+                statusDiv.style.color = "#ff4757";
                 alert("❌ Failed: " + res.error);
             }
         });
