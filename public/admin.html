@@ -451,12 +451,12 @@
             </div>
         </div>
 
-        <!-- TAB 6: AI PERSONA (ZERO-KEY AUTO CLOUD) -->
+        <!-- TAB 6: AI PERSONA & LIVE YOUTUBE SYNC -->
         <div id="tab-ai" class="tab-content">
             
             <div class="card">
                 <div class="section-title">
-                    <span>🔴 YouTube Account Integration</span>
+                    <span>🔴 YouTube Bot Account (Posting in Chat)</span>
                     <span id="google-status-badge" style="font-size:10px; color:var(--red);">Not Connected</span>
                 </div>
 
@@ -469,19 +469,30 @@
 
                     <div class="grid-2">
                         <button class="btn-submit" onclick="saveGoogleCredentials()">💾 Save IDs Permanently</button>
-                        <button style="background:linear-gradient(90deg, #ea4335, #c5221f); font-weight:800;" onclick="startGoogleLogin()">🔗 Sign in with Google</button>
+                        <button style="background:linear-gradient(90deg, #ea4335, #c5221f); font-weight:800;" onclick="startGoogleLogin()">🔗 Sign in with Bot Channel</button>
                     </div>
                 </div>
 
-                <div id="google-logged-in-box" style="display:none; background:#161c2b; padding:10px; border-radius:8px; border:1px solid #2ecc71;">
+                <div id="google-logged-in-box" style="display:none; background:#161c2b; padding:12px; border-radius:8px; border:1px solid #2ecc71;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div>
-                            <span style="font-size:10px; color:#2ecc71; font-weight:800;">CONNECTED AS:</span>
-                            <div id="yt-account-display" style="font-size:13px; font-weight:700; color:#fff;">Channel Name</div>
+                            <span style="font-size:10px; color:#2ecc71; font-weight:800;">CONNECTED AS BOT:</span>
+                            <div id="yt-account-display" style="font-size:13px; font-weight:700; color:#fff;">Bot Channel</div>
                             <span id="yt-quota-status" style="font-size:10px; color:var(--gold);">0 / 180 Msgs Sent Today</span>
                         </div>
                         <button style="background:#e74c3c; font-size:11px; padding:6px 10px;" onclick="disconnectGoogle()">Disconnect</button>
                     </div>
+
+                    <!-- 🌟 LIVE CHAT SYNC BOX -->
+                    <div style="margin-top:12px; padding-top:10px; border-top:1px dashed #28334a;">
+                        <label style="font-size:10px; color:var(--cyan); font-weight:800; display:block; margin-bottom:4px;">⚡ CONNECT TO CURRENT LIVE STREAM CHAT</label>
+                        <div style="display:flex; gap:6px;">
+                            <input type="text" id="stream-live-link" placeholder="Paste Live Video Link or ID (or leave blank to auto-detect)" style="margin-bottom:0; font-size:11px; flex:1;">
+                            <button style="background:var(--cyan); color:#000; font-weight:800; font-size:11px; padding:6px 12px; min-width:110px;" onclick="syncLiveStreamId()">🔗 Sync Chat ID</button>
+                        </div>
+                        <div id="chat-sync-status" style="font-size:10px; color:var(--text-dim); margin-top:4px;">Status: Auto-detecting main channel live stream...</div>
+                    </div>
+
                     <div class="row-toggle" style="margin-top:10px; margin-bottom:0;">
                         <span>Post Bot Replies directly in Live Chat</span>
                         <input type="checkbox" id="yt-enable-chat-send" onchange="toggleYTChatSend()">
@@ -489,7 +500,6 @@
                 </div>
             </div>
 
-            <!-- ZERO-KEY ENGINE BADGE -->
             <div class="card" style="border-left: 4px solid var(--green);">
                 <div class="section-title">
                     <span>⚡ AI Engine Status</span>
@@ -767,7 +777,7 @@
                 document.getElementById('google-logged-in-box').style.display = 'block';
                 document.getElementById('google-status-badge').innerText = '🟢 Connected & Auto-Refreshing';
                 document.getElementById('google-status-badge').style.color = '#2ecc71';
-                document.getElementById('yt-account-display').innerText = localStorage.getItem('bot_ytAccountName') || 'YouTube Channel Connected';
+                document.getElementById('yt-account-display').innerText = localStorage.getItem('bot_ytAccountName') || 'YouTube Bot Connected';
             }
         }
         restoreVaultFields();
@@ -788,7 +798,26 @@
             });
         });
 
-        // 📖 RENDER AUTO-GENERATED CATALOG
+        // 🌟 1-CLICK SYNC FUNCTION
+        function syncLiveStreamId() {
+            const inputVal = document.getElementById('stream-live-link').value.trim();
+            document.getElementById('chat-sync-status').innerText = 'Syncing with Main Channel Stream...';
+            socket.emit('admin-sync-stream-id', inputVal);
+        }
+
+        socket.on('chat-id-synced', (res) => {
+            const statusDiv = document.getElementById('chat-sync-status');
+            if (res.success) {
+                statusDiv.innerText = `✅ Connected to Live Chat ID: ${res.chatId.slice(0, 15)}...`;
+                statusDiv.style.color = '#2ecc71';
+                alert("✅ Successfully connected to current live stream chat!");
+            } else {
+                statusDiv.innerText = `❌ Could not find active stream. Please paste direct Live Video Link above and try again.`;
+                statusDiv.style.color = '#ff4757';
+                alert("❌ Active stream detect nahi hui. Upar input box mein apni live stream ka YouTube URL paste karke click karein!");
+            }
+        });
+
         socket.on('all-commands-catalog', (cat) => {
             let html = "";
             let textAcc = "=== STREAM COMMANDS ===\n\n[CORE & AI]\n";
@@ -966,7 +995,7 @@
                 loggedInBox.style.display = 'block';
                 statusBadge.innerText = '🟢 Connected & Auto-Refreshing';
                 statusBadge.style.color = '#2ecc71';
-                document.getElementById('yt-account-display').innerText = data.ytAccountName || localStorage.getItem('bot_ytAccountName') || "YouTube Account Connected";
+                document.getElementById('yt-account-display').innerText = data.ytAccountName || localStorage.getItem('bot_ytAccountName') || "YouTube Bot Connected";
                 document.getElementById('yt-enable-chat-send').checked = data.enableYTChatSend !== false;
 
                 const quotaBadge = document.getElementById('yt-quota-status');
@@ -978,6 +1007,11 @@
                     quotaBadge.innerText = `${sent} / 180 Msgs Sent Today`;
                     quotaBadge.style.color = 'var(--gold)';
                 }
+            }
+
+            if (data.ytLiveChatId) {
+                document.getElementById('chat-sync-status').innerText = `✅ Connected to Live Chat ID: ${data.ytLiveChatId.slice(0, 15)}...`;
+                document.getElementById('chat-sync-status').style.color = '#2ecc71';
             }
 
             if (data.characterName) document.getElementById('ai-name').value = data.characterName;
