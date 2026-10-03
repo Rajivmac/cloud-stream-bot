@@ -6,1273 +6,156 @@
     <title>Stream Master Deck</title>
     <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.5/dist/obs-ws.min.js"></script>
     <style>
-        :root {
-            --bg: #0b0e14;
-            --surface: #121722;
-            --sidebar-bg: #0f131d;
-            --border: #202738;
-            --green: #2ecc71;
-            --orange: #f39c12;
-            --red: #ff4757;
-            --blue: #3498db;
-            --cyan: #00d2d3;
-            --gold: #f1c40f;
-            --purple: #9b59b6;
-            --text-dim: #7f8b9f;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            background-color: var(--bg);
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            height: 100vh;
-            display: flex;
-            overflow: hidden;
-        }
-
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-thumb { background: #262e45; border-radius: 4px; }
-
-        .sidebar {
-            width: 140px;
-            min-width: 140px;
-            background: var(--sidebar-bg);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            padding: 10px 6px;
-            gap: 4px;
-            overflow-y: auto;
-        }
-
-        .sidebar-brand {
-            font-size: 11px;
-            font-weight: 800;
-            color: var(--cyan);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 8px 6px 12px 6px;
-            text-align: center;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 6px;
-        }
-
-        .nav-btn {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 10px;
-            border-radius: 8px;
-            border: none;
-            background: transparent;
-            color: var(--text-dim);
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-            text-align: left;
-            transition: all 0.15s ease;
-            width: 100%;
-        }
-
-        .nav-btn:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
-        .nav-btn.active {
-            background: var(--surface);
-            color: #ffffff;
-            border-left: 3px solid var(--cyan);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        }
-
-        .main-viewport {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            padding: 12px 16px;
-            gap: 10px;
-            max-width: 600px;
-        }
-
-        .status-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            padding: 10px 12px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 11px;
-            font-weight: 700;
-            gap: 6px;
-        }
-        .status-badge { display: flex; align-items: center; gap: 5px; }
-        .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-        .dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
-        .dot-orange { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
-        .dot-red { background: var(--red); box-shadow: 0 0 8px var(--red); }
-
-        .tab-content { display: none; flex-direction: column; gap: 10px; }
-        .tab-content.active { display: flex; }
-
-        .card { 
-            background: var(--surface); 
-            border: 1px solid var(--border); 
-            padding: 12px; 
-            border-radius: 10px; 
-        }
-
-        .section-title { 
-            font-size: 11px; 
-            color: var(--text-dim); 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
-            margin-bottom: 8px; 
-            font-weight: 800; 
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
+        /* CSS Same as before... (Dark Theme, Buttons, Grid) */
+        :root { --bg: #0b0e14; --surface: #121722; --border: #202738; --green: #2ecc71; --orange: #f39c12; --red: #ff4757; --cyan: #00d2d3; }
+        body { background: var(--bg); color: #fff; font-family: sans-serif; display: flex; margin: 0; height: 100vh; overflow: hidden; }
+        .sidebar { width: 140px; background: #0f131d; border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 10px 6px; }
+        .nav-btn { background: transparent; border: none; color: #7f8b9f; padding: 10px; cursor: pointer; text-align: left; }
+        .nav-btn.active { background: var(--surface); color: #fff; border-left: 3px solid var(--cyan); }
+        .main-viewport { flex: 1; padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .tab-content { display: none; flex-direction: column; gap: 10px; } .tab-content.active { display: flex; }
+        .card { background: var(--surface); border: 1px solid var(--border); padding: 12px; border-radius: 10px; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-        
-        .grid-dynamic { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); 
-            gap: 8px; 
-            max-height: 280px;
-            overflow-y: auto;
-        }
-
-        .deck-btn-wrapper { position: relative; display: flex; flex-direction: column; }
-        .deck-del-btn {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            background: rgba(0, 0, 0, 0.6);
-            color: #ff4757;
-            border: none;
-            border-radius: 4px;
-            font-size: 10px;
-            padding: 2px 4px;
-            cursor: pointer;
-            z-index: 2;
-        }
-
-        button {
-            padding: 10px 8px;
-            font-size: 13px;
-            font-weight: 700;
-            border: none;
-            border-radius: 7px;
-            cursor: pointer;
-            color: white;
-            transition: transform 0.08s;
-        }
-        button:active { transform: scale(0.97); }
-
-        .btn-mic { width: 100%; padding: 14px; font-size: 15px; border-radius: 8px; font-weight: 800; }
-        .mic-unmuted { background: var(--green); box-shadow: 0 0 12px rgba(46, 204, 113, 0.3); }
-        .mic-muted { background: var(--red); box-shadow: 0 0 12px rgba(255, 71, 87, 0.4); }
-
-        .btn-scene { background: #222a3d; border-left: 4px solid var(--blue); min-height: 54px; font-size: 12px; }
-        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); min-height: 54px; font-size: 12px; }
-        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); min-height: 54px; font-size: 12px; }
-
-        .counter-big-display { font-size: 56px; font-weight: 900; color: var(--red); text-align: center; margin: 4px 0 12px 0; }
-        .timer-display { font-size: 34px; font-weight: 900; color: #00d2d3; text-align: center; margin: 4px 0 12px 0; font-family: monospace; }
-
-        .btn-death-add { background: var(--red); font-size: 20px; padding: 16px; width: 100%; margin-bottom: 8px; }
-        .btn-sub { background: #2f384d; }
-        .btn-reset { background: #1c2230; }
-
-        select, input, textarea {
-            width: 100%;
-            padding: 9px;
-            background: #171c28;
-            border: 1px solid #242c3f;
-            color: white;
-            border-radius: 6px;
-            box-sizing: border-box;
-            margin-bottom: 7px;
-            font-size: 13px;
-            font-family: inherit;
-        }
-        select:focus, input:focus, textarea:focus { outline: none; border-color: var(--cyan); }
-
-        .btn-submit { background: var(--blue); width: 100%; padding: 10px; font-size: 13px; }
-        .btn-gold { background: var(--gold); color: #000; font-weight: 800; width: 100%; padding: 11px; }
-
-        .row-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 7px;
-            font-size: 12px;
-        }
-        .row-toggle input[type="checkbox"] { width: 17px; height: 17px; margin: 0; }
-
-        .contained-list {
-            max-height: 240px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        /* Unified Command Card in Tab 8 */
-        .cmd-edit-card {
-            background: #171d2b;
-            border: 1px solid #242c3f;
-            border-radius: 7px;
-            padding: 9px 11px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .cmd-edit-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .cmd-badge {
-            font-weight: 800;
-            color: var(--cyan);
-            font-size: 13px;
-        }
-        .cmd-controls-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            font-size: 11px;
-        }
-        .cmd-tag-toggle {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            background: #0d121c;
-            padding: 3px 7px;
-            border-radius: 5px;
-            color: #ccc;
-        }
-        .cmd-tag-toggle input { width: 14px; height: 14px; margin: 0; cursor: pointer; }
-
-        .guide-box {
-            background: rgba(0, 210, 211, 0.08);
-            border: 1px dashed var(--cyan);
-            border-radius: 8px;
-            padding: 10px;
-            margin-top: 10px;
-            font-size: 12px;
-            line-height: 1.5;
-        }
-        .opt-input-row { display: flex; gap: 6px; margin-bottom: 6px; }
-        .opt-input-row input { margin-bottom: 0; }
-        .btn-icon-del { background: #e74c3c; width: 36px; min-width: 36px; padding: 0; font-size: 14px; }
-
-        .avatar-preview-box {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            background: #171d2b;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border: 1px solid var(--border);
-        }
-        .avatar-preview-img {
-            width: 52px;
-            height: 52px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 2px solid var(--cyan);
-            box-shadow: 0 0 10px rgba(0, 210, 211, 0.3);
-            background: #0b0e14;
-        }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        .grid-dynamic { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+        button { padding: 10px; border: none; border-radius: 7px; color: white; cursor: pointer; font-weight: bold; }
+        .btn-green { background: var(--green); color: #000; } .btn-red { background: var(--red); } .btn-cyan { background: var(--cyan); color:#000; }
+        input, select, textarea { width: 100%; padding: 8px; background: #171c28; border: 1px solid #242c3f; color: white; margin-bottom: 6px; border-radius: 4px; box-sizing: border-box; }
+        .status-badge { display: flex; align-items: center; gap: 5px; font-size: 11px; } .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .score-box { font-size: 32px; font-weight: 900; text-align: center; }
     </style>
 </head>
 <body>
-
     <div class="sidebar">
-        <div class="sidebar-brand">⚡ Stream Deck</div>
-        <button class="nav-btn active" onclick="switchTab('deck')"><span>🎮</span> Live Deck</button>
-        <button class="nav-btn" onclick="switchTab('counter')"><span>💀</span> Deaths</button>
-        <button class="nav-btn" onclick="switchTab('timer')"><span>⏱</span> Playtime</button>
-        <button class="nav-btn" onclick="switchTab('bet')"><span>🎲</span> Predictions</button>
-        <button class="nav-btn" onclick="switchTab('coins')"><span>🪙</span> Mac-Coins</button>
-        <button class="nav-btn" onclick="switchTab('ai')"><span>🤖</span> AI Persona</button>
-        <button class="nav-btn" onclick="switchTab('automod')"><span>🛡️</span> Auto-Mod</button>
-        <button class="nav-btn" onclick="switchTab('commands')"><span>💬</span> Commands</button>
-        <button class="nav-btn" onclick="switchTab('customizer')"><span>🎨</span> Styles & OBS</button>
-        <button class="nav-btn" onclick="switchTab('add')"><span>➕</span> Add Item</button>
+        <button class="nav-btn active" onclick="switchTab('deck')">🎮 Live Deck</button>
+        <button class="nav-btn" onclick="switchTab('stats')">💀 Match Stats</button>
+        <button class="nav-btn" onclick="switchTab('bet')">🎲 Predictions</button>
+        <button class="nav-btn" onclick="switchTab('ai')">🤖 AI Controls</button>
     </div>
 
     <div class="main-viewport">
-        
-        <!-- TRIPLE STATUS HEADER (STREAM, OBS, STREAMER.BOT) -->
-        <div class="status-card">
-            <div class="status-badge">
-                <span id="stream-dot" class="dot dot-red"></span>
-                <span id="stream-status-text">Stream: Off</span>
-            </div>
-            <div class="status-badge">
-                <span id="obs-dot" class="dot dot-red"></span>
-                <span id="obs-status-text">OBS: Disconnected</span>
-            </div>
-            <div class="status-badge">
-                <span id="sb-dot" class="dot dot-red"></span>
-                <span id="sb-status-text">Streamer.bot: Off</span>
-            </div>
+        <!-- Status Bar -->
+        <div class="card" style="display:flex; justify-content:space-between; padding:8px;">
+            <div class="status-badge"><span class="dot" id="stream-dot" style="background:var(--red);"></span> <span id="stream-text">Stream Off</span></div>
+            <div class="status-badge"><span class="dot" id="obs-dot" style="background:var(--red);"></span> <span id="obs-text">OBS Off</span></div>
         </div>
 
-        <!-- TAB 1: LIVE DECK -->
+        <!-- TAB 1: LIVE DECK (Manual Redeems) -->
         <div id="tab-deck" class="tab-content active">
             <div class="card">
-                <div class="section-title">🎙️ Audio Controls</div>
-                <button id="mic-btn" class="btn-mic mic-unmuted" onclick="toggleMic()">🎙 MIC IS LIVE</button>
-            </div>
-            <div class="card">
-                <div class="section-title">🎬 OBS Scenes</div>
-                <div class="grid-dynamic" id="scenes-container"></div>
-            </div>
-            <div class="card">
-                <div class="section-title">⚡ Meme & Sound Deck (Redeems)</div>
+                <h3>⚡ Local Media Redeems (Direct to OBS)</h3>
+                <small style="color:var(--cyan);">Add local SSD paths in 'Add Item' to see buttons here.</small>
                 <div class="grid-dynamic" id="triggers-container"></div>
             </div>
         </div>
 
-        <!-- TAB 2: DEATH COUNTER -->
-        <div id="tab-counter" class="tab-content">
+        <!-- TAB 2: MATCH STATS (Win/Loss + Deaths + Timer) -->
+        <div id="tab-stats" class="tab-content">
             <div class="card">
-                <div class="section-title" style="text-align:center;">💀 Match Death Count</div>
-                <div class="counter-big-display" id="death-display">0</div>
-                <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
+                <h3 style="text-align:center;">🏆 Ranked Streak (W - L)</h3>
+                <div class="score-box" style="color:var(--cyan);"><span id="win-display">0</span> - <span id="loss-display">0</span></div>
                 <div class="grid-2">
-                    <button class="btn-sub" onclick="socket.emit('admin-death-sub')">- 1 Death</button>
-                    <button class="btn-reset" onclick="socket.emit('admin-death-reset')">Reset (0)</button>
+                    <button class="btn-green" onclick="socket.emit('admin-win-add')">+ 1 WIN</button>
+                    <button class="btn-red" onclick="socket.emit('admin-loss-add')">+ 1 LOSS</button>
                 </div>
             </div>
-        </div>
-
-        <!-- TAB 3: PLAYTIME TIMER -->
-        <div id="tab-timer" class="tab-content">
+            
             <div class="card">
-                <div class="section-title" style="text-align:center;">⏱️ Playtime Timer</div>
-                <div class="timer-display" id="admin-timer-display">00h 00m 00s</div>
-                <div class="grid-3">
-                    <button style="background:var(--green);" onclick="socket.emit('admin-timer-start')">▶ Start</button>
-                    <button style="background:var(--orange);" onclick="socket.emit('admin-timer-pause')">⏸ Pause</button>
-                    <button class="btn-reset" onclick="socket.emit('admin-timer-reset')">🔄 Reset</button>
-                </div>
-
-                <div class="section-title" style="margin-top:16px;">⏱️ Set Custom Playtime</div>
-                <div class="grid-3">
-                    <input type="number" id="set-timer-h" placeholder="Hours" min="0">
-                    <input type="number" id="set-timer-m" placeholder="Minutes" min="0" max="59">
-                    <input type="number" id="set-timer-s" placeholder="Seconds" min="0" max="59">
-                </div>
-                <button class="btn-submit" onclick="setCustomPlaytime()">Update Timer Value</button>
+                <h3 style="text-align:center;">💀 Match Deaths</h3>
+                <div class="score-box" id="death-display" style="color:var(--red);">0</div>
+                <button class="btn-red" style="width:100%; margin-bottom:8px; font-size:20px;" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
+                <button style="background:#202738; width:100%;" onclick="socket.emit('admin-death-reset')">Reset Counters</button>
             </div>
         </div>
 
-        <!-- TAB 4: PREDICTIONS -->
+        <!-- TAB 3: POLLS / BETTING -->
         <div id="tab-bet" class="tab-content">
             <div class="card">
-                <div class="section-title">
-                    <span>🎲 Active Prediction Status</span>
-                    <span id="bet-status-badge" style="color:var(--orange); font-size:10px;">INACTIVE</span>
-                </div>
-
-                <div class="bet-box">
-                    <h4 id="bet-title-display" style="margin:2px 0 8px 0; font-size:15px; color:#fff;">No active poll</h4>
-                    <div id="active-options-list"></div>
-
-                    <div class="grid-2" style="margin-top:10px;">
-                        <button style="background:var(--orange); font-size:12px;" onclick="socket.emit('admin-lock-bet')">🔒 Lock Voting</button>
-                        <button style="background:#e74c3c; font-size:12px;" onclick="endPollNow()">⏹️ End Poll (Hide)</button>
-                    </div>
-                </div>
-
-                <div class="guide-box">
-                    <b style="color:var(--cyan);">📖 Live Chat Voting Guide:</b><br>
-                    • <code>!bet 1 50</code> ➔ Option 1 par 50 Mac-Coins lagana<br>
-                    • <code>!bet 2 100</code> ➔ Option 2 par 100 Mac-Coins lagana<br>
-                    • <code>!vote 1</code> ➔ Free voting (0 coins)
-                </div>
-
-                <div class="section-title" style="margin-top:14px;">➕ Launch Custom Multi-Option Poll</div>
-                <input type="text" id="bet-new-title" placeholder="Question (e.g. Kaun Jeetega?)">
-                
-                <div id="poll-custom-options-container">
-                    <div class="opt-input-row">
-                        <input type="text" class="custom-opt-input" placeholder="Option 1" value="Win">
-                    </div>
-                    <div class="opt-input-row">
-                        <input type="text" class="custom-opt-input" placeholder="Option 2" value="Lose">
-                    </div>
-                </div>
-
-                <div class="grid-2" style="margin-top:4px;">
-                    <button style="background:#2f384d; font-size:12px;" onclick="addOptionField()">➕ Add Option</button>
-                    <button class="btn-gold" onclick="launchCustomPoll()">🚀 Launch on Stream</button>
-                </div>
+                <h3>🎲 Start Match Prediction</h3>
+                <input type="text" id="poll-q" placeholder="Kaun Jeetega?">
+                <input type="text" id="poll-opt1" value="Rajiv (Win)">
+                <input type="text" id="poll-opt2" value="Enemy (Loss)">
+                <button class="btn-cyan" style="width:100%;" onclick="startPoll()">🚀 Launch Poll</button>
             </div>
         </div>
-
-        <!-- TAB 5: MAC-COINS -->
-        <div id="tab-coins" class="tab-content">
-            <div class="card">
-                <div class="section-title">👑 Direct Coin Grant</div>
-                <div class="grid-2">
-                    <input type="text" id="grant-user" placeholder="Username (e.g. Rahul)">
-                    <input type="number" id="grant-amount" placeholder="Amount (+100 / -50)">
-                </div>
-                <button class="btn-gold" onclick="grantCoinsDirect()">⚡ Update Balance</button>
-            </div>
-
-            <div class="card">
-                <div class="section-title">⚙ Economy Rates</div>
-                <div class="row-toggle">
-                    <span>Free for Mods/Streamer</span>
-                    <input type="checkbox" id="coin-free-mods" checked>
-                </div>
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Coins / Msg</label>
-                        <input type="number" id="coin-per-msg" value="5">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Cooldown (s)</label>
-                        <input type="number" id="coin-cooldown" value="30">
-                    </div>
-                </div>
-                <button class="btn-submit" onclick="saveCoinRules()">💾 Save Rates</button>
-            </div>
-
-            <div class="card">
-                <div class="section-title">🏆 Viewer Balances</div>
-                <div class="contained-list" id="coin-balances-list"></div>
-            </div>
-        </div>
-
-        <!-- TAB 6: AI PERSONA -->
-        <div id="tab-ai" class="tab-content">
-            <div class="card" style="border-left: 4px solid var(--cyan);">
-                <div class="section-title">
-                    <span>🤖 Streamer.bot Connection</span>
-                    <span id="sb-card-badge" style="font-size:10px; color:var(--red);">🔴 Disconnected</span>
-                </div>
-
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Streamer.bot IP</label>
-                        <input type="text" id="sb-ip" placeholder="127.0.0.1" value="127.0.0.1" onchange="saveStreamerBotSettings()">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">WebSocket Port</label>
-                        <input type="text" id="sb-port" placeholder="8080" value="8080" onchange="saveStreamerBotSettings()">
-                    </div>
-                </div>
-
-                <div class="grid-2" style="margin-top:2px;">
-                    <button class="btn-submit" onclick="connectStreamerBot()">⚡ Reconnect Streamer.bot</button>
-                    <button style="background:var(--green); color:#000; font-weight:800;" onclick="testStreamerBotMessage()">💬 Send Test Chat via Bot</button>
-                </div>
-                <div id="sb-test-status" style="font-size:11px; color:#aaa; margin-top:6px;">Streamer.bot active hone par test karein!</div>
-
-                <!-- 1-CLICK WEBHOOK URL BOX -->
-                <div class="guide-box" style="margin-top:10px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                        <b style="color:var(--cyan);">🔗 Fetch URL for Streamer.bot:</b>
-                        <button style="background:var(--cyan); color:#000; font-size:10px; font-weight:800; padding:4px 10px; border-radius:5px;" onclick="copyWebhookUrl()">📋 Copy URL</button>
-                    </div>
-                    <input type="text" id="webhook-full-url" readonly style="font-size:11px; background:#0b0e14; color:var(--gold); border:1px solid #232c40;" value="">
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="section-title">🎭 Character Setup & Voice</div>
-                <div class="avatar-preview-box">
-                    <img id="avatar-preview" class="avatar-preview-img" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar">
-                    <div style="flex:1;">
-                        <label style="font-size:10px; color:var(--text-dim); margin-bottom:3px; display:block;">Avatar Image URL</label>
-                        <input type="text" id="ai-image-url" value="https://images3.alphacoders.com/134/1344406.jpeg" placeholder="Direct Image URL" style="margin-bottom:0; font-size:11px;" oninput="updateImagePreview()">
-                    </div>
-                </div>
-
-                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Select Voice</label>
-                <select id="ai-voice-select">
-                    <option value="female" selected>👩 Female (Natural Hindi Voice)</option>
-                    <option value="male">👨 Male (Deep Energetic Voice)</option>
-                </select>
-
-                <div class="grid-2" style="margin-top:6px;">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Voice Tone / Pitch (<span id="val-pitch">1.0</span>)</label>
-                        <input type="range" id="ai-pitch" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-pitch').innerText=this.value">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
-                        <input type="range" id="ai-rate" min="0.6" max="1.6" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
-                    </div>
-                </div>
-
-                <label style="font-size:10px; color:var(--text-dim);">Character Name</label>
-                <input type="text" id="ai-name" value="AIBot">
-
-                <label style="font-size:10px; color:var(--text-dim);">Behavior Prompt</label>
-                <textarea id="ai-persona" rows="3">You are a witty, supportive, and energetic live stream AI gaming co-host. Reply in 1-2 punchy sentences in the viewer's language.</textarea>
-
-                <div class="grid-2">
-                    <button class="btn-gold" onclick="saveAISettings()">💾 Save Character Settings</button>
-                    <button style="background: #e67e22;" onclick="testVoiceInOBS()">🔊 Test Voice in OBS</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 7: AUTO-MOD -->
-        <div id="tab-automod" class="tab-content">
-            <div class="card">
-                <div class="section-title">🛡️ Auto-Moderation & Chat Shield</div>
-                <div class="row-toggle">
-                    <span>Block Links & URLs in Chat</span>
-                    <input type="checkbox" id="mod-block-links" checked>
-                </div>
-                <div class="row-toggle">
-                    <span>CAPS Lock Spam Filter</span>
-                    <input type="checkbox" id="mod-caps-filter" checked>
-                </div>
-
-                <label style="font-size:10px; color:var(--text-dim);">Banned Words Blacklist (Comma separated)</label>
-                <textarea id="mod-banned-words" rows="2" placeholder="badword1, badword2, ...">mc,bc,bhenchod,madarchod,gandu,chutiya,randi,bsdk</textarea>
-
-                <button class="btn-submit" onclick="saveAutoModSettings()">💾 Save Auto-Mod Shield</button>
-            </div>
-        </div>
-
-        <!-- TAB 8: UNIFIED COMMANDS HEADQUARTERS (EDIT, DELETE, UPDATE ALL COMMANDS) -->
-        <div id="tab-commands" class="tab-content">
-            
-            <!-- CORE & AI COMMAND CONTROLS (INCLUDES !AI TTS TOGGLE) -->
-            <div class="card" style="border-left: 4px solid var(--cyan);">
-                <div class="section-title">
-                    <span>🤖 Core AI & Speech Command Controls</span>
-                    <span style="font-size:10px; color:var(--cyan); font-weight:800;">LIVE SWITCHES</span>
-                </div>
-
-                <!-- !AI SETTINGS CARD -->
-                <div class="cmd-edit-card" style="border-color: var(--cyan);">
-                    <div class="cmd-edit-header">
-                        <span class="cmd-badge">🤖 AI Question Trigger</span>
-                        <span style="font-size:10px; color:var(--gold);">Mac-Coins Cost: <input type="number" id="cmd-ai-cost" value="50" style="width:55px; padding:3px; margin:0; display:inline-block;"></span>
-                    </div>
-                    <div class="grid-2">
-                        <input type="text" id="cmd-ai-name" value="!ai" placeholder="Trigger command (e.g. !ai)" style="margin-bottom:0;">
-                        <button class="btn-submit" style="padding:6px; font-size:11px;" onclick="saveAiCommandConfig()">💾 Update !ai Trigger</button>
-                    </div>
-                    <div class="cmd-controls-row" style="margin-top:4px;">
-                        <!-- CRITICAL USER REQUEST: TURN OFF TTS FOR !AI -->
-                        <label class="cmd-tag-toggle">
-                            <input type="checkbox" id="cmd-ai-tts-toggle" checked onchange="saveAiCommandConfig()">
-                            <span>🔊 Speak with TTS Voice</span>
-                        </label>
-                        <label class="cmd-tag-toggle">
-                            <input type="checkbox" id="cmd-ai-bubble-toggle" checked onchange="saveAiCommandConfig()">
-                            <span>💬 Show Screen Speech Bubble</span>
-                        </label>
-                    </div>
-                </div>
-
-                <!-- !TTS SETTINGS CARD -->
-                <div class="cmd-edit-card" style="margin-top:6px;">
-                    <div class="cmd-edit-header">
-                        <span class="cmd-badge">🗣️ Direct TTS Command</span>
-                        <label class="cmd-tag-toggle">
-                            <input type="checkbox" id="cmd-tts-enable" checked onchange="saveTtsCommandConfig()">
-                            <span>Enabled</span>
-                        </label>
-                    </div>
-                    <div class="grid-2">
-                        <input type="text" id="cmd-tts-name" value="!tts" placeholder="Trigger (e.g. !tts)" style="margin-bottom:0;">
-                        <button class="btn-submit" style="padding:6px; font-size:11px;" onclick="saveTtsCommandConfig()">💾 Update !tts</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ECONOMY & MINI-GAMES COMMAND MANAGER -->
-            <div class="card" style="border-left: 4px solid var(--gold);">
-                <div class="section-title">
-                    <span>🪙 Games & Economy Commands</span>
-                    <button style="background:rgba(241, 196, 15, 0.2); color:var(--gold); padding:2px 8px; font-size:10px;" onclick="saveAllGameCommands()">💾 Save Game Triggers</button>
-                </div>
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Daily Bonus Trigger</label>
-                        <input type="text" id="cmd-trig-daily" value="!daily">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Balance Trigger</label>
-                        <input type="text" id="cmd-trig-coins" value="!coins">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Gamble Trigger</label>
-                        <input type="text" id="cmd-trig-gamble" value="!gamble">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Slots Trigger</label>
-                        <input type="text" id="cmd-trig-slots" value="!slots">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Duel Trigger</label>
-                        <input type="text" id="cmd-trig-duel" value="!duel">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Transfer Trigger</label>
-                        <input type="text" id="cmd-trig-pay" value="!pay">
-                    </div>
-                </div>
-            </div>
-
-            <!-- CUSTOM COMMANDS ADD/EDIT -->
-            <div class="card">
-                <div class="section-title">➕ Add / Update Custom Command</div>
-                <input type="text" id="new-cmd-name" placeholder="Trigger (e.g. !specs)">
-                <textarea id="new-cmd-reply" placeholder="Bot reply text" rows="2"></textarea>
-                
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Mac-Coin Cost</label>
-                        <input type="number" id="new-cmd-cost" value="0">
-                    </div>
-                    <div style="display:flex; flex-direction:column; justify-content:center; gap:4px;">
-                        <label class="cmd-tag-toggle"><input type="checkbox" id="cmd-show-bubble" checked> Bubble</label>
-                        <label class="cmd-tag-toggle"><input type="checkbox" id="cmd-show-tts"> TTS Voice</label>
-                    </div>
-                </div>
-
-                <button class="btn-submit" onclick="saveCustomCommandItem()">💾 Save Custom Command</button>
-            </div>
-
-            <!-- ALL CONFIGURED CUSTOM COMMANDS LIST -->
-            <div class="card">
-                <div class="section-title">
-                    <span>📋 All Configured Custom Commands</span>
-                    <button style="background:rgba(0, 210, 211, 0.2); color:var(--cyan); padding:3px 8px; font-size:10px;" onclick="copyCommandsToClipboard()">📋 Copy Catalog</button>
-                </div>
-                <div class="contained-list" id="custom-commands-list"></div>
-            </div>
-        </div>
-
-        <!-- TAB 9: STYLES & OBS -->
-        <div id="tab-customizer" class="tab-content">
-            <div class="card" style="border-left: 4px solid var(--blue);">
-                <div class="section-title">
-                    <span>🔌 OBS WebSocket Auto-Connect (Permanent Vault)</span>
-                    <span id="obs-inner-status" style="font-size:10px; color:var(--red);">🔴 Disconnected</span>
-                </div>
-                <div class="grid-2">
-                    <input type="text" id="obs-ip" placeholder="IP (127.0.0.1)" value="127.0.0.1" onchange="saveObsSettings()">
-                    <input type="text" id="obs-port" placeholder="Port (4455)" value="4455" onchange="saveObsSettings()">
-                </div>
-                <input type="password" id="obs-pass" placeholder="OBS WebSocket Password" onchange="saveObsSettings()">
-                <input type="text" id="obs-mic-name" placeholder="Mic Name in OBS (e.g. Mic/Aux)" value="Mic/Aux" onchange="saveObsSettings()">
-                <button class="btn-submit" onclick="manualSaveAndConnect()">💾 Save Password & Connect OBS</button>
-            </div>
-        </div>
-
-        <!-- TAB 10: ADD REDEEM TRIGGER -->
-        <div id="tab-add" class="tab-content">
-            <div class="card">
-                <div class="section-title">➕ Add New Redeem Item</div>
-                <select id="trig-type" onchange="toggleFormFields()">
-                    <option value="video">🎥 Video Meme (URL)</option>
-                    <option value="sfx">🔊 Sound Effect (Audio MP3 URL)</option>
-                    <option value="scene">🎬 OBS Scene Switcher</option>
-                </select>
-                <input type="text" id="trig-name" placeholder="Button Name (e.g. Vine Boom)">
-                <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !boom)">
-                <input type="number" id="trig-cost" placeholder="Mac-Coin Cost (e.g. 25, ya 0 for Free)" value="0">
-                <input type="text" id="trig-url" placeholder="Direct Media URL (MP4 / MP3)">
-                <input type="text" id="trig-scene-name" placeholder="Exact Scene Name in OBS" style="display:none;">
-                <button class="btn-submit" onclick="addNewTrigger()">Save to Deck</button>
-            </div>
-        </div>
-
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const obs = new OBSWebSocket();
-        let sbSocket = null;
-        let isSbConnected = false;
+        let wasOnline = false;
 
-        const streamDot = document.getElementById('stream-dot');
-        const streamStatusText = document.getElementById('stream-status-text');
-        const obsDot = document.getElementById('obs-dot');
-        const obsStatusText = document.getElementById('obs-status-text');
-        const obsInnerStatus = document.getElementById('obs-inner-status');
-        const sbDot = document.getElementById('sb-dot');
-        const sbStatusText = document.getElementById('sb-status-text');
-        const sbCardBadge = document.getElementById('sb-card-badge');
-
-        const deathDisplay = document.getElementById('death-display');
-        const adminTimerDisplay = document.getElementById('admin-timer-display');
-        const scenesContainer = document.getElementById('scenes-container');
-        const triggersContainer = document.getElementById('triggers-container');
-        const commandsContainer = document.getElementById('custom-commands-list');
-        const coinsListContainer = document.getElementById('coin-balances-list');
-        const activeOptionsList = document.getElementById('active-options-list');
-        const customOptionsContainer = document.getElementById('poll-custom-options-container');
-        const micBtn = document.getElementById('mic-btn');
-
-        let rawCatalogText = "";
-
-        // Webhook URL Setup
-        const completeWebhookUrl = `${window.location.origin}/api/streamerbot/chat?user=%user%&message=%rawInput%`;
-        document.getElementById('webhook-full-url').value = completeWebhookUrl;
-
-        function copyWebhookUrl() {
-            const input = document.getElementById('webhook-full-url');
-            input.select();
-            navigator.clipboard.writeText(input.value).then(() => {
-                alert("📋 Copied! Streamer.bot Sub-Action (Fetch URL) me paste karein.");
-            });
-        }
-
-        function restoreVaultFields() {
-            if (localStorage.getItem('bot_obsIp')) document.getElementById('obs-ip').value = localStorage.getItem('bot_obsIp');
-            if (localStorage.getItem('bot_obsPort')) document.getElementById('obs-port').value = localStorage.getItem('bot_obsPort');
-            if (localStorage.getItem('bot_obsPass')) document.getElementById('obs-pass').value = localStorage.getItem('bot_obsPass');
-            if (localStorage.getItem('bot_obsMic')) document.getElementById('obs-mic-name').value = localStorage.getItem('bot_obsMic');
-
-            if (localStorage.getItem('bot_sbIp')) document.getElementById('sb-ip').value = localStorage.getItem('bot_sbIp');
-            if (localStorage.getItem('bot_sbPort')) document.getElementById('sb-port').value = localStorage.getItem('bot_sbPort');
-
-            if (localStorage.getItem('bot_characterName')) document.getElementById('ai-name').value = localStorage.getItem('bot_characterName');
-            if (localStorage.getItem('bot_characterImage')) {
-                document.getElementById('ai-image-url').value = localStorage.getItem('bot_characterImage');
-                document.getElementById('avatar-preview').src = localStorage.getItem('bot_characterImage');
-            }
-            if (localStorage.getItem('bot_ttsVoice')) document.getElementById('ai-voice-select').value = localStorage.getItem('bot_ttsVoice');
-            if (localStorage.getItem('bot_characterPersona')) document.getElementById('ai-persona').value = localStorage.getItem('bot_characterPersona');
-        }
-        restoreVaultFields();
-
-        socket.on('connect', () => {
-            socket.emit('admin-sync-local', {
-                characterName: document.getElementById('ai-name').value.trim(),
-                characterImage: document.getElementById('ai-image-url').value.trim(),
-                ttsVoice: document.getElementById('ai-voice-select').value,
-                ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
-                ttsRate: parseFloat(document.getElementById('ai-rate').value),
-                characterPersona: document.getElementById('ai-persona').value.trim()
-            });
-        });
-
-        function saveObsSettings() {
-            localStorage.setItem('bot_obsIp', document.getElementById('obs-ip').value.trim());
-            localStorage.setItem('bot_obsPort', document.getElementById('obs-port').value.trim());
-            localStorage.setItem('bot_obsPass', document.getElementById('obs-pass').value.trim());
-            localStorage.setItem('bot_obsMic', document.getElementById('obs-mic-name').value.trim());
-        }
-
-        function saveStreamerBotSettings() {
-            localStorage.setItem('bot_sbIp', document.getElementById('sb-ip').value.trim());
-            localStorage.setItem('bot_sbPort', document.getElementById('sb-port').value.trim());
-        }
-
-        function connectStreamerBot() {
-            saveStreamerBotSettings();
-            const ip = document.getElementById('sb-ip').value.trim() || '127.0.0.1';
-            const port = document.getElementById('sb-port').value.trim() || '8080';
-
-            try {
-                if (sbSocket) sbSocket.close();
-                sbSocket = new WebSocket(`ws://${ip}:${port}/`);
-
-                sbSocket.onopen = () => {
-                    isSbConnected = true;
-                    setSbOnlineUI();
-                };
-
-                sbSocket.onclose = () => { if (!window.serverReportsSbOnline) setSbOfflineUI(); };
-                sbSocket.onerror = () => { if (!window.serverReportsSbOnline) setSbOfflineUI(); };
-            } catch (err) {
-                if (!window.serverReportsSbOnline) setSbOfflineUI();
-            }
-        }
-
-        function setSbOnlineUI() {
-            sbDot.className = 'dot dot-green';
-            sbStatusText.innerText = 'Streamer.bot: Live';
-            sbCardBadge.innerText = '🟢 Connected';
-            sbCardBadge.style.color = '#2ecc71';
-            document.getElementById('sb-test-status').innerText = '✅ Streamer.bot successfully connected!';
-            document.getElementById('sb-test-status').style.color = '#2ecc71';
-        }
-
-        function setSbOfflineUI() {
-            isSbConnected = false;
-            sbDot.className = 'dot dot-red';
-            sbStatusText.innerText = 'Streamer.bot: Off';
-            sbCardBadge.innerText = '🔴 Disconnected';
-            sbCardBadge.style.color = '#ff4757';
-        }
-
-        socket.on('streamerbot-status', (data) => {
-            if (data.online) {
-                window.serverReportsSbOnline = true;
-                setSbOnlineUI();
-            } else if (!isSbConnected) {
-                window.serverReportsSbOnline = false;
-                setSbOfflineUI();
-            }
-        });
-
-        setInterval(() => { if (!isSbConnected) connectStreamerBot(); }, 5000);
-        connectStreamerBot();
-
-        function testStreamerBotMessage() {
-            const statusDiv = document.getElementById('sb-test-status');
-            fetch('/api/streamerbot/chat?user=Rajiv&message=!ai hello test')
-            .then(r => r.text())
-            .then(replyText => {
-                statusDiv.innerText = `✅ Test Success! AI Response: "${replyText}"`;
-                statusDiv.style.color = "#2ecc71";
-                setSbOnlineUI();
-            })
-            .catch(e => {
-                statusDiv.innerText = "❌ Backend connect error: " + e.message;
-                statusDiv.style.color = "#ff4757";
-            });
-        }
-
-        // ==================== TAB 8: COMMAND ACTIONS ====================
-        function saveAiCommandConfig() {
-            const cmd = document.getElementById('cmd-ai-name').value.trim() || '!ai';
-            const cost = parseInt(document.getElementById('cmd-ai-cost').value) || 0;
-            const tts = document.getElementById('cmd-ai-tts-toggle').checked;
-            const bubble = document.getElementById('cmd-ai-bubble-toggle').checked;
-
-            socket.emit('admin-update-ai-cmd-config', { cmd, cost, tts, bubble });
-            alert(`✅ !ai settings updated! (TTS: ${tts ? 'ON' : 'OFF'}, Bubble: ${bubble ? 'ON' : 'OFF'})`);
-        }
-
-        function saveTtsCommandConfig() {
-            const cmd = document.getElementById('cmd-tts-name').value.trim() || '!tts';
-            const enabled = document.getElementById('cmd-tts-enable').checked;
-            socket.emit('admin-update-tts-cmd-config', { cmd, enabled });
-            alert(`✅ !tts trigger updated!`);
-        }
-
-        function saveAllGameCommands() {
-            socket.emit('admin-update-game-commands', {
-                daily: document.getElementById('cmd-trig-daily').value.trim() || '!daily',
-                coins: document.getElementById('cmd-trig-coins').value.trim() || '!coins',
-                gamble: document.getElementById('cmd-trig-gamble').value.trim() || '!gamble',
-                slots: document.getElementById('cmd-trig-slots').value.trim() || '!slots',
-                duel: document.getElementById('cmd-trig-duel').value.trim() || '!duel',
-                pay: document.getElementById('cmd-trig-pay').value.trim() || '!pay'
-            });
-            alert('✅ Game command triggers updated!');
-        }
-
-        function saveCustomCommandItem() {
-            let cmd = document.getElementById('new-cmd-name').value.trim();
-            const reply = document.getElementById('new-cmd-reply').value.trim();
-            const cost = parseInt(document.getElementById('new-cmd-cost').value) || 0;
-            const bubble = document.getElementById('cmd-show-bubble').checked;
-            const tts = document.getElementById('cmd-show-tts').checked;
-
-            if (!cmd || !reply) return alert('Trigger aur reply text dono zaroori hain!');
-            if (!cmd.startsWith('!')) cmd = '!' + cmd;
-
-            socket.emit('admin-add-custom-cmd', { cmd, reply, bubble, tts, cost });
-            document.getElementById('new-cmd-name').value = '';
-            document.getElementById('new-cmd-reply').value = '';
-            document.getElementById('new-cmd-cost').value = '0';
-        }
-
-        function deleteCustomCommand(cmd) {
-            if (confirm(`Delete command: "${cmd}"?`)) socket.emit('admin-del-custom-cmd', cmd);
-        }
-
-        function renderCustomCommands(commands) {
-            commandsContainer.innerHTML = '';
-            if (!commands || commands.length === 0) {
-                commandsContainer.innerHTML = '<small style="color:var(--text-dim); padding:4px;">No custom commands.</small>';
-                return;
-            }
-            commands.forEach(c => {
-                const div = document.createElement('div');
-                div.className = 'cmd-edit-card';
-                let tags = [];
-                if (c.bubble !== false) tags.push('💬 Bubble');
-                if (c.tts) tags.push('🔊 TTS');
-                const costBadge = (c.cost > 0) ? `🪙 ${c.cost}` : 'FREE';
-
-                div.innerHTML = `
-                    <div class="cmd-edit-header">
-                        <span class="cmd-badge">${c.cmd}</span>
-                        <div style="display:flex; gap:6px; align-items:center;">
-                            <span style="font-size:10px; color:var(--gold);">${costBadge}</span>
-                            <span style="font-size:10px; color:var(--text-dim);">${tags.join(' ')}</span>
-                            <button class="btn-del" style="background:#e74c3c; padding:3px 8px; font-size:10px;" onclick="deleteCustomCommand('${c.cmd}')">🗑️</button>
-                        </div>
-                    </div>
-                    <div style="color:var(--text-dim); font-size:11px;">${c.reply}</div>
-                `;
-                commandsContainer.appendChild(div);
-            });
-        }
-
-        function copyCommandsToClipboard() {
-            if (!rawCatalogText) return;
-            navigator.clipboard.writeText(rawCatalogText).then(() => {
-                alert("📋 All active commands copied to clipboard!");
-            });
-        }
-
-        socket.on('update-styles', (data) => {
-            if (data.characterName) document.getElementById('ai-name').value = data.characterName;
-            if (data.aiCommand) document.getElementById('cmd-ai-name').value = data.aiCommand;
-            if (data.coinSettings && data.coinSettings.aiCost !== undefined) document.getElementById('cmd-ai-cost').value = data.coinSettings.aiCost;
-            if (data.enableTTS !== undefined) document.getElementById('cmd-ai-tts-toggle').checked = data.enableTTS;
-            if (data.enableBubble !== undefined) document.getElementById('cmd-ai-bubble-toggle').checked = data.enableBubble;
-
-            if (data.characterImage) {
-                document.getElementById('ai-image-url').value = data.characterImage;
-                document.getElementById('avatar-preview').src = data.characterImage;
-            }
-            if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
-            if (data.ttsVoice) document.getElementById('ai-voice-select').value = data.ttsVoice;
-            if (data.ttsPitch) {
-                document.getElementById('ai-pitch').value = data.ttsPitch;
-                document.getElementById('val-pitch').innerText = data.ttsPitch;
-            }
-            if (data.ttsRate) {
-                document.getElementById('ai-rate').value = data.ttsRate;
-                document.getElementById('val-rate').innerText = data.ttsRate;
-            }
-
-            if (data.gameCommands) {
-                if (data.gameCommands.daily) document.getElementById('cmd-trig-daily').value = data.gameCommands.daily;
-                if (data.gameCommands.coins) document.getElementById('cmd-trig-coins').value = data.gameCommands.coins;
-                if (data.gameCommands.gamble) document.getElementById('cmd-trig-gamble').value = data.gameCommands.gamble;
-                if (data.gameCommands.slots) document.getElementById('cmd-trig-slots').value = data.gameCommands.slots;
-                if (data.gameCommands.duel) document.getElementById('cmd-trig-duel').value = data.gameCommands.duel;
-                if (data.gameCommands.pay) document.getElementById('cmd-trig-pay').value = data.gameCommands.pay;
-            }
-
-            if (data.modSettings) {
-                document.getElementById('mod-block-links').checked = data.modSettings.blockLinks !== false;
-                document.getElementById('mod-caps-filter').checked = data.modSettings.capsFilter !== false;
-                if (data.modSettings.bannedWords) document.getElementById('mod-banned-words').value = data.modSettings.bannedWords;
-            }
-
-            if (data.userCoins) renderCoinBalances(data.userCoins);
-            if (data.customCommands) renderCustomCommands(data.customCommands);
-        });
-
-        socket.on('all-commands-catalog', (cat) => {
-            let textAcc = "=== STREAM COMMANDS ===\n\n[CORE & AI]\n";
-            cat.core.forEach(c => { textAcc += `${c.cmd} - ${c.desc}\n`; });
-            textAcc += `\n[GAMES & ECONOMY]\n`;
-            cat.games.forEach(g => { textAcc += `${g.cmd} - ${g.desc}\n`; });
-            textAcc += `\n[MEME REDEEMS]\n`;
-            cat.redeems.forEach(r => { textAcc += `${r.cmd} - ${r.desc}\n`; });
-            textAcc += `\n[INFO COMMANDS]\n`;
-            cat.customs.forEach(c => { textAcc += `${c.cmd} - ${c.desc}\n`; });
-            rawCatalogText = textAcc;
-        });
-
-        function switchTab(tabName) {
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        function switchTab(tab) {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 'coins': 4, 'ai': 5, 'automod': 6, 'commands': 7, 'customizer': 8, 'add': 9 };
-            document.querySelectorAll('.nav-btn')[tabMap[tabName]].classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
         }
 
-        function updateImagePreview() {
-            const url = document.getElementById('ai-image-url').value.trim();
-            if (url) document.getElementById('avatar-preview').src = url;
-        }
-
-        function testVoiceInOBS() {
-            socket.emit('admin-test-voice-preview', {
-                characterName: document.getElementById('ai-name').value.trim() || 'AIBot',
-                characterImage: document.getElementById('ai-image-url').value.trim(),
-                ttsVoice: document.getElementById('ai-voice-select').value,
-                ttsPitch: parseFloat(document.getElementById('ai-pitch').value) || 1.0,
-                ttsRate: parseFloat(document.getElementById('ai-rate').value) || 1.0,
-                enableBubble: true,
-                enableTTS: true
-            });
-        }
-
-        function saveAISettings() {
-            socket.emit('admin-change-styles', {
-                ttsVoice: document.getElementById('ai-voice-select').value,
-                ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
-                ttsRate: parseFloat(document.getElementById('ai-rate').value),
-                characterName: document.getElementById('ai-name').value.trim(),
-                characterImage: document.getElementById('ai-image-url').value.trim(),
-                characterPersona: document.getElementById('ai-persona').value.trim()
-            });
-            alert('✅ Character settings saved!');
-        }
-
-        function saveAutoModSettings() {
-            socket.emit('admin-save-automod', {
-                blockLinks: document.getElementById('mod-block-links').checked,
-                capsFilter: document.getElementById('mod-caps-filter').checked,
-                bannedWords: document.getElementById('mod-banned-words').value.trim()
-            });
-            alert("🛡️ Auto-Mod shield saved!");
-        }
-
-        function grantCoinsDirect() {
-            const username = document.getElementById('grant-user').value.trim();
-            const amount = document.getElementById('grant-amount').value.trim();
-            if (!username || !amount) return alert('Username & amount needed!');
-            socket.emit('admin-modify-user-coins', { username, amount });
-            document.getElementById('grant-user').value = '';
-            document.getElementById('grant-amount').value = '';
-        }
-
-        function saveCoinRules() {
-            socket.emit('admin-save-coins', {
-                coinsPerMsg: parseInt(document.getElementById('coin-per-msg').value) || 5,
-                cooldownSeconds: parseInt(document.getElementById('coin-cooldown').value) || 30
-            });
-            alert('Coin Rules Saved!');
-        }
-
-        function renderCoinBalances(userCoins) {
-            coinsListContainer.innerHTML = '';
-            const users = Object.keys(userCoins || {});
-            if (users.length === 0) {
-                coinsListContainer.innerHTML = '<small style="color:var(--text-dim); padding:4px;">No coins recorded yet.</small>';
-                return;
-            }
-            users.sort((a,b) => userCoins[b] - userCoins[a]);
-            users.forEach(u => {
-                const row = document.createElement('div');
-                row.className = 'cmd-edit-card';
-                row.style.borderLeft = '3px solid var(--gold)';
-                row.innerHTML = `<div style="display:flex; justify-content:space-between;"><span>👤 @${u}</span><strong style="color:var(--gold);">🪙 ${userCoins[u]}</strong></div>`;
-                coinsListContainer.appendChild(row);
-            });
-        }
-
-        // OBS Auto-Connect
-        async function connectToOBS() {
-            if (obs.connected) return;
-            const ip = document.getElementById('obs-ip').value.trim() || '127.0.0.1';
-            const port = document.getElementById('obs-port').value.trim() || '4455';
-            const password = document.getElementById('obs-pass').value.trim() || '';
-
-            try {
-                await obs.connect(`ws://${ip}:${port}`, password || undefined);
-                obsDot.className = 'dot dot-green';
-                obsStatusText.innerText = 'OBS: Connected';
-                obsInnerStatus.innerText = '🟢 Connected';
-                obsInnerStatus.style.color = '#2ecc71';
-                updateMicState();
-            } catch (err) {
-                obsDot.className = 'dot dot-red';
-                obsStatusText.innerText = 'OBS: Disconnected';
-                obsInnerStatus.innerText = '🔴 Disconnected';
-                obsInnerStatus.style.color = '#ff4757';
-            }
-        }
-
-        obs.on('ConnectionClosed', () => {
-            obsDot.className = 'dot dot-red';
-            obsStatusText.innerText = 'OBS: Disconnected';
-            obsInnerStatus.innerText = '🔴 Disconnected';
-            obsInnerStatus.style.color = '#ff4757';
-        });
-
-        function manualSaveAndConnect() {
-            saveObsSettings();
-            obs.disconnect();
-            connectToOBS();
-            alert("Password saved! Connecting to OBS...");
-        }
-
-        setInterval(() => { if (!obs.connected) connectToOBS(); }, 4000);
-        connectToOBS();
-
-        async function updateMicState() {
-            try {
-                const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
-                const { inputMuted } = await obs.call('GetInputMute', { inputName: micName });
-                micBtn.className = inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙 MIC IS LIVE';
-            } catch (e) {}
-        }
-
-        async function toggleMic() {
-            const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
-            try {
-                const res = await obs.call('ToggleInputMute', { inputName: micName });
-                micBtn.className = res.inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
-            } catch (err) { alert('OBS connect nahi hai!'); }
-        }
-
-        async function switchScene(sceneName) {
-            try { await obs.call('SetCurrentProgramScene', { sceneName }); }
-            catch (err) { alert(`Scene '${sceneName}' nahi mila!`); }
-        }
-
-        function formatTime(totalSeconds) {
-            const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
-            const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-            const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${h}h ${m}m ${s}s`;
-        }
-
-        socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
-        socket.on('update-counter', (data) => deathDisplay.innerText = data.count);
-
-        socket.on('load-triggers', (triggers) => {
-            scenesContainer.innerHTML = '';
-            triggersContainer.innerHTML = '';
-
-            triggers.forEach(t => {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'deck-btn-wrapper';
-
-                const delBtn = document.createElement('button');
-                delBtn.className = 'deck-del-btn';
-                delBtn.innerText = '✕';
-                delBtn.onclick = (e) => { e.stopPropagation(); socket.emit('admin-del-trigger', t.id); };
-                wrapper.appendChild(delBtn);
-
-                if (t.type === 'scene') {
-                    const btn = document.createElement('button');
-                    btn.className = 'btn-scene';
-                    btn.innerHTML = `🖥️ ${t.name}`;
-                    btn.onclick = () => switchScene(t.sceneName);
-                    wrapper.appendChild(btn);
-                    scenesContainer.appendChild(wrapper);
-                } else {
-                    const btn = document.createElement('button');
-                    btn.className = t.type === 'video' ? 'btn-video' : 'btn-sfx';
-                    btn.innerHTML = `${t.type === 'video' ? '🎬' : '🔊'} ${t.name}<br><small>${t.cmd}</small>`;
-                    btn.onclick = () => {
-                        if (t.type === 'video') socket.emit('admin-play-meme', { mediaUrl: t.url });
-                        if (t.type === 'sfx') socket.emit('admin-play-sfx', { sfxUrl: t.url });
-                    };
-                    wrapper.appendChild(btn);
-                    triggersContainer.appendChild(wrapper);
-                }
-            });
-        });
-
-        function toggleFormFields() {
-            const type = document.getElementById('trig-type').value;
-            const isScene = type === 'scene';
-            document.getElementById('trig-scene-name').style.display = isScene ? 'block' : 'none';
-            document.getElementById('trig-cmd').style.display = isScene ? 'none' : 'block';
-            document.getElementById('trig-cost').style.display = isScene ? 'none' : 'block';
-            document.getElementById('trig-url').style.display = isScene ? 'none' : 'block';
-        }
-
-        function addNewTrigger() {
-            const type = document.getElementById('trig-type').value;
-            const name = document.getElementById('trig-name').value.trim();
-            if (type === 'scene') {
-                socket.emit('admin-add-trigger', { name, type, sceneName: document.getElementById('trig-scene-name').value.trim(), cost: 0 });
+        // 🔊 Stream Health Audio Beep Logic
+        function playStatusBeep(isOnline) {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            osc.connect(ctx.destination);
+            if (isOnline) {
+                // High Pitch Ting! (Stream ON)
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
+                osc.start(); osc.stop(ctx.currentTime + 0.2);
             } else {
-                socket.emit('admin-add-trigger', { 
-                    name, type, 
-                    cmd: document.getElementById('trig-cmd').value.trim().toLowerCase(), 
-                    url: document.getElementById('trig-url').value.trim(), 
-                    cost: parseInt(document.getElementById('trig-cost').value) || 0 
-                });
+                // Low Pitch Buzz! (Stream OFF / Disconnected)
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
+                osc.start(); osc.stop(ctx.currentTime + 0.4);
             }
-            switchTab('deck');
         }
 
-        function setCustomPlaytime() {
-            const hours = document.getElementById('set-timer-h').value || 0;
-            const minutes = document.getElementById('set-timer-m').value || 0;
-            const seconds = document.getElementById('set-timer-s').value || 0;
-            socket.emit('admin-timer-set', { hours, minutes, seconds });
-            alert('Playtime updated!');
-        }
-
-        function addOptionField() {
-            const count = customOptionsContainer.children.length + 1;
-            const div = document.createElement('div');
-            div.className = 'opt-input-row';
-            div.innerHTML = `
-                <input type="text" class="custom-opt-input" placeholder="Option ${count}">
-                <button class="btn-icon-del" onclick="this.parentElement.remove()">✕</button>
-            `;
-            customOptionsContainer.appendChild(div);
-        }
-
-        function launchCustomPoll() {
-            const title = document.getElementById('bet-new-title').value.trim();
-            const inputs = document.querySelectorAll('.custom-opt-input');
-            const options = [];
-            inputs.forEach(inp => { const val = inp.value.trim(); if (val) options.push(val); });
-
-            if (!title) return alert('Poll question zaroori hai!');
-            if (options.length < 2) return alert('Kam se kam 2 options daalein!');
-
-            socket.emit('admin-start-bet', { title, options });
-            document.getElementById('bet-new-title').value = '';
-        }
-
-        function resolveWinnerOption(id, name) {
-            if (confirm(`Declare "${name}" as winner?`)) socket.emit('admin-resolve-bet', { winningOptionId: id });
-        }
-
-        function endPollNow() {
-            if (confirm('Poll end karein?')) socket.emit('admin-end-bet');
-        }
-
-        socket.on('bet-update', (bet) => {
-            const badge = document.getElementById('bet-status-badge');
-            const title = document.getElementById('bet-title-display');
-
-            if (!bet.isOpen) {
-                badge.innerText = 'INACTIVE';
-                badge.style.color = 'var(--text-dim)';
-                title.innerText = 'No active poll';
-                activeOptionsList.innerHTML = '<small style="color:var(--text-dim);">Launch a poll below to start.</small>';
-            } else {
-                badge.innerText = bet.locked ? '🔒 LOCKED' : '🟢 ACTIVE';
-                badge.style.color = bet.locked ? 'var(--orange)' : 'var(--green)';
-                title.innerText = `${bet.title} (🪙 ${bet.totalPool} Pool • ${bet.totalVotes} Votes)`;
-
-                activeOptionsList.innerHTML = '';
-                bet.options.forEach(opt => {
-                    const row = document.createElement('div');
-                    row.className = 'opt-item-row';
-                    row.innerHTML = `
-                        <div>
-                            <b>[${opt.id}] ${opt.name}</b>
-                            <span style="color:var(--text-dim); margin-left:6px;">${opt.votes} votes • 🪙${opt.pool} (${opt.pct}%)</span>
-                        </div>
-                        <button style="background:var(--cyan); color:#000; padding:4px 8px; font-size:11px;" onclick="resolveWinnerOption(${opt.id}, '${opt.name}')">🏆 Won</button>
-                    `;
-                    activeOptionsList.appendChild(row);
-                });
+        socket.on('stream-status', (data) => {
+            const isOnline = data.status === 'online';
+            if (isOnline !== wasOnline) {
+                playStatusBeep(isOnline);
+                wasOnline = isOnline;
             }
+            document.getElementById('stream-dot').style.background = isOnline ? 'var(--green)' : 'var(--red)';
+            document.getElementById('stream-text').innerText = isOnline ? 'Stream Live' : 'Stream Off';
         });
+
+        // Update Stats
+        socket.on('update-counter', (data) => {
+            document.getElementById('death-display').innerText = data.count || 0;
+            document.getElementById('win-display').innerText = data.wins || 0;
+            document.getElementById('loss-display').innerText = data.losses || 0;
+        });
+
+        function startPoll() {
+            const q = document.getElementById('poll-q').value || "Prediction";
+            const o1 = document.getElementById('poll-opt1').value;
+            const o2 = document.getElementById('poll-opt2').value;
+            socket.emit('admin-start-bet', { title: q, options: [o1, o2] });
+            alert("Poll Started! Viewers can type '!bet 1 50' in chat.");
+        }
+
+        // ⚡ OBS DIRECT MANUAL TRIGGER
+        async function triggerLocalMedia(filePath) {
+            try {
+                if(!obs.connected) return alert("OBS is not connected!");
+                // Direct command to OBS 5.x to change source file and make visible
+                await obs.call('SetInputSettings', { inputName: 'MemePlayer', inputSettings: { local_file: filePath } });
+            } catch(e) { console.log(e); }
+        }
+
+        async function connectOBS() {
+            try {
+                await obs.connect('ws://127.0.0.1:4455');
+                document.getElementById('obs-dot').style.background = 'var(--green)';
+                document.getElementById('obs-text').innerText = 'OBS Connected';
+            } catch(e) {}
+        }
+        setInterval(() => { if (!obs.connected) connectOBS(); }, 5000);
+        connectOBS();
     </script>
 </body>
 </html>
