@@ -26,7 +26,7 @@ const defaults = {
   characterImage: 'https://images3.alphacoders.com/134/1344406.jpeg',
   characterPersona: 'You are a witty, supportive, energetic live stream AI gaming co-host (Ryzen Sukuna). Reply in 1-2 punchy sentences in Hindi/Hinglish.',
   gameCommands: { daily: '!daily', coins: '!coins', gamble: '!gamble', slots: '!slots', duel: '!duel', pay: '!pay' },
-  coinSettings: { currencyName: 'Mac-Coins', coinsPerMsg: 5, cooldownSeconds: 30, aiCost: 50, dailyAmount: 50 },
+  coinSettings: { currencyName: 'Mac-Coins', coinsPerMsg: 5, cooldownSeconds: 30, aiCost: 50, dailyAmount: 50, subReward: 100, memberReward: 500, superchatPerRupee: 2 },
   automod: { blockLinks: true, capsFilter: true, bannedWords: '' },
   userCoins: {}, userDailyClaim: {}, userHistories: {}, userMemory: {},
   triggers: [], customCommands: [],
@@ -34,21 +34,53 @@ const defaults = {
 };
 
 let streamData = JSON.parse(JSON.stringify(defaults));
+function applyLoaded(l) {
+  streamData = { ...streamData, ...l,
+    gameCommands: { ...defaults.gameCommands, ...(l.gameCommands || {}) },
+    coinSettings: { ...defaults.coinSettings, ...(l.coinSettings || {}) },
+    automod: { ...defaults.automod, ...(l.automod || {}) } };
+}
 try {
-  if (fs.existsSync(DATA_FILE)) {
-    const l = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-    streamData = { ...streamData, ...l,
-      gameCommands: { ...defaults.gameCommands, ...(l.gameCommands || {}) },
-      coinSettings: { ...defaults.coinSettings, ...(l.coinSettings || {}) },
-      automod: { ...defaults.automod, ...(l.automod || {}) } };
-  }
-} catch (e) { console.error('Data load fail', e.message); }
+  if (fs.existsSync(DATA_FILE)) applyLoaded(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')));
+} catch (e) { console.error('File load fail', e.message); }
 
-let saveT = null;
-const save = () => {
-  if (saveT) return;
-  saveT = setTimeout(() => { saveT = null; fs.writeFile(DATA_FILE, JSON.stringify(streamData), () => {}); }, 1500);
-};
+// ---------- PERSISTENCE: Upstash Redis (Render disk ephemeral hai) + local file fallback ----------
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || '';
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const REDIS_KEY = 'stream_data';
+let remoteReady = !REDIS_URL; // redis load hone se pehle kabhi write nahi (warna khali data se overwrite ho jayega)
+let dirty = false;
+
+async function redisCmd(cmd) {
+  const r = await fetch(REDIS_URL, { method: 'POST',
+    headers: { Authorization: 'Bearer ' + REDIS_TOKEN, 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+  if (!r.ok) throw new Error('redis ' + r.status);
+  return r.json();
+}
+async function loadRemote() {
+  if (!REDIS_URL) return;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const r = await redisCmd(['GET', REDIS_KEY]);
+      if (r.result) applyLoaded(JSON.parse(r.result));
+      remoteReady = true; console.log('Redis data loaded');
+      return;
+    } catch (e) { console.error('Redis load fail', e.message); await new Promise(res => setTimeout(res, 1000 * (i + 1))); }
+  }
+  console.error('Redis unavailable: running in file mode, remote writes disabled');
+}
+async function flush() {
+  if (!dirty) return;
+  dirty = false;
+  const json = JSON.stringify(streamData);
+  try { fs.writeFileSync(DATA_FILE, json); } catch (e) {}
+  if (REDIS_URL && remoteReady) { try { await redisCmd(['SET', REDIS_KEY, json]); } catch (e) { dirty = true; console.error('Redis save fail', e.message); } }
+}
+const save = () => { dirty = true; };
+setInterval(flush, 10000);
+const shutdown = async () => { await flush(); process.exit(0); };
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 const S = () => streamData;
 const bal = u => streamData.userCoins[u] || 0;
@@ -357,16 +389,40 @@ async function handleChat({ raw, username, ownerFlag }) {
   return null;
 }
 
+const keyOk = (q) => !ADMIN_KEY || q.key === ADMIN_KEY;
 app.all('/api/streamerbot/chat', async (req, res) => {
   try {
     lastSbPing = Date.now();
     io.emit('streamerbot-status', { online: true });
     const q = { ...req.query, ...(req.body || {}) };
+    if (!keyOk(q)) return res.status(403).send('');
     const out = await handleChat({ raw: q.message, username: q.user || 'Viewer', ownerFlag: q.isOwner === 'true' || q.isOwner === true });
     res.send(out || '');
   } catch (e) { console.error(e); res.send(''); }
 });
 app.get('/health', (_, r) => r.send('ok'));
+
+// ---------- YOUTUBE ALERTS (Streamer.bot trigger -> yahan -> overlay) ----------
+app.all('/api/alert', (req, res) => {
+  const q = { ...req.query, ...(req.body || {}) };
+  if (!keyOk(q)) return res.status(403).send('bad key');
+  const type = ({ superchat: 'superchat', supersticker: 'superchat', member: 'member', sponsor: 'member', sub: 'subscriber', subscriber: 'subscriber' })[String(q.type || '').toLowerCase()];
+  if (!type) return res.status(400).send('bad type');
+  const user = String(q.user || 'Viewer').slice(0, 40);
+  const amount = String(q.amount || '').slice(0, 20);
+  const msg = String(q.message || '').slice(0, 200);
+  const n = parseFloat(amount.replace(/[^0-9.]/g, '')) || 0;
+  const cs = S().coinSettings;
+  const reward = type === 'subscriber' ? cs.subReward : type === 'member' ? cs.memberReward : Math.floor(n * cs.superchatPerRupee);
+  if (reward > 0) { addCoins(cleanU(user), reward); }
+  const ttsText = type === 'superchat' ? `${user} ne ${amount} ka super chat bheja. ${msg}`
+    : type === 'member' ? `${user} ab channel ke member hain! Welcome!` : `${user} ne subscribe kiya! Shukriya!`;
+  io.emit('stream-alert', { type, user, amount, msg, avatar: String(q.avatar || ''), ttsText,
+    voice: S().ttsVoice, pitch: S().ttsPitch, rate: S().ttsRate });
+  io.emit('update-styles', publicState());
+  res.send(reward > 0 ? '+' + reward : 'ok');
+});
+
 
 let lastSbPing = 0;
 setInterval(() => { if (lastSbPing && Date.now() - lastSbPing > 90000) { io.emit('streamerbot-status', { online: false }); lastSbPing = 0; } }, 15000);
@@ -442,4 +498,4 @@ io.on('connection', (socket) => {
   socket.on('admin-del-trigger', (id) => { S().triggers = S().triggers.filter(t => t.id !== id); pushAll(); });
 });
 
-server.listen(process.env.PORT || 3000, () => console.log('🚀 Master Server Ready'));
+loadRemote().finally(() => server.listen(process.env.PORT || 3000, () => console.log('🚀 Master Server Ready')));
