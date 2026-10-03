@@ -1,89 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Death Counter</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Black+Ops+One&family=Chakra+Petch:wght@600;700&family=Orbitron:wght@700&family=Press+Start+2P&family=Russo+One&family=Share+Tech+Mono&family=Teko:wght@600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            background-color: transparent;
-            margin: 0;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            -webkit-font-smoothing: antialiased;
-            text-rendering: optimizeLegibility;
-        }
-        #counter-card {
-            background: rgba(10, 13, 20, 0.94);
-            border: 2px solid var(--theme-color, #ff4757);
-            border-left: 6px solid var(--theme-color, #ff4757);
-            padding: 8px 24px;
-            border-radius: 10px;
-            display: inline-flex;
-            align-items: center;
-            gap: 16px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 20px var(--theme-color, rgba(255, 71, 87, 0.3));
-            font-family: var(--counter-font, 'Teko'), sans-serif;
-            letter-spacing: 1.5px;
-            transition: all 0.25s ease;
-        }
-        #skull-icon {
-            font-size: 38px;
-            animation: float 2.5s ease-in-out infinite;
-        }
-        .label {
-            color: #dcdde1;
-            font-size: 32px;
-            text-transform: uppercase;
-        }
-        #death-count {
-            color: var(--theme-color, #ff4757);
-            font-size: 48px;
-            font-weight: 700;
-            transition: all 0.2s ease-in-out;
-            display: inline-block;
-        }
-        .death-pulse {
-            transform: scale(1.45);
-            text-shadow: 0 0 25px #ffffff, 0 0 40px var(--theme-color, #ff4757);
-        }
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-4px); }
-        }
-    </style>
-</head>
-<body>
-    <div id="counter-card">
-        <span id="skull-icon">💀</span>
-        <span class="label">DEATHS:</span>
-        <span id="death-count">0</span>
-    </div>
+using System;
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        const iconSpan = document.getElementById('skull-icon');
-        const deathSpan = document.getElementById('death-count');
-        let currentCount = 0;
+// Streamer.bot -> Actions -> (new action) -> Sub-Actions -> Core -> C# -> "Execute C# Code"
+// Is poori file ko paste karo, "Save and Compile" dabao.
+// Ek hi script sab karta hai. Action ko argument "action" do (neeche list hai).
+//   action = death+ | death- | win | loss | reset | refresh
+// Triggers: chat commands (!death+ !death- !win !loss !resetstats) ya Stream Deck/hotkey.
+// Chat commands ko Mods/Broadcaster tak restrict karna (Command settings me Permissions).
+public class CPHInline
+{
+    // ---- SIRF YE 3 CHEEZEIN BADLO ----
+    const string SCENE   = "Game";        // jis OBS scene me ye text sources rakhe hain
+    const string DEATH_SRC = "DeathCount"; // OBS "Text (GDI+)" source ka naam
+    const string WL_SRC    = "WinLoss";    // OBS "Text (GDI+)" source ka naam
+    // ----------------------------------
 
-        socket.on('update-counter', (data) => {
-            if (data.count > currentCount) {
-                deathSpan.classList.add('death-pulse');
-                setTimeout(() => deathSpan.classList.remove('death-pulse'), 400);
-            }
-            currentCount = data.count;
-            deathSpan.innerText = data.count;
-        });
+    public bool Execute()
+    {
+        string action = args.ContainsKey("action") ? args["action"].ToString().ToLower() : "refresh";
 
-        socket.on('update-styles', (data) => {
-            if (data.counterIcon) iconSpan.innerText = data.counterIcon;
-            if (data.counterFont) document.documentElement.style.setProperty('--counter-font', `'${data.counterFont}'`);
-            if (data.themeColor) document.documentElement.style.setProperty('--theme-color', data.themeColor);
-        });
-    </script>
-</body>
-</html>
+        int deaths = CPH.GetGlobalVar<int>("sc_deaths", true);
+        int wins   = CPH.GetGlobalVar<int>("sc_wins", true);
+        int losses = CPH.GetGlobalVar<int>("sc_losses", true);
+
+        switch (action)
+        {
+            case "death+": deaths++; break;
+            case "death-": if (deaths > 0) deaths--; break;
+            case "win":    wins++; break;
+            case "loss":   losses++; break;
+            case "reset":  deaths = 0; wins = 0; losses = 0; break;
+        }
+
+        CPH.SetGlobalVar("sc_deaths", deaths, true);
+        CPH.SetGlobalVar("sc_wins", wins, true);
+        CPH.SetGlobalVar("sc_losses", losses, true);
+
+        CPH.ObsSetGdiText(SCENE, DEATH_SRC, "Deaths: " + deaths);
+        CPH.ObsSetGdiText(SCENE, WL_SRC, "W " + wins + " - " + losses + " L");
+
+        // chat me current score (YouTube)
+        if (action != "refresh")
+            CPH.SendYouTubeMessage("Deaths: " + deaths + " | Ranked: " + wins + "W - " + losses + "L");
+
+        return true;
+    }
+}
