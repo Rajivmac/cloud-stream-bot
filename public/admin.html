@@ -1,1111 +1,376 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stream Master Deck</title>
-    <script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.5/dist/obs-ws.min.js"></script>
-    <style>
-        :root {
-            --bg: #0b0e14;
-            --surface: #121722;
-            --sidebar-bg: #0f131d;
-            --border: #202738;
-            --green: #2ecc71;
-            --orange: #f39c12;
-            --red: #ff4757;
-            --blue: #3498db;
-            --cyan: #00d2d3;
-            --gold: #f1c40f;
-            --text-dim: #7f8b9f;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            background-color: var(--bg);
-            color: #ffffff;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            height: 100vh;
-            display: flex;
-            overflow: hidden;
-        }
-
-        ::-webkit-scrollbar { width: 4px; height: 4px; }
-        ::-webkit-scrollbar-thumb { background: #262e45; border-radius: 4px; }
-
-        .sidebar {
-            width: 140px;
-            min-width: 140px;
-            background: var(--sidebar-bg);
-            border-right: 1px solid var(--border);
-            display: flex;
-            flex-direction: column;
-            padding: 10px 6px;
-            gap: 4px;
-            overflow-y: auto;
-        }
-
-        .sidebar-brand {
-            font-size: 11px;
-            font-weight: 800;
-            color: var(--cyan);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 8px 6px 12px 6px;
-            text-align: center;
-            border-bottom: 1px solid var(--border);
-            margin-bottom: 6px;
-        }
-
-        .nav-btn {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 10px;
-            border-radius: 8px;
-            border: none;
-            background: transparent;
-            color: var(--text-dim);
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-            text-align: left;
-            transition: all 0.15s ease;
-            width: 100%;
-        }
-
-        .nav-btn:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
-        .nav-btn.active {
-            background: var(--surface);
-            color: #ffffff;
-            border-left: 3px solid var(--cyan);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        }
-
-        /* Vapis Vertical Format 580px */
-        .main-viewport {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-            padding: 12px 16px;
-            gap: 10px;
-            max-width: 580px; 
-            margin: 0 auto;
-        }
-
-        .status-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            padding: 10px 12px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 11px;
-            font-weight: 700;
-            gap: 6px;
-        }
-        .status-badge { display: flex; align-items: center; gap: 5px; }
-        .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-        .dot-green { background: var(--green); box-shadow: 0 0 8px var(--green); }
-        .dot-orange { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
-        .dot-red { background: var(--red); box-shadow: 0 0 8px var(--red); }
-
-        .tab-content { display: none; flex-direction: column; gap: 10px; }
-        .tab-content.active { display: flex; }
-
-        .card { 
-            background: var(--surface); 
-            border: 1px solid var(--border); 
-            padding: 12px; 
-            border-radius: 10px; 
-        }
-
-        .section-title { 
-            font-size: 11px; 
-            color: var(--text-dim); 
-            text-transform: uppercase; 
-            letter-spacing: 1px; 
-            margin-bottom: 8px; 
-            font-weight: 800; 
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
-        
-        .grid-dynamic { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); 
-            gap: 8px; 
-            max-height: 280px;
-            overflow-y: auto;
-        }
-
-        .deck-btn-wrapper { position: relative; display: flex; flex-direction: column; }
-        .deck-del-btn {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            background: rgba(0, 0, 0, 0.6);
-            color: #ff4757;
-            border: none;
-            border-radius: 4px;
-            font-size: 10px;
-            padding: 2px 4px;
-            cursor: pointer;
-            z-index: 2;
-        }
-
-        button {
-            padding: 10px 8px;
-            font-size: 13px;
-            font-weight: 700;
-            border: none;
-            border-radius: 7px;
-            cursor: pointer;
-            color: white;
-            transition: transform 0.08s;
-        }
-        button:active { transform: scale(0.97); }
-
-        .btn-mic { width: 100%; padding: 14px; font-size: 15px; border-radius: 8px; font-weight: 800; }
-        .mic-unmuted { background: var(--green); box-shadow: 0 0 12px rgba(46, 204, 113, 0.3); }
-        .mic-muted { background: var(--red); box-shadow: 0 0 12px rgba(255, 71, 87, 0.4); }
-
-        .btn-scene { background: #222a3d; border-left: 4px solid var(--blue); min-height: 54px; font-size: 12px; }
-        .btn-video { background: linear-gradient(135deg, #e67e22, #d35400); min-height: 54px; font-size: 12px; }
-        .btn-sfx { background: linear-gradient(135deg, #9b59b6, #8e44ad); min-height: 54px; font-size: 12px; }
-
-        .counter-big-display { font-size: 46px; font-weight: 900; color: var(--red); text-align: center; margin: 4px 0 12px 0; }
-        .timer-display { font-size: 34px; font-weight: 900; color: #00d2d3; text-align: center; margin: 4px 0 12px 0; font-family: monospace; }
-        .score-box { font-size: 46px; font-weight: 900; text-align: center; color: var(--cyan); margin: 4px 0 12px 0; }
-
-        .btn-death-add { background: var(--red); font-size: 20px; padding: 16px; width: 100%; margin-bottom: 8px; }
-        .btn-sub { background: #2f384d; }
-        .btn-reset { background: #1c2230; }
-
-        select, input, textarea {
-            width: 100%;
-            padding: 9px;
-            background: #171c28;
-            border: 1px solid #242c3f;
-            color: white;
-            border-radius: 6px;
-            box-sizing: border-box;
-            margin-bottom: 7px;
-            font-size: 13px;
-            font-family: inherit;
-        }
-        select:focus, input:focus, textarea:focus { outline: none; border-color: var(--cyan); }
-
-        .btn-submit { background: var(--blue); width: 100%; padding: 10px; font-size: 13px; }
-        .btn-gold { background: var(--gold); color: #000; font-weight: 800; width: 100%; padding: 11px; }
-
-        .row-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 7px;
-            font-size: 12px;
-        }
-        .row-toggle input[type="checkbox"] { width: 17px; height: 17px; margin: 0; }
-
-        .contained-list {
-            max-height: 240px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .cmd-edit-card {
-            background: #171d2b;
-            border: 1px solid #242c3f;
-            border-radius: 7px;
-            padding: 9px 11px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-        .cmd-edit-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .cmd-badge {
-            font-weight: 800;
-            color: var(--cyan);
-            font-size: 13px;
-        }
-        .cmd-controls-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            font-size: 11px;
-        }
-        .cmd-tag-toggle {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-            background: #0d121c;
-            padding: 3px 7px;
-            border-radius: 5px;
-            color: #ccc;
-        }
-        .cmd-tag-toggle input { width: 14px; height: 14px; margin: 0; cursor: pointer; }
-
-        .bet-box { background: #151a26; border: 1px solid #232c40; padding: 12px; border-radius: 8px; margin-bottom: 8px; }
-        .opt-item-row { display: flex; align-items: center; justify-content: space-between; background: #0a0d13; padding: 7px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 12px; }
-        .guide-box { background: rgba(0, 210, 211, 0.08); border: 1px dashed var(--cyan); border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 12px; line-height: 1.5; }
-        .opt-input-row { display: flex; gap: 6px; margin-bottom: 6px; }
-        .opt-input-row input { margin-bottom: 0; }
-        .btn-icon-del { background: #e74c3c; width: 36px; min-width: 36px; padding: 0; font-size: 14px; }
-
-        .avatar-preview-box { display: flex; align-items: center; gap: 14px; background: #171d2b; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--border); }
-        .avatar-preview-img { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; border: 2px solid var(--cyan); box-shadow: 0 0 10px rgba(0, 210, 211, 0.3); background: #0b0e14; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stream Deck</title>
+<script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.5/dist/obs-ws.min.js"></script>
+<style>
+:root{--bg:#0b0e14;--sf:#121722;--bd:#202738;--cy:#00d2d3;--rd:#ff4757;--gd:#f1c40f;--gn:#2ecc71;--bl:#3498db;--dim:#7f8b9f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#fff;font:14px -apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;user-select:none}
+nav{position:fixed;z-index:5;background:#0f131d;display:flex;border:0 solid var(--bd)}
+nav button{background:none;color:var(--dim);font-size:12px;font-weight:700;padding:10px 12px;white-space:nowrap;text-align:left;border-radius:8px}
+nav button.on{background:var(--sf);color:#fff;box-shadow:inset 3px 0 var(--cy)}
+@media(min-width:700px){body{padding-left:120px}nav{left:0;top:0;bottom:0;width:120px;flex-direction:column;gap:4px;padding:8px 6px;border-right-width:1px}}
+@media(max-width:699px){nav{left:0;right:0;bottom:0;overflow-x:auto;border-top-width:1px}nav button{flex:1;text-align:center}nav button.on{box-shadow:inset 0 3px var(--cy)}main{padding-bottom:70px!important}}
+main{max-width:580px;margin:0 auto;padding:10px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px}
+h3{margin:0 0 8px;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.status{display:flex;justify-content:space-between;font-size:11px;font-weight:700;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--rd);display:inline-block;margin-right:5px}.dot.on{background:var(--gn)}
+.tab{display:none;flex-direction:column;gap:10px}.tab.on{display:flex}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+button{border:0;border-radius:7px;color:#fff;font-weight:700;font-size:13px;padding:10px 8px;cursor:pointer;background:#2f384d}
+button:active{transform:scale(.97)}
+.gold{background:var(--gd);color:#000}.blue{background:var(--bl)}.red{background:var(--rd)}.green{background:var(--gn);color:#000}.sm{padding:4px 9px;font-size:11px}
+input,select,textarea{width:100%;padding:9px;margin-bottom:7px;background:#171c28;border:1px solid #242c3f;color:#fff;border-radius:6px;font:inherit;font-size:13px}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--cy)}
+input[type=checkbox]{width:16px;height:16px;margin:0}input[type=range]{padding:0}
+label{display:block;font-size:10px;color:var(--dim);margin-bottom:3px}
+.chk{display:flex;align-items:center;gap:6px;font-size:12px;margin:4px 0}
+.mic{width:100%;padding:16px;font-size:16px;font-weight:800}.mic.live{background:var(--gn);color:#000}.mic.muted{background:var(--rd)}
+.scene{background:#222a3d;border-left:4px solid var(--bl);min-height:48px}.scene.on{border-color:var(--gn);background:#1d3a2c}
+.vid{background:linear-gradient(135deg,#e67e22,#d35400)}.sfx{background:linear-gradient(135deg,#9b59b6,#8e44ad)}
+.vid,.sfx{min-height:52px;width:100%}button small{display:block;opacity:.8;font-weight:600}
+.wrap{position:relative}.del{position:absolute;top:2px;right:4px;color:#fff;background:#0009;border-radius:4px;font-size:10px;padding:1px 5px;cursor:pointer}
+.c{text-align:center}.big{font-size:46px;font-weight:900;margin:4px 0 10px}.cy{color:var(--cy)}.rd{color:var(--rd)}.mono{font-family:monospace;font-size:34px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0a0d13;padding:7px 10px;border-radius:6px;margin-bottom:6px;font-size:12px}
+.list{max-height:260px;overflow-y:auto}
+.hint{color:var(--dim);font-size:11px;line-height:1.5}
+summary{cursor:pointer;font-weight:700;font-size:13px;margin-bottom:8px}
+#toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#000d;border:1px solid var(--cy);padding:8px 14px;border-radius:8px;display:none;z-index:9;font-size:13px}
+.pv{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--cy);background:#0b0e14;flex-shrink:0}
+</style>
 </head>
 <body>
-
-    <div class="sidebar">
-        <div class="sidebar-brand">⚡ Stream Deck</div>
-        <!-- Purane Saare 10 Tabs Wapas Apni Jagah Par -->
-        <button class="nav-btn active" onclick="switchTab('deck')"><span>🎮</span> Live Deck</button>
-        <button class="nav-btn" onclick="switchTab('counter')"><span>💀</span> Match Stats</button>
-        <button class="nav-btn" onclick="switchTab('timer')"><span>⏱</span> Playtime</button>
-        <button class="nav-btn" onclick="switchTab('bet')"><span>🎲</span> Predictions</button>
-        <button class="nav-btn" onclick="switchTab('coins')"><span>🪙</span> Mac-Coins</button>
-        <button class="nav-btn" onclick="switchTab('ai')"><span>🤖</span> AI Controls</button>
-        <button class="nav-btn" onclick="switchTab('automod')"><span>🛡️</span> Auto-Mod</button>
-        <button class="nav-btn" onclick="switchTab('commands')"><span>💬</span> Commands</button>
-        <button class="nav-btn" onclick="switchTab('customizer')"><span>🎨</span> Settings & OBS</button>
-        <button class="nav-btn" onclick="switchTab('add')"><span>➕</span> Add Item</button>
-    </div>
-
-    <div class="main-viewport">
-        
-        <!-- TRIPLE STATUS HEADER (BEEP KE SATH) -->
-        <div class="status-card">
-            <div class="status-badge">
-                <span id="stream-dot" class="dot dot-red"></span>
-                <span id="stream-status-text">Stream: Off</span>
-            </div>
-            <div class="status-badge">
-                <span id="obs-dot" class="dot dot-red"></span>
-                <span id="obs-status-text">OBS: Disconnected</span>
-            </div>
-            <div class="status-badge">
-                <span id="sb-dot" class="dot dot-red"></span>
-                <span id="sb-status-text">Streamer.bot: Off</span>
-            </div>
-        </div>
-
-        <!-- TAB 1: LIVE DECK (Manual Redeems) -->
-        <div id="tab-deck" class="tab-content active">
-            <div class="card">
-                <div class="section-title">🎙️ Audio Controls</div>
-                <button id="mic-btn" class="btn-mic mic-unmuted" onclick="toggleMic()">🎙 MIC IS LIVE</button>
-            </div>
-            <div class="card">
-                <div class="section-title">🎬 OBS Scenes</div>
-                <div class="grid-dynamic" id="scenes-container"></div>
-            </div>
-            <div class="card">
-                <div class="section-title">⚡ Local Media Redeems (Direct to OBS)</div>
-                <small style="color:var(--cyan); font-size:10px;">Yahan se 1-click video/sound bajege PC load ke bina.</small>
-                <div class="grid-dynamic" id="triggers-container" style="margin-top:8px;"></div>
-            </div>
-        </div>
-
-        <!-- TAB 2: MATCH STATS (Win/Loss + Deaths) -->
-        <div id="tab-counter" class="tab-content">
-            <div class="card">
-                <div class="section-title" style="text-align:center;">🏆 Ranked Streak (W - L)</div>
-                <div class="score-box"><span id="win-display">0</span> - <span id="loss-display">0</span></div>
-                <div class="grid-2">
-                    <button style="background:var(--green); color:#000;" onclick="socket.emit('admin-win-add')">+ 1 WIN</button>
-                    <button style="background:var(--red);" onclick="socket.emit('admin-loss-add')">+ 1 LOSS</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="section-title" style="text-align:center;">💀 Match Deaths</div>
-                <div class="counter-big-display" id="death-display">0</div>
-                <button class="btn-death-add" onclick="socket.emit('admin-death-add')">+ 1 DEATH</button>
-                <div class="grid-2">
-                    <button class="btn-sub" onclick="socket.emit('admin-death-sub')">- 1 Death</button>
-                    <button class="btn-reset" onclick="socket.emit('admin-death-reset')">Reset Counters</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 3: PLAYTIME TIMER -->
-        <div id="tab-timer" class="tab-content">
-            <div class="card">
-                <div class="section-title" style="text-align:center;">⏱️ Playtime Timer</div>
-                <div class="timer-display" id="admin-timer-display">00h 00m 00s</div>
-                <div class="grid-3">
-                    <button style="background:var(--green); color:#000;" onclick="socket.emit('admin-timer-start')">▶ Start</button>
-                    <button style="background:var(--orange); color:#000;" onclick="socket.emit('admin-timer-pause')">⏸ Pause</button>
-                    <button class="btn-reset" onclick="socket.emit('admin-timer-reset')">🔄 Reset</button>
-                </div>
-
-                <div class="section-title" style="margin-top:16px;">⏱️ Set Custom Playtime</div>
-                <div class="grid-3">
-                    <input type="number" id="set-timer-h" placeholder="Hours" min="0">
-                    <input type="number" id="set-timer-m" placeholder="Minutes" min="0" max="59">
-                    <input type="number" id="set-timer-s" placeholder="Seconds" min="0" max="59">
-                </div>
-                <button class="btn-submit" onclick="setCustomPlaytime()">Update Timer Value</button>
-            </div>
-        </div>
-
-        <!-- TAB 4: PREDICTIONS (Add Option wapas) -->
-        <div id="tab-bet" class="tab-content">
-            <div class="card">
-                <div class="section-title">
-                    <span>🎲 Active Prediction Status</span>
-                    <span id="bet-status-badge" style="color:var(--orange); font-size:10px;">INACTIVE</span>
-                </div>
-
-                <div class="bet-box">
-                    <h4 id="bet-title-display" style="margin:2px 0 8px 0; font-size:15px; color:#fff;">No active poll</h4>
-                    <div id="active-options-list"></div>
-
-                    <div class="grid-2" style="margin-top:10px;">
-                        <button style="background:var(--orange); color:#000; font-size:12px;" onclick="socket.emit('admin-lock-bet')">🔒 Lock Voting</button>
-                        <button style="background:#e74c3c; font-size:12px;" onclick="endPollNow()">⏹️ End Poll (Hide)</button>
-                    </div>
-                </div>
-
-                <div class="guide-box">
-                    <b style="color:var(--cyan);">📖 Live Chat Voting Guide:</b><br>
-                    • <code>!bet 1 50</code> ➔ Option 1 par 50 Mac-Coins lagana<br>
-                    • <code>!bet 2 100</code> ➔ Option 2 par 100 Mac-Coins lagana
-                </div>
-
-                <div class="section-title" style="margin-top:14px;">➕ Launch Custom Multi-Option Poll</div>
-                <input type="text" id="bet-new-title" placeholder="Question (e.g. Kaun Jeetega?)">
-                
-                <div id="poll-custom-options-container">
-                    <div class="opt-input-row">
-                        <input type="text" class="custom-opt-input" placeholder="Option 1" value="Win">
-                    </div>
-                    <div class="opt-input-row">
-                        <input type="text" class="custom-opt-input" placeholder="Option 2" value="Lose">
-                    </div>
-                </div>
-
-                <div class="grid-2" style="margin-top:4px;">
-                    <!-- Option Badhane Wala Button Yahan Hai -->
-                    <button style="background:#2f384d; font-size:12px;" onclick="addOptionField()">➕ Add Option</button>
-                    <button class="btn-gold" onclick="launchCustomPoll()">🚀 Launch on Stream</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 5: MAC-COINS -->
-        <div id="tab-coins" class="tab-content">
-            <div class="card">
-                <div class="section-title">👑 Direct Coin Grant</div>
-                <div class="grid-2">
-                    <input type="text" id="grant-user" placeholder="Username (e.g. Rahul)">
-                    <input type="number" id="grant-amount" placeholder="Amount (+100 / -50)">
-                </div>
-                <button class="btn-gold" onclick="grantCoinsDirect()">⚡ Update Balance</button>
-            </div>
-
-            <div class="card">
-                <div class="section-title">⚙ Economy Rates</div>
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Coins / Msg</label>
-                        <input type="number" id="coin-per-msg" value="5">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Cooldown (s)</label>
-                        <input type="number" id="coin-cooldown" value="30">
-                    </div>
-                </div>
-                <button class="btn-submit" onclick="saveCoinRules()">💾 Save Rates</button>
-            </div>
-
-            <div class="card">
-                <div class="section-title">🏆 Viewer Balances</div>
-                <div class="contained-list" id="coin-balances-list"></div>
-            </div>
-        </div>
-
-        <!-- TAB 6: AI PERSONA & SETTINGS (Saare options wapas) -->
-        <div id="tab-ai" class="tab-content">
-            <div class="card">
-                <div class="section-title">🎭 Character Setup & Voice</div>
-                <div class="avatar-preview-box">
-                    <img id="avatar-preview" class="avatar-preview-img" src="https://images3.alphacoders.com/134/1344406.jpeg" alt="Avatar">
-                    <div style="flex:1;">
-                        <label style="font-size:10px; color:var(--text-dim); margin-bottom:3px; display:block;">Avatar Image URL</label>
-                        <input type="text" id="ai-image-url" value="https://images3.alphacoders.com/134/1344406.jpeg" placeholder="Direct Image URL" style="margin-bottom:0; font-size:11px;" oninput="updateImagePreview()">
-                    </div>
-                </div>
-
-                <label style="font-size:10px; color:var(--text-dim); font-weight:800;">Select Voice</label>
-                <select id="ai-voice-select">
-                    <option value="female" selected>👩 Female (Natural Hindi Voice)</option>
-                    <option value="male">👨 Male (Deep Energetic Voice)</option>
-                </select>
-
-                <div class="grid-2" style="margin-top:6px;">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Voice Tone / Pitch (<span id="val-pitch">1.0</span>)</label>
-                        <input type="range" id="ai-pitch" min="0.6" max="1.5" step="0.05" value="1.0" oninput="document.getElementById('val-pitch').innerText=this.value">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Talking Speed (<span id="val-rate">1.0</span>)</label>
-                        <input type="range" id="ai-rate" min="0.6" max="1.6" step="0.05" value="1.0" oninput="document.getElementById('val-rate').innerText=this.value">
-                    </div>
-                </div>
-
-                <label style="font-size:10px; color:var(--text-dim);">Character Name</label>
-                <input type="text" id="ai-name" value="AIBot">
-
-                <label style="font-size:10px; color:var(--text-dim);">Behavior Prompt</label>
-                <textarea id="ai-persona" rows="3">You are a witty, supportive, and energetic live stream AI gaming co-host. Reply in 1-2 punchy sentences in Hindi/Hinglish.</textarea>
-
-                <div class="grid-2">
-                    <button class="btn-gold" onclick="saveAISettings()">💾 Save Character Settings</button>
-                    <button style="background: #e67e22;" onclick="testVoiceInOBS()">🔊 Test Voice in OBS</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 7: AUTO-MOD -->
-        <div id="tab-automod" class="tab-content">
-            <div class="card">
-                <div class="section-title">🛡️ Auto-Moderation & Chat Shield</div>
-                <div class="guide-box">
-                    <b style="color:var(--cyan);">💡 Pro Tip:</b> YouTube Studio me jakar "Block Links" aur "Block Words" karna 100x better hai stream ke liye, but local fallback ke liye ise on rakh sakte ho.
-                </div>
-                <div class="row-toggle">
-                    <span>Block Links & URLs in Chat</span>
-                    <input type="checkbox" id="mod-block-links" checked>
-                </div>
-                <div class="row-toggle">
-                    <span>CAPS Lock Spam Filter</span>
-                    <input type="checkbox" id="mod-caps-filter" checked>
-                </div>
-
-                <label style="font-size:10px; color:var(--text-dim);">Banned Words Blacklist (Comma separated)</label>
-                <textarea id="mod-banned-words" rows="2">mc,bc,bhenchod,madarchod,gandu,chutiya,randi,bsdk</textarea>
-
-                <button class="btn-submit" onclick="saveAutoModSettings()">💾 Save Auto-Mod Shield</button>
-            </div>
-        </div>
-
-        <!-- TAB 8: UNIFIED COMMANDS HEADQUARTERS -->
-        <div id="tab-commands" class="tab-content">
-            <!-- CORE & AI COMMAND CONTROLS -->
-            <div class="card" style="border-left: 4px solid var(--cyan);">
-                <div class="section-title">
-                    <span>🤖 Core AI & Speech Command Controls</span>
-                </div>
-
-                <div class="cmd-edit-card" style="border-color: var(--cyan);">
-                    <div class="cmd-edit-header">
-                        <span class="cmd-badge">🤖 AI Question Trigger</span>
-                        <span style="font-size:10px; color:var(--gold);">Cost: <input type="number" id="cmd-ai-cost" value="50" style="width:55px; padding:3px; margin:0; display:inline-block;"></span>
-                    </div>
-                    <div class="grid-2">
-                        <input type="text" id="cmd-ai-name" value="!ai" placeholder="Trigger command" style="margin-bottom:0;">
-                        <button class="btn-submit" style="padding:6px; font-size:11px;" onclick="saveAiCommandConfig()">💾 Update !ai Trigger</button>
-                    </div>
-                    <div class="cmd-controls-row" style="margin-top:4px;">
-                        <label class="cmd-tag-toggle">
-                            <input type="checkbox" id="cmd-ai-tts-toggle" checked onchange="saveAiCommandConfig()">
-                            <span>🔊 Speak with TTS Voice</span>
-                        </label>
-                        <label class="cmd-tag-toggle">
-                            <input type="checkbox" id="cmd-ai-bubble-toggle" checked onchange="saveAiCommandConfig()">
-                            <span>💬 Show Screen Speech Bubble</span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ECONOMY COMMANDS -->
-            <div class="card" style="border-left: 4px solid var(--gold);">
-                <div class="section-title">
-                    <span>🪙 Games & Economy Commands</span>
-                    <button style="background:rgba(241, 196, 15, 0.2); color:var(--gold); padding:2px 8px; font-size:10px;" onclick="saveAllGameCommands()">💾 Save Game Triggers</button>
-                </div>
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Daily Bonus Trigger</label>
-                        <input type="text" id="cmd-trig-daily" value="!daily">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Balance Trigger</label>
-                        <input type="text" id="cmd-trig-coins" value="!coins">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Gamble Trigger</label>
-                        <input type="text" id="cmd-trig-gamble" value="!gamble">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Slots Trigger</label>
-                        <input type="text" id="cmd-trig-slots" value="!slots">
-                    </div>
-                </div>
-            </div>
-
-            <!-- CUSTOM COMMANDS -->
-            <div class="card">
-                <div class="section-title">➕ Add / Update Custom Info Command</div>
-                <input type="text" id="new-cmd-name" placeholder="Trigger (e.g. !specs)">
-                <textarea id="new-cmd-reply" placeholder="Bot reply text" rows="2"></textarea>
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Mac-Coin Cost</label>
-                        <input type="number" id="new-cmd-cost" value="0">
-                    </div>
-                    <div style="display:flex; flex-direction:column; justify-content:center; gap:4px;">
-                        <label class="cmd-tag-toggle"><input type="checkbox" id="cmd-show-bubble" checked> Show Bubble</label>
-                        <label class="cmd-tag-toggle"><input type="checkbox" id="cmd-show-tts"> Read with TTS</label>
-                    </div>
-                </div>
-                <button class="btn-submit" onclick="saveCustomCommandItem()">💾 Save Custom Command</button>
-            </div>
-
-            <div class="card">
-                <div class="section-title">📋 All Configured Info Commands</div>
-                <div class="contained-list" id="custom-commands-list"></div>
-            </div>
-        </div>
-
-        <!-- TAB 9: SETTINGS, STREAMER.BOT & OBS -->
-        <div id="tab-customizer" class="tab-content">
-            <div class="card" style="border-left: 4px solid var(--blue);">
-                <div class="section-title">
-                    <span>🔌 OBS WebSocket Auto-Connect</span>
-                    <span id="obs-inner-status" style="font-size:10px; color:var(--red);">🔴 Disconnected</span>
-                </div>
-                <div class="grid-2">
-                    <input type="text" id="obs-ip" placeholder="IP (127.0.0.1)" value="127.0.0.1" onchange="saveObsSettings()">
-                    <input type="text" id="obs-port" placeholder="Port (4455)" value="4455" onchange="saveObsSettings()">
-                </div>
-                <input type="password" id="obs-pass" placeholder="OBS WebSocket Password" onchange="saveObsSettings()">
-                <input type="text" id="obs-mic-name" placeholder="Mic Name in OBS (e.g. Mic/Aux)" value="Mic/Aux" onchange="saveObsSettings()">
-                <button class="btn-submit" onclick="manualSaveAndConnect()">💾 Save Password & Connect OBS</button>
-            </div>
-
-            <div class="card" style="border-left: 4px solid var(--cyan);">
-                <div class="section-title">🤖 Streamer.bot Connection</div>
-                <div class="grid-2">
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">Streamer.bot IP</label>
-                        <input type="text" id="sb-ip" placeholder="127.0.0.1" value="127.0.0.1" onchange="saveStreamerBotSettings()">
-                    </div>
-                    <div>
-                        <label style="font-size:10px; color:var(--text-dim);">WebSocket Port</label>
-                        <input type="text" id="sb-port" placeholder="8080" value="8080" onchange="saveStreamerBotSettings()">
-                    </div>
-                </div>
-                <div class="guide-box" style="margin-top:10px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                        <b style="color:var(--cyan);">🔗 Fetch URL for Streamer.bot:</b>
-                        <button style="background:var(--cyan); color:#000; font-size:10px; font-weight:800; padding:4px 10px; border-radius:5px;" onclick="copyWebhookUrl()">📋 Copy URL</button>
-                    </div>
-                    <input type="text" id="webhook-full-url" readonly style="font-size:11px; background:#0b0e14; color:var(--gold); border:1px solid #232c40;" value="">
-                </div>
-            </div>
-        </div>
-
-        <!-- TAB 10: ADD REDEEM TRIGGER (Updated to use local paths) -->
-        <div id="tab-add" class="tab-content">
-            <div class="card">
-                <div class="section-title">➕ Add New Local Redeem Item</div>
-                <select id="trig-type" onchange="toggleFormFields()">
-                    <option value="video">🎥 Local Video Meme (MP4 Path)</option>
-                    <option value="sfx">🔊 Local Sound Effect (MP3 Path)</option>
-                    <option value="scene">🎬 OBS Scene Switcher</option>
-                </select>
-                <input type="text" id="trig-name" placeholder="Button Name (e.g. Vine Boom)">
-                <input type="text" id="trig-cmd" placeholder="Chat Command (e.g. !boom)">
-                <input type="number" id="trig-cost" placeholder="Mac-Coin Cost (e.g. 25, ya 0 for Free)" value="0">
-                <input type="text" id="trig-url" placeholder="Local SSD File Path (e.g. D:\memes\boom.mp4)">
-                <input type="text" id="trig-scene-name" placeholder="Exact Scene Name in OBS" style="display:none;">
-                <button class="btn-submit" onclick="addNewTrigger()">Save to Deck</button>
-            </div>
-        </div>
-
-    </div>
-
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        const obs = new OBSWebSocket();
-        let wasOnline = false;
-        let isSbConnected = false;
-
-        const streamDot = document.getElementById('stream-dot');
-        const streamStatusText = document.getElementById('stream-status-text');
-        const obsDot = document.getElementById('obs-dot');
-        const obsStatusText = document.getElementById('obs-status-text');
-        const obsInnerStatus = document.getElementById('obs-inner-status');
-        const sbDot = document.getElementById('sb-dot');
-        const sbStatusText = document.getElementById('sb-status-text');
-        
-        const deathDisplay = document.getElementById('death-display');
-        const adminTimerDisplay = document.getElementById('admin-timer-display');
-        const scenesContainer = document.getElementById('scenes-container');
-        const triggersContainer = document.getElementById('triggers-container');
-        const commandsContainer = document.getElementById('custom-commands-list');
-        const coinsListContainer = document.getElementById('coin-balances-list');
-        const activeOptionsList = document.getElementById('active-options-list');
-        const customOptionsContainer = document.getElementById('poll-custom-options-container');
-        const micBtn = document.getElementById('mic-btn');
-
-        // Webhook URL Setup
-        const completeWebhookUrl = `${window.location.origin}/api/streamerbot/chat?user=%user%&message=%rawInput%`;
-        document.getElementById('webhook-full-url').value = completeWebhookUrl;
-        function copyWebhookUrl() {
-            const input = document.getElementById('webhook-full-url');
-            input.select();
-            navigator.clipboard.writeText(input.value).then(() => alert("📋 Copied! Streamer.bot Sub-Action (Fetch URL) me paste karein."));
-        }
-
-        // Restore Settings
-        function restoreVaultFields() {
-            if (localStorage.getItem('bot_obsIp')) document.getElementById('obs-ip').value = localStorage.getItem('bot_obsIp');
-            if (localStorage.getItem('bot_obsPort')) document.getElementById('obs-port').value = localStorage.getItem('bot_obsPort');
-            if (localStorage.getItem('bot_obsPass')) document.getElementById('obs-pass').value = localStorage.getItem('bot_obsPass');
-            if (localStorage.getItem('bot_obsMic')) document.getElementById('obs-mic-name').value = localStorage.getItem('bot_obsMic');
-
-            if (localStorage.getItem('bot_sbIp')) document.getElementById('sb-ip').value = localStorage.getItem('bot_sbIp');
-            if (localStorage.getItem('bot_sbPort')) document.getElementById('sb-port').value = localStorage.getItem('bot_sbPort');
-
-            if (localStorage.getItem('bot_characterName')) document.getElementById('ai-name').value = localStorage.getItem('bot_characterName');
-            if (localStorage.getItem('bot_characterImage')) {
-                document.getElementById('ai-image-url').value = localStorage.getItem('bot_characterImage');
-                document.getElementById('avatar-preview').src = localStorage.getItem('bot_characterImage');
-            }
-            if (localStorage.getItem('bot_ttsVoice')) document.getElementById('ai-voice-select').value = localStorage.getItem('bot_ttsVoice');
-            if (localStorage.getItem('bot_characterPersona')) document.getElementById('ai-persona').value = localStorage.getItem('bot_characterPersona');
-        }
-        restoreVaultFields();
-
-        socket.on('connect', () => {
-            socket.emit('admin-sync-local', {
-                characterName: document.getElementById('ai-name').value.trim(),
-                characterImage: document.getElementById('ai-image-url').value.trim(),
-                ttsVoice: document.getElementById('ai-voice-select').value,
-                ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
-                ttsRate: parseFloat(document.getElementById('ai-rate').value),
-                characterPersona: document.getElementById('ai-persona').value.trim()
-            });
-        });
-
-        // 🔊 Stream Health Audio Beep Logic (High Ting = On, Low Buzz = Off)
-        function playStatusBeep(isOnline) {
-            try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                osc.connect(ctx.destination);
-                if (isOnline) {
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(800, ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.1);
-                    osc.start(); osc.stop(ctx.currentTime + 0.2);
-                } else {
-                    osc.type = 'sawtooth';
-                    osc.frequency.setValueAtTime(300, ctx.currentTime);
-                    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3);
-                    osc.start(); osc.stop(ctx.currentTime + 0.4);
-                }
-            } catch(e) {}
-        }
-
-        socket.on('stream-status', (data) => {
-            const isOnline = data.status === 'online';
-            if (isOnline !== wasOnline) {
-                playStatusBeep(isOnline);
-                wasOnline = isOnline;
-            }
-            streamDot.style.background = isOnline ? 'var(--green)' : 'var(--red)';
-            streamStatusText.innerText = isOnline ? 'Stream Live' : 'Stream Off';
-        });
-
-        socket.on('streamerbot-status', (data) => {
-            if (data.online) {
-                sbDot.style.background = 'var(--green)';
-                sbStatusText.innerText = 'Streamer.bot: Live';
-            } else {
-                sbDot.style.background = 'var(--red)';
-                sbStatusText.innerText = 'Streamer.bot: Off';
-            }
-        });
-
-        // TAB SWITCHER
-        function switchTab(tabName) {
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            const tabMap = { 'deck': 0, 'counter': 1, 'timer': 2, 'bet': 3, 'coins': 4, 'ai': 5, 'automod': 6, 'commands': 7, 'customizer': 8, 'add': 9 };
-            document.querySelectorAll('.nav-btn')[tabMap[tabName]].classList.add('active');
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-        }
-
-        // TAB 8: COMMAND ACTIONS
-        function saveAiCommandConfig() {
-            socket.emit('admin-update-ai-cmd-config', {
-                cmd: document.getElementById('cmd-ai-name').value.trim() || '!ai',
-                cost: parseInt(document.getElementById('cmd-ai-cost').value) || 0,
-                tts: document.getElementById('cmd-ai-tts-toggle').checked,
-                bubble: document.getElementById('cmd-ai-bubble-toggle').checked
-            });
-            alert(`✅ !ai settings updated!`);
-        }
-
-        function saveAllGameCommands() {
-            socket.emit('admin-update-game-commands', {
-                daily: document.getElementById('cmd-trig-daily').value.trim() || '!daily',
-                coins: document.getElementById('cmd-trig-coins').value.trim() || '!coins',
-                gamble: document.getElementById('cmd-trig-gamble').value.trim() || '!gamble',
-                slots: document.getElementById('cmd-trig-slots').value.trim() || '!slots'
-            });
-            alert('✅ Game command triggers updated!');
-        }
-
-        function saveCustomCommandItem() {
-            let cmd = document.getElementById('new-cmd-name').value.trim();
-            const reply = document.getElementById('new-cmd-reply').value.trim();
-            const cost = parseInt(document.getElementById('new-cmd-cost').value) || 0;
-            const bubble = document.getElementById('cmd-show-bubble').checked;
-            const tts = document.getElementById('cmd-show-tts').checked;
-
-            if (!cmd || !reply) return alert('Trigger aur reply dono zaroori hain!');
-            if (!cmd.startsWith('!')) cmd = '!' + cmd;
-
-            socket.emit('admin-add-custom-cmd', { cmd, reply, bubble, tts, cost });
-            document.getElementById('new-cmd-name').value = '';
-            document.getElementById('new-cmd-reply').value = '';
-            document.getElementById('new-cmd-cost').value = '0';
-        }
-
-        function deleteCustomCommand(cmd) {
-            if (confirm(`Delete command: "${cmd}"?`)) socket.emit('admin-del-custom-cmd', cmd);
-        }
-
-        function renderCustomCommands(commands) {
-            commandsContainer.innerHTML = '';
-            if (!commands || commands.length === 0) {
-                commandsContainer.innerHTML = '<small style="color:var(--text-dim); padding:4px;">No custom commands.</small>';
-                return;
-            }
-            commands.forEach(c => {
-                const div = document.createElement('div');
-                div.className = 'cmd-edit-card';
-                let tags = [];
-                if (c.bubble !== false) tags.push('💬 Bubble');
-                if (c.tts) tags.push('🔊 TTS');
-                const costBadge = (c.cost > 0) ? `🪙 ${c.cost}` : 'FREE';
-
-                div.innerHTML = `
-                    <div class="cmd-edit-header">
-                        <span class="cmd-badge">${c.cmd}</span>
-                        <div style="display:flex; gap:6px; align-items:center;">
-                            <span style="font-size:10px; color:var(--gold);">${costBadge}</span>
-                            <span style="font-size:10px; color:var(--text-dim);">${tags.join(' ')}</span>
-                            <button class="btn-del" style="background:#e74c3c; padding:3px 8px; font-size:10px;" onclick="deleteCustomCommand('${c.cmd}')">🗑️</button>
-                        </div>
-                    </div>
-                    <div style="color:var(--text-dim); font-size:11px;">${c.reply}</div>
-                `;
-                commandsContainer.appendChild(div);
-            });
-        }
-
-        socket.on('update-styles', (data) => {
-            if (data.characterName) document.getElementById('ai-name').value = data.characterName;
-            if (data.aiCommand) document.getElementById('cmd-ai-name').value = data.aiCommand;
-            if (data.coinSettings && data.coinSettings.aiCost !== undefined) document.getElementById('cmd-ai-cost').value = data.coinSettings.aiCost;
-            if (data.enableTTS !== undefined) document.getElementById('cmd-ai-tts-toggle').checked = data.enableTTS;
-            if (data.enableBubble !== undefined) document.getElementById('cmd-ai-bubble-toggle').checked = data.enableBubble;
-
-            if (data.characterImage) {
-                document.getElementById('ai-image-url').value = data.characterImage;
-                document.getElementById('avatar-preview').src = data.characterImage;
-            }
-            if (data.characterPersona) document.getElementById('ai-persona').value = data.characterPersona;
-            if (data.ttsVoice) document.getElementById('ai-voice-select').value = data.ttsVoice;
-
-            if (data.gameCommands) {
-                if (data.gameCommands.daily) document.getElementById('cmd-trig-daily').value = data.gameCommands.daily;
-                if (data.gameCommands.coins) document.getElementById('cmd-trig-coins').value = data.gameCommands.coins;
-                if (data.gameCommands.gamble) document.getElementById('cmd-trig-gamble').value = data.gameCommands.gamble;
-                if (data.gameCommands.slots) document.getElementById('cmd-trig-slots').value = data.gameCommands.slots;
-            }
-
-            if (data.userCoins) renderCoinBalances(data.userCoins);
-            if (data.customCommands) renderCustomCommands(data.customCommands);
-        });
-
-        function updateImagePreview() {
-            const url = document.getElementById('ai-image-url').value.trim();
-            if (url) document.getElementById('avatar-preview').src = url;
-        }
-
-        function saveAISettings() {
-            socket.emit('admin-change-styles', {
-                ttsVoice: document.getElementById('ai-voice-select').value,
-                ttsPitch: parseFloat(document.getElementById('ai-pitch').value),
-                ttsRate: parseFloat(document.getElementById('ai-rate').value),
-                characterName: document.getElementById('ai-name').value.trim(),
-                characterImage: document.getElementById('ai-image-url').value.trim(),
-                characterPersona: document.getElementById('ai-persona').value.trim()
-            });
-            alert('✅ Character settings saved!');
-        }
-
-        function saveAutoModSettings() {
-            socket.emit('admin-save-automod', {
-                blockLinks: document.getElementById('mod-block-links').checked,
-                capsFilter: document.getElementById('mod-caps-filter').checked,
-                bannedWords: document.getElementById('mod-banned-words').value.trim()
-            });
-            alert("🛡️ Auto-Mod shield saved!");
-        }
-
-        function saveCoinRules() {
-            socket.emit('admin-save-coins', {
-                coinsPerMsg: parseInt(document.getElementById('coin-per-msg').value) || 5,
-                cooldownSeconds: parseInt(document.getElementById('coin-cooldown').value) || 30
-            });
-            alert('Coin Rules Saved!');
-        }
-
-        function renderCoinBalances(userCoins) {
-            coinsListContainer.innerHTML = '';
-            const users = Object.keys(userCoins || {});
-            if (users.length === 0) {
-                coinsListContainer.innerHTML = '<small style="color:var(--text-dim); padding:4px;">No coins recorded yet.</small>';
-                return;
-            }
-            users.sort((a,b) => userCoins[b] - userCoins[a]);
-            users.forEach(u => {
-                const row = document.createElement('div');
-                row.className = 'cmd-edit-card';
-                row.style.borderLeft = '3px solid var(--gold)';
-                row.innerHTML = `<div style="display:flex; justify-content:space-between;"><span>👤 @${u}</span><strong style="color:var(--gold);">🪙 ${userCoins[u]}</strong></div>`;
-                coinsListContainer.appendChild(row);
-            });
-        }
-
-        // OBS Auto-Connect & Media Trigger
-        async function connectToOBS() {
-            if (obs.connected) return;
-            const ip = document.getElementById('obs-ip').value.trim() || '127.0.0.1';
-            const port = document.getElementById('obs-port').value.trim() || '4455';
-            const password = document.getElementById('obs-pass').value.trim() || '';
-
-            try {
-                await obs.connect(`ws://${ip}:${port}`, password || undefined);
-                obsDot.style.background = 'var(--green)';
-                obsStatusText.innerText = 'OBS Connected';
-                obsInnerStatus.innerText = '🟢 Connected';
-                obsInnerStatus.style.color = '#2ecc71';
-                updateMicState();
-            } catch (err) {
-                obsDot.style.background = 'var(--red)';
-                obsStatusText.innerText = 'OBS Disconnected';
-                obsInnerStatus.innerText = '🔴 Disconnected';
-                obsInnerStatus.style.color = '#ff4757';
-            }
-        }
-        obs.on('ConnectionClosed', () => {
-            obsDot.style.background = 'var(--red)'; obsStatusText.innerText = 'OBS Disconnected';
-        });
-
-        function manualSaveAndConnect() {
-            saveObsSettings();
-            if (obs.connected) obs.disconnect();
-            connectToOBS();
-            alert("Connecting to OBS...");
-        }
-        setInterval(() => { if (!obs.connected) connectToOBS(); }, 5000);
-        connectToOBS();
-
-        // ⚡ OBS DIRECT MANUAL TRIGGER FOR LOCAL FILES (Zero lag setup)
-        async function triggerLocalMedia(filePath) {
-            try {
-                if(!obs.connected) return alert("OBS is not connected!");
-                // Single MemePlayer source ki file badal kar play karega
-                await obs.call('SetInputSettings', { inputName: 'MemePlayer', inputSettings: { local_file: filePath } });
-                await obs.call('SetSceneItemEnabled', { sceneName: await obs.call('GetCurrentProgramScene').then(r=>r.currentProgramSceneName), sceneItemId: await getSceneItemId('MemePlayer'), sceneItemEnabled: true });
-            } catch(e) { console.log(e); }
-        }
-        async function getSceneItemId(sourceName) {
-            const sceneName = (await obs.call('GetCurrentProgramScene')).currentProgramSceneName;
-            const items = (await obs.call('GetSceneItemList', { sceneName })).sceneItems;
-            const item = items.find(i => i.sourceName === sourceName);
-            return item ? item.sceneItemId : -1;
-        }
-
-        async function updateMicState() {
-            try {
-                const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
-                const { inputMuted } = await obs.call('GetInputMute', { inputName: micName });
-                micBtn.className = inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = inputMuted ? '🔇 MIC MUTED' : '🎙 MIC IS LIVE';
-            } catch (e) {}
-        }
-        async function toggleMic() {
-            const micName = document.getElementById('obs-mic-name').value.trim() || 'Mic/Aux';
-            try {
-                const res = await obs.call('ToggleInputMute', { inputName: micName });
-                micBtn.className = res.inputMuted ? 'btn-mic mic-muted' : 'btn-mic mic-unmuted';
-                micBtn.innerHTML = res.inputMuted ? '🔇 MIC MUTED' : '🎙️ MIC IS LIVE';
-            } catch (err) { alert('OBS connect nahi hai!'); }
-        }
-        async function switchScene(sceneName) {
-            try { await obs.call('SetCurrentProgramScene', { sceneName }); }
-            catch (err) { alert(`Scene '${sceneName}' nahi mila!`); }
-        }
-
-        function formatTime(totalSeconds) {
-            const h = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
-            const m = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
-            const s = (totalSeconds % 60).toString().padStart(2, '0');
-            return `${h}h ${m}m ${s}s`;
-        }
-
-        socket.on('timer-tick', (data) => adminTimerDisplay.innerText = formatTime(data.seconds));
-        socket.on('update-counter', (data) => {
-            deathDisplay.innerText = data.count || 0;
-            document.getElementById('win-display').innerText = data.wins || 0;
-            document.getElementById('loss-display').innerText = data.losses || 0;
-        });
-
-        socket.on('load-triggers', (triggers) => {
-            scenesContainer.innerHTML = ''; triggersContainer.innerHTML = '';
-            triggers.forEach(t => {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'deck-btn-wrapper';
-                const delBtn = document.createElement('button');
-                delBtn.className = 'deck-del-btn'; delBtn.innerText = '✕';
-                delBtn.onclick = (e) => { e.stopPropagation(); socket.emit('admin-del-trigger', t.id); };
-                wrapper.appendChild(delBtn);
-
-                if (t.type === 'scene') {
-                    const btn = document.createElement('button');
-                    btn.className = 'btn-scene'; btn.innerHTML = `🖥️ ${t.name}`;
-                    btn.onclick = () => switchScene(t.sceneName);
-                    wrapper.appendChild(btn); scenesContainer.appendChild(wrapper);
-                } else {
-                    const btn = document.createElement('button');
-                    btn.className = t.type === 'video' ? 'btn-video' : 'btn-sfx';
-                    btn.innerHTML = `${t.type === 'video' ? '🎬' : '🔊'} ${t.name}<br><small>${t.cmd}</small>`;
-                    // Trigger manual play locally when tapped on phone
-                    btn.onclick = () => triggerLocalMedia(t.url);
-                    wrapper.appendChild(btn); triggersContainer.appendChild(wrapper);
-                }
-            });
-        });
-
-        function toggleFormFields() {
-            const type = document.getElementById('trig-type').value;
-            const isScene = type === 'scene';
-            document.getElementById('trig-scene-name').style.display = isScene ? 'block' : 'none';
-            document.getElementById('trig-cmd').style.display = isScene ? 'none' : 'block';
-            document.getElementById('trig-cost').style.display = isScene ? 'none' : 'block';
-            document.getElementById('trig-url').style.display = isScene ? 'none' : 'block';
-        }
-
-        function addNewTrigger() {
-            const type = document.getElementById('trig-type').value;
-            const name = document.getElementById('trig-name').value.trim();
-            if (type === 'scene') {
-                socket.emit('admin-add-trigger', { name, type, sceneName: document.getElementById('trig-scene-name').value.trim(), cost: 0 });
-            } else {
-                socket.emit('admin-add-trigger', { 
-                    name, type, 
-                    cmd: document.getElementById('trig-cmd').value.trim().toLowerCase(), 
-                    url: document.getElementById('trig-url').value.trim(), 
-                    cost: parseInt(document.getElementById('trig-cost').value) || 0 
-                });
-            }
-            switchTab('deck');
-        }
-
-        function setCustomPlaytime() {
-            const hours = document.getElementById('set-timer-h').value || 0;
-            const minutes = document.getElementById('set-timer-m').value || 0;
-            const seconds = document.getElementById('set-timer-s').value || 0;
-            socket.emit('admin-timer-set', { hours, minutes, seconds });
-            alert('Playtime updated!');
-        }
-
-        // POLL SYSTEM RESTORED
-        function addOptionField() {
-            const count = customOptionsContainer.children.length + 1;
-            const div = document.createElement('div');
-            div.className = 'opt-input-row';
-            div.innerHTML = `
-                <input type="text" class="custom-opt-input" placeholder="Option ${count}">
-                <button class="btn-icon-del" onclick="this.parentElement.remove()">✕</button>
-            `;
-            customOptionsContainer.appendChild(div);
-        }
-
-        function launchCustomPoll() {
-            const title = document.getElementById('bet-new-title').value.trim();
-            const inputs = document.querySelectorAll('.custom-opt-input');
-            const options = [];
-            inputs.forEach(inp => { const val = inp.value.trim(); if (val) options.push(val); });
-            if (!title) return alert('Poll question zaroori hai!');
-            if (options.length < 2) return alert('Kam se kam 2 options daalein!');
-            socket.emit('admin-start-bet', { title, options });
-            document.getElementById('bet-new-title').value = '';
-        }
-
-        function resolveWinnerOption(id, name) {
-            if (confirm(`Declare "${name}" as winner?`)) socket.emit('admin-resolve-bet', { winningOptionId: id });
-        }
-
-        function endPollNow() {
-            if (confirm('Poll end karein?')) socket.emit('admin-end-bet');
-        }
-
-        socket.on('bet-update', (bet) => {
-            const badge = document.getElementById('bet-status-badge');
-            const title = document.getElementById('bet-title-display');
-            if (!bet.isOpen) {
-                badge.innerText = 'INACTIVE'; badge.style.color = 'var(--text-dim)';
-                title.innerText = 'No active poll';
-                activeOptionsList.innerHTML = '<small style="color:var(--text-dim);">Launch a poll below to start.</small>';
-            } else {
-                badge.innerText = bet.locked ? '🔒 LOCKED' : '🟢 ACTIVE';
-                badge.style.color = bet.locked ? 'var(--orange)' : 'var(--green)';
-                title.innerText = `${bet.title} (🪙 ${bet.totalPool || 0} Pool • ${bet.totalVotes || 0} Votes)`;
-                activeOptionsList.innerHTML = '';
-                bet.options.forEach(opt => {
-                    const row = document.createElement('div');
-                    row.className = 'opt-item-row';
-                    row.innerHTML = `
-                        <div><b>[${opt.id}] ${opt.name}</b> <span style="color:var(--text-dim); margin-left:6px;">${opt.votes} votes • 🪙${opt.pool} (${opt.pct || 0}%)</span></div>
-                        <button style="background:var(--cyan); color:#000; padding:4px 8px; font-size:11px;" onclick="resolveWinnerOption(${opt.id}, '${opt.name}')">🏆 Won</button>
-                    `;
-                    activeOptionsList.appendChild(row);
-                });
-            }
-        });
-    </script>
+<nav id="nav">
+<button data-t="deck" class="on">🎮 Deck</button>
+<button data-t="stats">💀 Stats</button>
+<button data-t="bet">🎲 Poll</button>
+<button data-t="coins">🪙 Coins</button>
+<button data-t="ai">🤖 AI</button>
+<button data-t="cmds">💬 Cmds</button>
+<button data-t="set">⚙️ OBS</button>
+</nav>
+
+<main>
+<div class="card status">
+  <span><i id="d-st" class="dot"></i><b id="t-st">Stream: Off</b></span>
+  <span><i id="d-obs" class="dot"></i><b id="t-obs">OBS: Off</b></span>
+  <span><i id="d-sb" class="dot"></i><b id="t-sb">Streamer.bot: Off</b></span>
+</div>
+
+<!-- DECK -->
+<section id="t-deck" class="tab on">
+  <div class="card"><button id="mic" class="mic live" onclick="toggleMic()">🎙️ MIC LIVE</button></div>
+  <div class="card"><h3>🎬 OBS Scenes (auto)</h3><div id="scenes" class="grid"></div></div>
+  <div class="card"><h3>⚡ Meme / SFX Redeems</h3><div id="redeems" class="grid"></div><small id="no-redeem" class="hint">Abhi koi redeem nahi. Neeche add karo.</small></div>
+  <details class="card"><summary>➕ Naya redeem add karo</summary>
+    <select id="r-type"><option value="video">🎥 Video (MP4)</option><option value="sfx">🔊 Sound (MP3/WAV)</option></select>
+    <input id="r-name" placeholder="Button naam (Vine Boom)">
+    <input id="r-cmd" placeholder="Chat command (!boom)">
+    <label>Mac-Coin cost (0 = free)</label><input id="r-cost" type="number" min="0" value="0">
+    <input id="r-path" placeholder="Full file path (D:\memes\boom.mp4)">
+    <button class="blue" style="width:100%" onclick="addRedeem()">💾 Save</button>
+  </details>
+</section>
+
+<!-- STATS -->
+<section id="t-stats" class="tab">
+  <div class="card c"><h3>🏆 Ranked (W - L)</h3>
+    <div class="big cy"><span id="wins">0</span> - <span id="losses">0</span></div>
+    <div class="g2"><button class="green" onclick="emit('admin-win-add')">+1 WIN</button><button class="red" onclick="emit('admin-loss-add')">+1 LOSS</button></div></div>
+  <div class="card c"><h3>💀 Deaths</h3>
+    <div class="big rd" id="deaths">0</div>
+    <button class="red" style="width:100%;margin-bottom:8px;padding:16px;font-size:18px" onclick="emit('admin-death-add')">+1 DEATH</button>
+    <div class="g2"><button onclick="emit('admin-death-sub')">-1</button><button onclick="if(confirm('Deaths + Wins + Losses sab 0?'))emit('admin-death-reset')">Reset all</button></div></div>
+  <div class="card c"><h3>⏱️ Playtime</h3>
+    <div class="big cy mono" id="timer">00:00:00</div>
+    <div class="g3"><button class="green" onclick="emit('admin-timer-start')">▶ Start</button><button class="gold" onclick="emit('admin-timer-pause')">⏸ Pause</button><button onclick="emit('admin-timer-reset')">🔄 Reset</button></div>
+    <div class="g3" style="margin-top:10px"><input id="th" type="number" min="0" placeholder="HH"><input id="tm" type="number" min="0" max="59" placeholder="MM"><input id="ts" type="number" min="0" max="59" placeholder="SS"></div>
+    <button class="blue" style="width:100%" onclick="setTimer()">Set time</button></div>
+  <div class="hint">OBS me Text (GDI+) sources banao: <b>DeathCount</b>, <b>WinLoss</b>, <b>PlayTime</b>. Dashboard unhe khud update karta hai (GPU load ~0). Dashboard tab PC par khula rehna chahiye.</div>
+</section>
+
+<!-- POLL -->
+<section id="t-bet" class="tab">
+  <div class="card">
+    <h3><span>🎲 Prediction</span> <span id="bet-badge" style="float:right">INACTIVE</span></h3>
+    <b id="bet-title">Koi poll nahi</b>
+    <div id="bet-opts" style="margin-top:8px"></div>
+    <div class="g2"><button class="gold" onclick="emit('admin-lock-bet')">🔒 Lock</button><button class="red" onclick="if(confirm('Poll cancel? Sabke coins wapas.'))emit('admin-end-bet')">✖ Cancel (refund)</button></div>
+    <div class="hint" style="margin-top:8px">Chat: <code>!bet 1 50</code> = option 1 par 50 coins. 🏆 dabane par winners ko pool automatic mil jata hai.</div>
+  </div>
+  <div class="card"><h3>➕ Naya poll</h3>
+    <input id="p-title" placeholder="Sawal (Kaun jeetega?)">
+    <div id="p-opts"><input class="po" value="Win"><input class="po" value="Lose"></div>
+    <div class="g2"><button onclick="addOpt()">➕ Option</button><button class="gold" onclick="launchPoll()">🚀 Launch</button></div></div>
+</section>
+
+<!-- COINS -->
+<section id="t-coins" class="tab">
+  <div class="card"><h3>👑 Coins do / kaato</h3>
+    <div class="g2"><input id="g-user" placeholder="Username"><input id="g-amt" type="number" placeholder="+100 / -50"></div>
+    <button class="gold" style="width:100%" onclick="grant()">⚡ Update Balance</button></div>
+  <div class="card"><h3>⚙ Economy</h3>
+    <div class="g2"><div><label>Coins per message</label><input id="c-msg" type="number" value="5"></div><div><label>Cooldown (sec)</label><input id="c-cd" type="number" value="30"></div></div>
+    <button class="blue" style="width:100%" onclick="saveRates()">💾 Save</button></div>
+  <div class="card"><h3>🏆 Balances</h3><div id="coin-list" class="list"></div></div>
+</section>
+
+<!-- AI -->
+<section id="t-ai" class="tab">
+  <div class="card"><h3>🎭 AI Character & Voice</h3>
+    <div style="display:flex;gap:12px;align-items:center;margin-bottom:8px">
+      <img id="pv" class="pv" alt="">
+      <div style="flex:1"><label>Avatar image URL (direct link)</label><input id="ai-img" style="margin:0" oninput="$('pv').src=this.value"></div></div>
+    <label>Voice</label>
+    <select id="ai-voice"><option value="female">👩 Female (Hindi)</option><option value="male">👨 Male</option></select>
+    <div class="g2">
+      <div><label>Pitch (<span id="pitch-v">1</span>)</label><input id="ai-pitch" type="range" min="0.6" max="1.5" step="0.05" value="1" oninput="$('pitch-v').textContent=this.value"></div>
+      <div><label>Speed (<span id="rate-v">1</span>)</label><input id="ai-rate" type="range" min="0.6" max="1.6" step="0.05" value="1" oninput="$('rate-v').textContent=this.value"></div></div>
+    <label>Character name</label><input id="ai-name">
+    <label>Behaviour prompt</label><textarea id="ai-persona" rows="3"></textarea>
+  </div>
+  <div class="card"><h3>🤖 !ai command</h3>
+    <div class="g2"><div><label>Trigger</label><input id="ai-cmd" value="!ai"></div><div><label>Coin cost</label><input id="ai-cost" type="number" value="50"></div></div>
+    <label class="chk"><input id="ai-tts" type="checkbox" checked> 🔊 TTS me bolo</label>
+    <label class="chk"><input id="ai-bubble" type="checkbox" checked> 💬 Screen bubble dikhao</label>
+  </div>
+  <div class="g2"><button class="gold" onclick="saveAI()">💾 Save</button><button style="background:#e67e22" onclick="emit('admin-test-speak')">🔊 Test voice</button></div>
+</section>
+
+<!-- COMMANDS -->
+<section id="t-cmds" class="tab">
+  <div class="card"><h3>➕ Custom command (add / update)</h3>
+    <input id="cm-name" placeholder="Trigger (!specs)">
+    <textarea id="cm-reply" rows="2" placeholder="Bot ka reply"></textarea>
+    <label>Mac-Coin cost (0 = free)</label><input id="cm-cost" type="number" min="0" value="0">
+    <label class="chk"><input id="cm-bubble" type="checkbox" checked> 💬 Bubble</label>
+    <label class="chk"><input id="cm-tts" type="checkbox"> 🔊 TTS</label>
+    <button class="blue" style="width:100%" onclick="saveCmd()">💾 Save</button></div>
+  <div class="card"><h3>📋 Saved commands</h3><div id="cmd-list" class="list"></div></div>
+</section>
+
+<!-- SETTINGS -->
+<section id="t-set" class="tab">
+  <div class="card"><h3>🔌 OBS WebSocket</h3>
+    <div class="g2"><input id="obs-ip" value="127.0.0.1" placeholder="IP"><input id="obs-port" value="4455" placeholder="Port"></div>
+    <input id="obs-pass" type="password" placeholder="OBS password">
+    <label>Mic source ka naam OBS me</label><input id="obs-mic" value="Mic/Aux">
+    <button class="blue" style="width:100%" onclick="reconnect()">🔄 Connect</button>
+    <div class="hint" style="margin-top:8px">Media redeem ke liye OBS me ek source banao jiska naam exactly <b>MemePlayer</b> ho (Media Source, local file).</div></div>
+  <div class="card"><h3>🔗 Streamer.bot URLs</h3>
+    <select id="url-type"><option value="chat">Chat message</option><option value="superchat">Super Chat alert</option><option value="member">New Member alert</option><option value="sub">New Subscriber alert</option></select>
+    <button class="gold" style="width:100%" onclick="copyUrl()">📋 Copy URL (Fetch URL me paste karo)</button>
+    <div class="hint" style="margin-top:8px">URL me tumhari admin key hoti hai. Stream par kisi ko dikhana mat.</div></div>
+</section>
+</main>
+<div id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const v=id=>$(id).value.trim();
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;}
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',2200);}
+
+/* ---- socket + admin key ---- */
+let adminKey=localStorage.getItem('adminKey');
+if(adminKey===null){adminKey=prompt('Admin key (Render ADMIN_KEY; nahi hai to khali chhodo)')||'';localStorage.setItem('adminKey',adminKey);}
+const socket=io({auth:{key:adminKey}});
+const emit=(ev,d)=>socket.emit(ev,d);
+socket.on('error',()=>toast('Admin key galat ho sakti hai (F12 > localStorage > adminKey hata do)'));
+
+/* ---- tabs ---- */
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#nav button,.tab').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');$('t-'+b.dataset.t).classList.add('on');});
+
+/* ---- beep (stream live = high ting, offline = low buzz) ---- */
+let actx;const AC=()=>actx||(actx=new(window.AudioContext||window.webkitAudioContext)());
+document.addEventListener('pointerdown',()=>{try{AC().resume();}catch(e){}},{once:true});
+function beep(up){try{const c=AC(),o=c.createOscillator(),g=c.createGain(),t=c.currentTime;
+  o.connect(g);g.connect(c.destination);g.gain.value=.15;
+  if(up){o.type='sine';o.frequency.setValueAtTime(900,t);o.frequency.exponentialRampToValueAtTime(1400,t+.1);o.start(t);o.stop(t+.25);}
+  else{o.type='sawtooth';o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(90,t+.35);o.start(t);o.stop(t+.45);}}catch(e){}}
+
+/* ---- OBS ---- */
+const obs=new OBSWebSocket();
+let obsOn=false,busy=false,live=false,texts=new Set();
+const TEXTS=['DeathCount','WinLoss','PlayTime'];
+['obs-ip','obs-port','obs-pass','obs-mic'].forEach(id=>{const s=localStorage.getItem('bot_'+id);if(s!==null)$(id).value=s;$(id).onchange=()=>localStorage.setItem('bot_'+id,$(id).value);});
+
+function setObsUI(on){$('d-obs').classList.toggle('on',on);$('t-obs').textContent='OBS: '+(on?'Connected':'Off');}
+function setLive(on,quiet){if(on!==live){live=on;if(!quiet)beep(on);}$('d-st').classList.toggle('on',on);$('t-st').textContent='Stream: '+(on?'LIVE':'Off');}
+
+async function connectOBS(){
+  if(obsOn||busy)return;busy=true;
+  try{
+    await obs.connect(`ws://${v('obs-ip')||'127.0.0.1'}:${v('obs-port')||'4455'}`,v('obs-pass')||undefined);
+    obsOn=true;setObsUI(true);await afterConnect();
+  }catch(e){setObsUI(false);}finally{busy=false;}
+}
+async function afterConnect(){
+  try{await loadScenes();}catch(e){}
+  try{await micState();}catch(e){}
+  try{setLive((await obs.call('GetStreamStatus')).outputActive,true);}catch(e){}
+  try{const {inputs}=await obs.call('GetInputList');texts=new Set(inputs.map(i=>i.inputName).filter(n=>TEXTS.includes(n)));pushTexts();}catch(e){}
+}
+function reconnect(){try{obs.disconnect();}catch(e){}obsOn=false;connectOBS();toast('Connecting...');}
+setInterval(()=>{if(!obsOn)connectOBS();},5000);connectOBS();
+
+obs.on('ConnectionClosed',()=>{obsOn=false;setObsUI(false);if(live){beep(false);setLive(false,true);}});
+obs.on('StreamStateChanged',e=>setLive(e.outputActive));
+obs.on('SceneListChanged',()=>loadScenes().catch(()=>{}));
+obs.on('CurrentProgramSceneChanged',()=>loadScenes().catch(()=>{}));
+obs.on('InputMuteStateChanged',e=>{if(e.inputName===micName())paintMic(e.inputMuted);});
+
+/* scenes: OBS se auto */
+async function loadScenes(){
+  const r=await obs.call('GetSceneList'),box=$('scenes');box.innerHTML='';
+  r.scenes.slice().reverse().forEach(s=>{
+    const b=el('button','scene'+(s.sceneName===r.currentProgramSceneName?' on':''),s.sceneName);
+    b.onclick=()=>obs.call('SetCurrentProgramScene',{sceneName:s.sceneName}).catch(()=>toast('Scene error'));
+    box.append(b);});
+}
+
+/* mic */
+const micName=()=>v('obs-mic')||'Mic/Aux';
+function paintMic(m){const b=$('mic');b.className='mic '+(m?'muted':'live');b.textContent=m?'🔇 MIC MUTED':'🎙️ MIC LIVE';}
+async function micState(){paintMic((await obs.call('GetInputMute',{inputName:micName()})).inputMuted);}
+async function toggleMic(){
+  if(!obsOn)return toast('OBS connected nahi hai');
+  try{paintMic((await obs.call('ToggleInputMute',{inputName:micName()})).inputMuted);}
+  catch(e){toast('Mic source nahi mila: '+micName());}
+}
+
+/* MemePlayer (ek hi source, file path badalta hai) */
+async function findMeme(){
+  const cur=(await obs.call('GetCurrentProgramScene')).currentProgramSceneName;
+  const all=(await obs.call('GetSceneList')).scenes.map(s=>s.sceneName);
+  for(const sc of [cur,...all]){
+    try{const {sceneItems}=await obs.call('GetSceneItemList',{sceneName:sc});
+      const it=sceneItems.find(i=>i.sourceName==='MemePlayer');if(it)return{sc,id:it.sceneItemId};}catch(e){}
+  }return null;
+}
+async function triggerLocalMedia(path){
+  if(!obsOn)return toast('OBS connected nahi hai');
+  try{
+    const it=await findMeme();if(!it)return toast('MemePlayer source kisi scene me nahi mila');
+    await obs.call('SetInputSettings',{inputName:'MemePlayer',inputSettings:{local_file:path,looping:false,close_when_inactive:true,restart_when_active:true}});
+    await obs.call('SetSceneItemEnabled',{sceneName:it.sc,sceneItemId:it.id,sceneItemEnabled:true});
+    await obs.call('TriggerMediaInputAction',{inputName:'MemePlayer',mediaAction:'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART'});
+  }catch(e){toast('Media fail: '+e.message);}
+}
+obs.on('MediaInputPlaybackEnded',async e=>{
+  if(e.inputName!=='MemePlayer')return;
+  try{const it=await findMeme();if(it)await obs.call('SetSceneItemEnabled',{sceneName:it.sc,sceneItemId:it.id,sceneItemEnabled:false});}catch(x){}
+});
+socket.on('play-media',d=>triggerLocalMedia(d.url)); // chat se redeem
+
+/* OBS text sources (GPU-free counters) */
+const st={count:0,wins:0,losses:0,secs:0};
+const fmt=s=>[Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(n=>String(n).padStart(2,'0')).join(':');
+function setText(name,text){if(obsOn&&texts.has(name))obs.call('SetInputSettings',{inputName:name,inputSettings:{text}}).catch(()=>{});}
+function pushTexts(){setText('DeathCount','Deaths: '+st.count);setText('WinLoss','W '+st.wins+' - '+st.losses+' L');setText('PlayTime',fmt(st.secs));}
+
+/* ---- server events ---- */
+socket.on('update-counter',d=>{st.count=d.count||0;st.wins=d.wins||0;st.losses=d.losses||0;
+  $('deaths').textContent=st.count;$('wins').textContent=st.wins;$('losses').textContent=st.losses;pushTexts();});
+socket.on('timer-tick',d=>{st.secs=d.seconds;$('timer').textContent=fmt(d.seconds);setText('PlayTime',fmt(d.seconds));});
+socket.on('streamerbot-status',d=>{$('d-sb').classList.toggle('on',!!d.online);$('t-sb').textContent='Streamer.bot: '+(d.online?'Live':'Off');});
+
+socket.on('load-triggers',list=>{
+  const box=$('redeems');box.innerHTML='';
+  const m=list.filter(t=>t.type!=='scene');$('no-redeem').style.display=m.length?'none':'block';
+  m.forEach(t=>{
+    const w=el('div','wrap'),vid=t.type==='video';
+    const b=el('button',vid?'vid':'sfx',(vid?'🎬 ':'🔊 ')+t.name);
+    b.append(el('small','',(t.cmd||'')+(t.cost?' • 🪙'+t.cost:'')));
+    b.onclick=()=>triggerLocalMedia(t.url);
+    const x=el('span','del','✕');x.onclick=()=>{if(confirm('Delete '+t.name+'?'))emit('admin-del-trigger',t.id);};
+    w.append(b,x);box.append(w);});
+});
+
+function setVal(id,val){const e=$(id);if(e&&val!==undefined&&document.activeElement!==e)e.value=val;}
+socket.on('update-styles',d=>{
+  setVal('ai-name',d.characterName);setVal('ai-img',d.characterImage);setVal('ai-persona',d.characterPersona);
+  setVal('ai-voice',d.ttsVoice);setVal('ai-pitch',d.ttsPitch);setVal('ai-rate',d.ttsRate);setVal('ai-cmd',d.aiCommand);
+  $('pitch-v').textContent=$('ai-pitch').value;$('rate-v').textContent=$('ai-rate').value;
+  if(d.characterImage&&$('pv').getAttribute('src')!==d.characterImage)$('pv').src=d.characterImage;
+  if(d.coinSettings){setVal('ai-cost',d.coinSettings.aiCost);setVal('c-msg',d.coinSettings.coinsPerMsg);setVal('c-cd',d.coinSettings.cooldownSeconds);}
+  if(d.enableTTS!==undefined)$('ai-tts').checked=d.enableTTS;
+  if(d.enableBubble!==undefined)$('ai-bubble').checked=d.enableBubble;
+  renderCoins(d.userCoins||{});renderCmds(d.customCommands||[]);
+});
+
+function renderCoins(c){
+  const box=$('coin-list');box.innerHTML='';
+  const us=Object.keys(c).sort((a,b)=>c[b]-c[a]).slice(0,50);
+  if(!us.length){box.append(el('small','hint','Abhi koi coins nahi.'));return;}
+  us.forEach(u=>{const r=el('div','row');r.append(el('span','','👤 '+u),el('b','','🪙 '+c[u]));box.append(r);});
+}
+function renderCmds(list){
+  const box=$('cmd-list');box.innerHTML='';
+  if(!list.length){box.append(el('small','hint','Koi custom command nahi.'));return;}
+  list.forEach(c=>{
+    const r=el('div','row'),info=el('div','');
+    info.append(el('b','',c.cmd+'  '),el('small','hint',(c.cost>0?'🪙'+c.cost:'FREE')+(c.bubble!==false?' 💬':'')+(c.tts?' 🔊':'')),el('div','hint',c.reply));
+    const x=el('button','red sm','🗑');x.onclick=()=>{if(confirm('Delete '+c.cmd+'?'))emit('admin-del-custom-cmd',c.cmd);};
+    r.append(info,x);box.append(r);});
+}
+
+/* polls */
+socket.on('bet-update',b=>{
+  const box=$('bet-opts');box.innerHTML='';
+  if(!b.isOpen){$('bet-badge').textContent='INACTIVE';$('bet-title').textContent='Koi poll nahi';return;}
+  $('bet-badge').textContent=b.locked?'🔒 LOCKED':'🟢 LIVE';
+  $('bet-title').textContent=`${b.title}  •  🪙${b.totalPool}  •  ${b.totalVotes} votes`;
+  b.options.forEach(o=>{
+    const r=el('div','row');r.append(el('span','',`[${o.id}] ${o.name} — ${o.votes} votes • 🪙${o.pool} (${o.pct}%)`));
+    const w=el('button','gold sm','🏆 Won');w.onclick=()=>{if(confirm(`"${o.name}" winner? Pool payout ho jayega.`))emit('admin-resolve-bet',{winningOptionId:o.id});};
+    r.append(w);box.append(r);});
+});
+function addOpt(){const d=el('div','');d.style.cssText='display:flex;gap:6px';const i=el('input','po');i.placeholder='Option '+($('p-opts').children.length+1);const x=el('button','red sm','✕');x.style.marginBottom='7px';x.onclick=()=>d.remove();d.append(i,x);$('p-opts').append(d);}
+function launchPoll(){
+  const title=v('p-title'),options=[...document.querySelectorAll('.po')].map(i=>i.value.trim()).filter(Boolean);
+  if(!title)return toast('Sawal likho');if(options.length<2)return toast('Kam se kam 2 options');
+  emit('admin-start-bet',{title,options});$('p-title').value='';
+}
+
+/* actions */
+function addRedeem(){
+  const name=v('r-name'),url=v('r-path').replace(/^["']|["']$/g,'');let cmd=v('r-cmd').toLowerCase();
+  if(!name||!url)return toast('Naam aur file path zaroori hai');
+  if(cmd&&!cmd.startsWith('!'))cmd='!'+cmd;
+  emit('admin-add-trigger',{name,type:$('r-type').value,cmd,url,cost:parseInt($('r-cost').value)||0});
+  ['r-name','r-cmd','r-path'].forEach(i=>$(i).value='');$('r-cost').value=0;toast('✅ Redeem add ho gaya');
+}
+function setTimer(){emit('admin-timer-set',{hours:$('th').value||0,minutes:$('tm').value||0,seconds:$('ts').value||0});toast('✅ Timer set');}
+function grant(){const u=v('g-user'),a=parseInt($('g-amt').value);if(!u||!a)return toast('Username aur amount do');emit('admin-grant-coins',{user:u,amount:a});$('g-amt').value='';toast('✅ Done');}
+function saveRates(){emit('admin-save-coins',{coinsPerMsg:parseInt($('c-msg').value)||5,cooldownSeconds:parseInt($('c-cd').value)||30});toast('✅ Saved');}
+function saveAI(){
+  emit('admin-change-styles',{ttsVoice:$('ai-voice').value,ttsPitch:parseFloat($('ai-pitch').value),ttsRate:parseFloat($('ai-rate').value),characterName:v('ai-name'),characterImage:v('ai-img'),characterPersona:v('ai-persona')});
+  emit('admin-update-ai-cmd-config',{cmd:v('ai-cmd')||'!ai',cost:parseInt($('ai-cost').value)||0,tts:$('ai-tts').checked,bubble:$('ai-bubble').checked});
+  toast('✅ Saved');
+}
+function saveCmd(){
+  let c=v('cm-name').toLowerCase();const r=v('cm-reply');
+  if(!c||!r)return toast('Trigger aur reply dono do');if(!c.startsWith('!'))c='!'+c;
+  emit('admin-add-custom-cmd',{cmd:c,reply:r,cost:parseInt($('cm-cost').value)||0,bubble:$('cm-bubble').checked,tts:$('cm-tts').checked});
+  $('cm-name').value='';$('cm-reply').value='';$('cm-cost').value=0;toast('✅ Saved');
+}
+function copyUrl(){
+  const k=encodeURIComponent(adminKey),p={
+    chat:`/api/streamerbot/chat?key=${k}&user=%user%&message=%message%`,
+    superchat:`/api/alert?key=${k}&type=superchat&user=%user%&amount=%amount%&message=%message%`,
+    member:`/api/alert?key=${k}&type=member&user=%user%`,
+    sub:`/api/alert?key=${k}&type=subscriber&user=%user%`}[$('url-type').value];
+  navigator.clipboard.writeText(location.origin+p).then(()=>toast('📋 URL copy ho gaya')).catch(()=>toast('Copy fail'));
+}
+</script>
 </body>
 </html>
