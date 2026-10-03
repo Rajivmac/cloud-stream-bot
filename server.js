@@ -28,7 +28,7 @@ const defaults = {
   gameCommands: { daily: '!daily', coins: '!coins', gamble: '!gamble', slots: '!slots', duel: '!duel', pay: '!pay' },
   coinSettings: { currencyName: 'Mac-Coins', coinsPerMsg: 5, cooldownSeconds: 30, aiCost: 50, dailyAmount: 50 },
   automod: { blockLinks: true, capsFilter: true, bannedWords: '' },
-  userCoins: {}, userDailyClaim: {}, userHistories: {},
+  userCoins: {}, userDailyClaim: {}, userHistories: {}, userMemory: {},
   triggers: [], customCommands: [],
   bet: { isOpen: false, locked: false, title: '', options: [], bets: {} }
 };
@@ -53,7 +53,7 @@ const save = () => {
 const S = () => streamData;
 const bal = u => streamData.userCoins[u] || 0;
 const addCoins = (u, n) => { streamData.userCoins[u] = Math.max(0, bal(u) + n); save(); };
-const publicState = () => { const { userHistories, userDailyClaim, bet, ...rest } = streamData; return rest; };
+const publicState = () => { const { userHistories, userDailyClaim, userMemory, bet, ...rest } = streamData; return rest; };
 
 // ---------- TIMER ----------
 let timerRunning = false;
@@ -91,7 +91,7 @@ function speak(text, tts = true, bubble = true) {
 }
 
 // ---------- AI (context = last 4 msgs per user, 9s timeout, refund on fail) ----------
-async function askAI(q, username, role) {
+async function askAIBasic(q, username, role) {
   const u = username.toLowerCase();
   const hist = streamData.userHistories[u] || [];
   const tag = role === 'owner' ? 'Boss Rajiv Pal' : `Viewer @${username}`;
@@ -115,6 +115,76 @@ async function askAI(q, username, role) {
     }
   } catch (e) { /* timeout / network */ } finally { clearTimeout(t); }
   return { ok: false, text: role === 'owner' ? 'Boss, AI abhi busy hai, thodi der baad try karo!' : `@${username}, AI abhi busy hai, coins wapas kar diye!` };
+}
+
+// ---------- AI v2: Groq/Pollinations + Tavily web search + per-viewer long-term memory ----------
+const GROQ_KEY = process.env.GROQ_API_KEY || '';
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+const TAVILY_KEY = process.env.TAVILY_API_KEY || '';
+const SEARCH_DAILY_CAP = parseInt(process.env.SEARCH_DAILY_CAP) || 100;
+const NEEDS_SEARCH = /\b(kaun|kab|kitn[aeiy]|latest|news|aaj|abhi|today|current|price|score|who|when|release|patch|tier list|meta|weather|rank|update|winner|champion)\b|\?/i;
+const searchCap = { day: '', n: 0 };
+const memCount = {};
+
+async function llm(messages, { max = 150, timeout = 9000 } = {}) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeout);
+  try {
+    const url = GROQ_KEY ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://text.pollinations.ai/openai';
+    const headers = { 'Content-Type': 'application/json', ...(GROQ_KEY ? { Authorization: 'Bearer ' + GROQ_KEY } : {}) };
+    const body = { model: GROQ_KEY ? GROQ_MODEL : 'openai', messages, max_tokens: max, temperature: 0.8 };
+    const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: ctl.signal });
+    if (!r.ok) return '';
+    const j = await r.json();
+    return (j.choices?.[0]?.message?.content || '').trim();
+  } catch (e) { return ''; } finally { clearTimeout(t); }
+}
+
+async function webSearch(q) {
+  if (!TAVILY_KEY) return '';
+  const d = new Date().toISOString().slice(0, 10);
+  if (searchCap.day !== d) { searchCap.day = d; searchCap.n = 0; }
+  if (searchCap.n >= SEARCH_DAILY_CAP) return '';
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch('https://api.tavily.com/search', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TAVILY_KEY },
+      body: JSON.stringify({ query: q, max_results: 3, include_answer: true }), signal: ctl.signal });
+    if (!r.ok) return '';
+    const j = await r.json();
+    searchCap.n++;
+    return ((j.answer ? 'Summary: ' + j.answer + '\n' : '') +
+      (j.results || []).map(x => `- ${x.title}: ${(x.content || '').slice(0, 250)}`).join('\n')).slice(0, 1200);
+  } catch (e) { return ''; } finally { clearTimeout(t); }
+}
+
+async function updateMemory(u, name, q, a) {
+  memCount[u] = (memCount[u] || 0) + 1;
+  if (memCount[u] % 3 !== 0) return; // har 3rd !ai pe notes update (quota bachane ke liye)
+  const old = streamData.userMemory[u] || '';
+  const out = await llm([
+    { role: 'system', content: 'Tum ek viewer ke baare me chhote notes maintain karte ho (naam, pasand, games, rank, jo bhi yaad rakhne layak ho). Max 300 characters, ek paragraph. Sirf updated notes likho, aur kuch nahi.' },
+    { role: 'user', content: `Purane notes: ${old || '(none)'}\nViewer ${name} ne kaha: ${q}\nBot ne jawab diya: ${a}` }], { max: 120 });
+  if (out) { streamData.userMemory[u] = out.slice(0, 300); save(); }
+}
+
+async function askAI(q, username, role) {
+  const u = username.toLowerCase();
+  const hist = streamData.userHistories[u] || [];
+  const mem = streamData.userMemory[u] || '';
+  const web = (q.length > 15 && NEEDS_SEARCH.test(q)) ? await webSearch(q) : '';
+  const sys = S().characterPersona + ' Maximum 2 short sentences, Hinglish.' +
+    (mem ? `\nIs viewer ke baare me tumhe ye pata hai: ${mem}` : '') +
+    (web ? `\nWeb search results (agar relevant ho to inka use karke sahi jawab do):\n${web}` : '') +
+    '\nAgar jawab pata nahi ho to seedha bolo pata nahi, banao mat.';
+  const tag = role === 'owner' ? 'Boss Rajiv Pal' : `Viewer @${username}`;
+  const txt = (await llm([{ role: 'system', content: sys }, ...hist, { role: 'user', content: `${tag}: ${q}` }])).slice(0, 300);
+  if (!txt) return { ok: false, text: role === 'owner' ? 'Boss, AI abhi busy hai, thodi der baad try karo!' : `@${username}, AI abhi busy hai, coins wapas kar diye!` };
+  streamData.userHistories[u] = [...hist, { role: 'user', content: q }, { role: 'assistant', content: txt }].slice(-4);
+  save();
+  updateMemory(u, username, q, txt); // fire-and-forget, reply ko slow nahi karega
+  return { ok: true, text: txt };
 }
 
 // ---------- BET ENGINE ----------
@@ -208,7 +278,7 @@ async function handleChat({ raw, username, ownerFlag }) {
     const r = await askAI(args.join(' ') || 'Kya haal hai?', username, role);
     if (!r.ok) { addCoins(u, cost); return r.text; }
     speak(r.text, S().enableTTS, S().enableBubble);
-    return r.text;
+    return r.text.slice(0, 195); // YouTube chat limit ~200 chars
   }
 
   if (c === gc.coins) return `@${username}, Balance: 🪙 ${bal(u)} ${cn}`;
