@@ -1,3 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stream Deck</title>
+<script src="https://cdn.jsdelivr.net/npm/obs-websocket-js@5.0.5/dist/obs-ws.min.js"></script>
+<style>
+:root{--bg:#0b0e14;--sf:#121722;--bd:#202738;--cy:#00d2d3;--rd:#ff4757;--gd:#f1c40f;--gn:#2ecc71;--bl:#3498db;--dim:#7f8b9f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:#fff;font:14px -apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh;user-select:none}
+nav{position:fixed;z-index:5;background:#0f131d;display:flex;border:0 solid var(--bd)}
+nav button{background:none;color:var(--dim);font-size:12px;font-weight:700;padding:10px 12px;white-space:nowrap;text-align:left;border-radius:8px}
+nav button.on{background:var(--sf);color:#fff;box-shadow:inset 3px 0 var(--cy)}
+@media(min-width:700px){body{padding-left:120px}nav{left:0;top:0;bottom:0;width:120px;flex-direction:column;gap:4px;padding:8px 6px;border-right-width:1px}}
+@media(max-width:699px){nav{left:0;right:0;bottom:0;overflow-x:auto;border-top-width:1px}nav button{flex:1;text-align:center}nav button.on{box-shadow:inset 0 3px var(--cy)}main{padding-bottom:70px!important}}
+main{max-width:580px;margin:0 auto;padding:10px;display:flex;flex-direction:column;gap:10px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:10px;padding:12px}
+h3{margin:0 0 8px;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+.status{display:flex;justify-content:space-between;font-size:11px;font-weight:700;gap:6px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--rd);display:inline-block;margin-right:5px}.dot.on{background:var(--gn)}
+.tab{display:none;flex-direction:column;gap:10px}.tab.on{display:flex}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+button{border:0;border-radius:7px;color:#fff;font-weight:700;font-size:13px;padding:10px 8px;cursor:pointer;background:#2f384d}
+button:active{transform:scale(.97)}
+.gold{background:var(--gd);color:#000}.blue{background:var(--bl)}.red{background:var(--rd)}.green{background:var(--gn);color:#000}.sm{padding:4px 9px;font-size:11px}
+input,select,textarea{width:100%;padding:9px;margin-bottom:7px;background:#171c28;border:1px solid #242c3f;color:#fff;border-radius:6px;font:inherit;font-size:13px}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--cy)}
+input[type=checkbox]{width:16px;height:16px;margin:0}input[type=range]{padding:0}
+label{display:block;font-size:10px;color:var(--dim);margin-bottom:3px}
+.chk{display:flex;align-items:center;gap:6px;font-size:12px;margin:4px 0}
+.mic{width:100%;padding:16px;font-size:16px;font-weight:800}.mic.live{background:var(--gn);color:#000}.mic.muted{background:var(--rd)}
+.scene{background:#222a3d;border-left:4px solid var(--bl);min-height:48px}.scene.on{border-color:var(--gn);background:#1d3a2c}
+.vid{background:linear-gradient(135deg,#e67e22,#d35400)}.sfx{background:linear-gradient(135deg,#9b59b6,#8e44ad)}
+.vid,.sfx{min-height:52px;width:100%}button small{display:block;opacity:.8;font-weight:600}
+.wrap{position:relative}.del{position:absolute;top:2px;right:4px;color:#fff;background:#0009;border-radius:4px;font-size:10px;padding:1px 5px;cursor:pointer}
+.c{text-align:center}.big{font-size:46px;font-weight:900;margin:4px 0 10px}.cy{color:var(--cy)}.rd{color:var(--rd)}.mono{font-family:monospace;font-size:34px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#0a0d13;padding:7px 10px;border-radius:6px;margin-bottom:6px;font-size:12px}
+.list{max-height:260px;overflow-y:auto}
+.hint{color:var(--dim);font-size:11px;line-height:1.5}
+summary{cursor:pointer;font-weight:700;font-size:13px;margin-bottom:8px}
+#toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#000d;border:1px solid var(--cy);padding:8px 14px;border-radius:8px;display:none;z-index:9;font-size:13px}
+.pv{width:52px;height:52px;border-radius:50%;object-fit:cover;border:2px solid var(--cy);background:#0b0e14;flex-shrink:0}
+</style>
+</head>
+<body>
+<nav id="nav">
+<button data-t="deck" class="on">🎮 Deck</button>
+<button data-t="stats">💀 Stats</button>
+<button data-t="bet">🎲 Poll</button>
+<button data-t="coins">🪙 Coins</button>
+<button data-t="ai">🤖 AI</button>
+<button data-t="cmds">💬 Cmds</button>
+<button data-t="set">⚙️ OBS</button>
+</nav>
+
+<main>
+<div class="card status">
+  <span><i id="d-st" class="dot"></i><b id="t-st">Stream: Off</b></span>
+  <span><i id="d-obs" class="dot"></i><b id="t-obs">OBS: Off</b></span>
+  <span><i id="d-sb" class="dot"></i><b id="t-sb">Streamer.bot: Off</b></span>
+</div>
+
+<!-- DECK -->
+<section id="t-deck" class="tab on">
+  <div class="card"><button id="mic" class="mic live" onclick="toggleMic()">🎙️ MIC LIVE</button></div>
+  <div class="card"><h3>🎬 OBS Scenes (auto)</h3><div id="scenes" class="grid"></div></div>
+  <div class="card"><h3>⚡ Meme / SFX Redeems</h3><div id="redeems" class="grid"></div><small id="no-redeem" class="hint">Abhi koi redeem nahi. Neeche add karo.</small></div>
+  <details class="card"><summary>➕ Naya redeem add karo</summary>
+    <select id="r-type"><option value="video">🎥 Video (MP4)</option><option value="sfx">🔊 Sound (MP3/WAV)</option></select>
+    <input id="r-name" placeholder="Button naam (Vine Boom)">
+    <input id="r-cmd" placeholder="Chat command (!boom)">
+    <label>Mac-Coin cost (0 = free)</label><input id="r-cost" type="number" min="0" value="0">
+    <input id="r-path" placeholder="Full file path (D:\memes\boom.mp4)">
+    <button class="blue" style="width:100%" onclick="addRedeem()">💾 Save</button>
+  </details>
+</section>
+
+<!-- STATS -->
+<section id="t-stats" class="tab">
+  <div class="card c"><h3>🏆 Ranked (W - L)</h3>
+    <div class="big cy"><span id="wins">0</span> - <span id="losses">0</span></div>
+    <div class="g2"><button class="green" onclick="emit('admin-win-add')">+1 WIN</button><button class="red" onclick="emit('admin-loss-add')">+1 LOSS</button></div></div>
+  <div class="card c"><h3>💀 Deaths</h3>
+    <div class="big rd" id="deaths">0</div>
+    <button class="red" style="width:100%;margin-bottom:8px;padding:16px;font-size:18px" onclick="emit('admin-death-add')">+1 DEATH</button>
+    <div class="g2"><button onclick="emit('admin-death-sub')">-1</button><button onclick="if(confirm('Deaths + Wins + Losses sab 0?'))emit('admin-death-reset')">Reset all</button></div></div>
+  <div class="card c"><h3>⏱️ Playtime</h3>
+    <div class="big cy mono" id="timer">00:00:00</div>
+    <div class="g3"><button class="green" onclick="emit('admin-timer-start')">▶ Start</button><button class="gold" onclick="emit('admin-timer-pause')">⏸ Pause</button><button onclick="emit('admin-timer-reset')">🔄 Reset</button></div>
+    <div class="g3" style="margin-top:10px"><input id="th" type="number" min="0" placeholder="HH"><input id="tm" type="number" min="0" max="59" placeholder="MM"><input id="ts" type="number" min="0" max="59" placeholder="SS"></div>
+    <button class="blue" style="width:100%" onclick="setTimer()">Set time</button></div>
+  <div class="hint">OBS me Text (GDI+) sources banao: <b>DeathCount</b>, <b>WinLoss</b>, <b>PlayTime</b>. Dashboard unhe khud update karta hai (GPU load ~0). Dashboard tab PC par khula rehna chahiye.</div>
+</section>
+
+<!-- POLL -->
+<section id="t-bet" class="tab">
+  <div class="card">
+    <h3><span>🎲 Prediction</span> <span id="bet-badge" style="float:right">INACTIVE</span></h3>
+    <b id="bet-title">Koi poll nahi</b>
+    <div id="bet-opts" style="margin-top:8px"></div>
+    <div class="g2"><button class="gold" onclick="emit('admin-lock-bet')">🔒 Lock</button><button class="red" onclick="if(confirm('Poll cancel? Sabke coins wapas.'))emit('admin-end-bet')">✖ Cancel (refund)</button></div>
+    <div class="hint" style="margin-top:8px">Chat: <code>!bet 1 50</code> = option 1 par 50 coins. 🏆 dabane par winners ko pool automatic mil jata hai.</div>
+  </div>
+  <div class="card"><h3>➕ Naya poll</h3>
+    <input id="p-title" placeholder="Sawal (Kaun jeetega?)">
+    <div id="p-opts"><input class="po" value="Win"><input class="po" value="Lose"></div>
+    <div class="g2"><button onclick="addOpt()">➕ Option</button><button class="gold" onclick="launchPoll()">🚀 Launch</button></div></div>
+</section>
+
+<!-- COINS -->
+<section id="t-coins" class="tab">
+  <div class="card"><h3>👑 Coins do / kaato</h3>
+    <div class="g2"><input id="g-user" placeholder="Username"><input id="g-amt" type="number" placeholder="+100 / -50"></div>
+    <button class="gold" style="width:100%" onclick="grant()">⚡ Update Balance</button></div>
+  <div class="card"><h3>⚙ Economy</h3>
+    <div class="g2"><div><label>Coins per message</label><input id="c-msg" type="number" value="5"></div><div><label>Cooldown (sec)</label><input id="c-cd" type="number" value="30"></div></div>
+    <button class="blue" style="width:100%" onclick="saveRates()">💾 Save</button></div>
+  <div class="card"><h3>🏆 Balances</h3><div id="coin-list" class="list"></div></div>
+</section>
+
 <!-- AI -->
 <section id="t-ai" class="tab">
   <div class="card"><h3>🎭 AI Character & Keys</h3>
@@ -25,3 +147,241 @@
   </div>
   <div class="g2"><button class="gold" onclick="saveAI()">💾 Save</button><button style="background:#e67e22" onclick="emit('admin-test-speak')">🔊 Test voice</button></div>
 </section>
+
+<!-- COMMANDS -->
+<section id="t-cmds" class="tab">
+  <div class="card"><h3>➕ Custom command (add / update)</h3>
+    <input id="cm-name" placeholder="Trigger (!specs)">
+    <textarea id="cm-reply" rows="2" placeholder="Bot ka reply"></textarea>
+    <label>Mac-Coin cost (0 = free)</label><input id="cm-cost" type="number" min="0" value="0">
+    <label class="chk"><input id="cm-bubble" type="checkbox" checked> 💬 Bubble</label>
+    <label class="chk"><input id="cm-tts" type="checkbox"> 🔊 TTS</label>
+    <button class="blue" style="width:100%" onclick="saveCmd()">💾 Save</button></div>
+  <div class="card"><h3>📋 Saved commands</h3><div id="cmd-list" class="list"></div></div>
+</section>
+
+<!-- SETTINGS -->
+<section id="t-set" class="tab">
+  <div class="card"><h3>🔌 OBS WebSocket</h3>
+    <div class="g2"><input id="obs-ip" value="127.0.0.1" placeholder="IP"><input id="obs-port" value="4455" placeholder="Port"></div>
+    <input id="obs-pass" type="password" placeholder="OBS password">
+    <label>Mic source ka naam OBS me</label><input id="obs-mic" value="Mic/Aux">
+    <button class="blue" style="width:100%" onclick="reconnect()">🔄 Connect</button>
+    <div class="hint" style="margin-top:8px">Media redeem ke liye OBS me ek source banao jiska naam exactly <b>MemePlayer</b> ho (Media Source, local file). Usme "Close file when inactive" aur "Restart playback" zaroor ON rakhna.</div></div>
+  <div class="card"><h3>🔗 Streamer.bot URLs</h3>
+    <select id="url-type"><option value="chat">Chat message</option><option value="superchat">Super Chat alert</option><option value="member">New Member alert</option><option value="sub">New Subscriber alert</option></select>
+    <button class="gold" style="width:100%" onclick="copyUrl()">📋 Copy URL (Fetch URL me paste karo)</button>
+    <div class="hint" style="margin-top:8px">URL me tumhari admin key hoti hai. Stream par kisi ko dikhana mat.</div></div>
+</section>
+</main>
+<div id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const v=id=>$(id).value.trim();
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!==undefined)e.textContent=x;return e;}
+let tt;function toast(m){const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(tt);tt=setTimeout(()=>t.style.display='none',2200);}
+
+/* ---- socket + admin key ---- */
+let adminKey=localStorage.getItem('adminKey');
+if(adminKey===null){adminKey=prompt('Admin key (Render ADMIN_KEY; nahi hai to khali chhodo)')||'';localStorage.setItem('adminKey',adminKey);}
+const socket=io({auth:{key:adminKey}});
+const emit=(ev,d)=>socket.emit(ev,d);
+socket.on('error',()=>toast('Admin key galat ho sakti hai (F12 > localStorage > adminKey hata do)'));
+
+/* ---- tabs ---- */
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#nav button,.tab').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');$('t-'+b.dataset.t).classList.add('on');});
+
+/* ---- beep ---- */
+let actx;const AC=()=>actx||(actx=new(window.AudioContext||window.webkitAudioContext)());
+document.addEventListener('pointerdown',()=>{try{AC().resume();}catch(e){}},{once:true});
+function beep(up){try{const c=AC(),o=c.createOscillator(),g=c.createGain(),t=c.currentTime;
+  o.connect(g);g.connect(c.destination);g.gain.value=.15;
+  if(up){o.type='sine';o.frequency.setValueAtTime(900,t);o.frequency.exponentialRampToValueAtTime(1400,t+.1);o.start(t);o.stop(t+.25);}
+  else{o.type='sawtooth';o.frequency.setValueAtTime(220,t);o.frequency.exponentialRampToValueAtTime(90,t+.35);o.start(t);o.stop(t+.45);}}catch(e){}}
+
+/* ---- OBS ---- */
+const obs=new OBSWebSocket();
+let obsOn=false,busy=false,live=false,texts=new Set();
+const TEXTS=['DeathCount','WinLoss','PlayTime'];
+['obs-ip','obs-port','obs-pass','obs-mic'].forEach(id=>{const s=localStorage.getItem('bot_'+id);if(s!==null)$(id).value=s;$(id).onchange=()=>localStorage.setItem('bot_'+id,$(id).value);});
+
+function setObsUI(on){$('d-obs').classList.toggle('on',on);$('t-obs').textContent='OBS: '+(on?'Connected':'Off');}
+function setLive(on,quiet){if(on!==live){live=on;if(!quiet)beep(on);}$('d-st').classList.toggle('on',on);$('t-st').textContent='Stream: '+(on?'LIVE':'Off');}
+
+async function connectOBS(){
+  if(obsOn||busy)return;busy=true;
+  try{
+    await obs.connect(`ws://${v('obs-ip')\vert{}\vert{}'127.0.0.1'}:${v('obs-port')||'4455'}`,v('obs-pass')||undefined);
+    obsOn=true;setObsUI(true);await afterConnect();
+  }catch(e){setObsUI(false);}finally{busy=false;}
+}
+async function afterConnect(){
+  try{await loadScenes();}catch(e){}
+  try{await micState();}catch(e){}
+  try{setLive((await obs.call('GetStreamStatus')).outputActive,true);}catch(e){}
+  try{const {inputs}=await obs.call('GetInputList');texts=new Set(inputs.map(i=>i.inputName).filter(n=>TEXTS.includes(n)));pushTexts();}catch(e){}
+}
+function reconnect(){try{obs.disconnect();}catch(e){}obsOn=false;connectOBS();toast('Connecting...');}
+setInterval(()=>{if(!obsOn)connectOBS();},5000);connectOBS();
+
+obs.on('ConnectionClosed',()=>{obsOn=false;setObsUI(false);if(live){beep(false);setLive(false,true);}});
+obs.on('StreamStateChanged',e=>setLive(e.outputActive));
+obs.on('SceneListChanged',()=>loadScenes().catch(()=>{}));
+obs.on('CurrentProgramSceneChanged',()=>loadScenes().catch(()=>{}));
+obs.on('InputMuteStateChanged',e=>{if(e.inputName===micName())paintMic(e.inputMuted);});
+
+/* scenes: OBS se auto */
+async function loadScenes(){
+  const r=await obs.call('GetSceneList'),box=$('scenes');box.innerHTML='';
+  r.scenes.slice().reverse().forEach(s=>{
+    const b=el('button','scene'+(s.sceneName===r.currentProgramSceneName?' on':''),s.sceneName);
+    b.onclick=()=>obs.call('SetCurrentProgramScene',{sceneName:s.sceneName}).catch(()=>toast('Scene error'));
+    box.append(b);});
+}
+
+/* mic */
+const micName=()=>v('obs-mic')||'Mic/Aux';
+function paintMic(m){const b=$('mic');b.className='mic '+(m?'muted':'live');b.textContent=m?'🔇 MIC MUTED':'🎙️ MIC LIVE';}
+async function micState(){paintMic((await obs.call('GetInputMute',{inputName:micName()})).inputMuted);}
+async function toggleMic(){
+  if(!obsOn)return toast('OBS connected nahi hai');
+  try{paintMic((await obs.call('ToggleInputMute',{inputName:micName()})).inputMuted);}
+  catch(e){toast('Mic source nahi mila: '+micName());}
+}
+
+/* MemePlayer */
+async function findMeme(){
+  const cur=(await obs.call('GetCurrentProgramScene')).currentProgramSceneName;
+  const all=(await obs.call('GetSceneList')).scenes.map(s=>s.sceneName);
+  for(const sc of [cur,...all]){
+    try{const {sceneItems}=await obs.call('GetSceneItemList',{sceneName:sc});
+      const it=sceneItems.find(i=>i.sourceName==='MemePlayer');if(it)return{sc,id:it.sceneItemId};}catch(e){}
+  }return null;
+}
+async function triggerLocalMedia(path){
+  if(!obsOn)return toast('OBS connected nahi hai');
+  try{
+    const it=await findMeme();if(!it)return toast('MemePlayer source kisi scene me nahi mila');
+    await obs.call('SetInputSettings',{inputName:'MemePlayer',inputSettings:{local_file:path,looping:false,close_when_inactive:true,restart_when_active:true}});
+    await obs.call('SetSceneItemEnabled',{sceneName:it.sc,sceneItemId:it.id,sceneItemEnabled:true});
+    await obs.call('TriggerMediaInputAction',{inputName:'MemePlayer',mediaAction:'OBS_WEBSOCKET_MEDIA_INPUT_ACTION_RESTART'});
+  }catch(e){toast('Media fail: '+e.message);}
+}
+obs.on('MediaInputPlaybackEnded',async e=>{
+  if(e.inputName!=='MemePlayer')return;
+  try{const it=await findMeme();if(it)await obs.call('SetSceneItemEnabled',{sceneName:it.sc,sceneItemId:it.id,sceneItemEnabled:false});}catch(x){}
+});
+socket.on('play-media',d=>triggerLocalMedia(d.url)); 
+
+/* OBS text sources */
+const st={count:0,wins:0,losses:0,secs:0};
+const fmt=s=>[Math.floor(s/3600),Math.floor(s%3600/60),s%60].map(n=>String(n).padStart(2,'0')).join(':');
+function setText(name,text){if(obsOn&&texts.has(name))obs.call('SetInputSettings',{inputName:name,inputSettings:{text}}).catch(()=>{});}
+function pushTexts(){setText('DeathCount','Deaths: '+st.count);setText('WinLoss','W '+st.wins+' - '+st.losses+' L');setText('PlayTime',fmt(st.secs));}
+
+/* ---- server events ---- */
+socket.on('update-counter',d=>{st.count=d.count||0;st.wins=d.wins||0;st.losses=d.losses||0;
+  $('deaths').textContent=st.count;$('wins').textContent=st.wins;$('losses').textContent=st.losses;pushTexts();});
+socket.on('timer-tick',d=>{st.secs=d.seconds;$('timer').textContent=fmt(d.seconds);setText('PlayTime',fmt(d.seconds));});
+socket.on('streamerbot-status',d=>{$('d-sb').classList.toggle('on',!!d.online);$('t-sb').textContent='Streamer.bot: '+(d.online?'Live':'Off');});
+
+socket.on('load-triggers',list=>{
+  const box=$('redeems');box.innerHTML='';
+  const m=list.filter(t=>t.type!=='scene');$('no-redeem').style.display=m.length?'none':'block';
+  m.forEach(t=>{
+    const w=el('div','wrap'),vid=t.type==='video';
+    const b=el('button',vid?'vid':'sfx',(vid?'🎬 ':'🔊 ')+t.name);
+    b.append(el('small','',(t.cmd||'')+(t.cost?' • 🪙'+t.cost:'')));
+    b.onclick=()=>triggerLocalMedia(t.url);
+    const x=el('span','del','✕');x.onclick=()=>{if(confirm('Delete '+t.name+'?'))emit('admin-del-trigger',t.id);};
+    w.append(b,x);box.append(w);});
+});
+
+function setVal(id,val){const e=$(id);if(e&&val!==undefined&&document.activeElement!==e)e.value=val;}
+socket.on('update-styles',d=>{
+  setVal('ai-name',d.characterName); setVal('ai-img',d.characterImage); setVal('ai-persona',d.characterPersona);
+  setVal('ai-voice',d.ttsVoice); setVal('ai-pitch',d.ttsPitch); setVal('ai-rate',d.ttsRate); setVal('ai-cmd',d.aiCommand);
+  setVal('ai-groq',d.groqKey); setVal('ai-tavily',d.tavilyKey); // Keys update
+  $('pitch-v').textContent=$('ai-pitch').value; $('rate-v').textContent=$('ai-rate').value;
+  if(d.characterImage&&$('pv').getAttribute('src')!==d.characterImage)$('pv').src=d.characterImage;
+  if(d.coinSettings){setVal('ai-cost',d.coinSettings.aiCost);setVal('c-msg',d.coinSettings.coinsPerMsg);setVal('c-cd',d.coinSettings.cooldownSeconds);}
+  if(d.enableTTS!==undefined)$('ai-tts').checked=d.enableTTS;
+  if(d.enableBubble!==undefined)$('ai-bubble').checked=d.enableBubble;
+  renderCoins(d.userCoins||{});renderCmds(d.customCommands||[]);
+});
+
+function renderCoins(c){
+  const box=$('coin-list');box.innerHTML='';
+  const us=Object.keys(c).sort((a,b)=>c[b]-c[a]).slice(0,50);
+  if(!us.length){box.append(el('small','hint','Abhi koi coins nahi.'));return;}
+  us.forEach(u=>{const r=el('div','row');r.append(el('span','','👤 '+u),el('b','','🪙 '+c[u]));box.append(r);});
+}
+function renderCmds(list){
+  const box=$('cmd-list');box.innerHTML='';
+  if(!list.length){box.append(el('small','hint','Koi custom command nahi.'));return;}
+  list.forEach(c=>{
+    const r=el('div','row'),info=el('div','');
+    info.append(el('b','',c.cmd+'  '),el('small','hint',(c.cost>0?'🪙'+c.cost:'FREE')+(c.bubble!==false?' 💬':'')+(c.tts?' 🔊':'')),el('div','hint',c.reply));
+    const x=el('button','red sm','🗑');x.onclick=()=>{if(confirm('Delete '+c.cmd+'?'))emit('admin-del-custom-cmd',c.cmd);};
+    r.append(info,x);box.append(r);});
+}
+
+/* polls */
+socket.on('bet-update',b=>{
+  const box=$('bet-opts');box.innerHTML='';
+  if(!b.isOpen){$('bet-badge').textContent='INACTIVE';$('bet-title').textContent='Koi poll nahi';return;}
+  $('bet-badge').textContent=b.locked?'🔒 LOCKED':'🟢 LIVE';
+  $('bet-title').textContent=`${b.title}  •  🪙${b.totalPool}  •${b.totalVotes} votes`;
+  b.options.forEach(o=>{
+    const r=el('div','row');r.append(el('span','',`[${o.id}] ${o.name} —${o.votes} votes • 🪙${o.pool} (${o.pct}%)`));
+    const w=el('button','gold sm','🏆 Won');w.onclick=()=>{if(confirm(`"${o.name}" winner? Pool payout ho jayega.`))emit('admin-resolve-bet',{winningOptionId:o.id});};
+    r.append(w);box.append(r);});
+});
+function addOpt(){const d=el('div','');d.style.cssText='display:flex;gap:6px';const i=el('input','po');i.placeholder='Option '+($('p-opts').children.length+1);const x=el('button','red sm','✕');x.style.marginBottom='7px';x.onclick=()=>d.remove();d.append(i,x);$('p-opts').append(d);}
+function launchPoll(){
+  const title=v('p-title'),options=[...document.querySelectorAll('.po')].map(i=>i.value.trim()).filter(Boolean);
+  if(!title)return toast('Sawal likho');if(options.length<2)return toast('Kam se kam 2 options');
+  emit('admin-start-bet',{title,options});$('p-title').value='';
+}
+
+/* actions */
+function addRedeem(){
+  const name=v('r-name'),url=v('r-path').replace(/^["']|["']$/g,'');let cmd=v('r-cmd').toLowerCase();
+  if(!name||!url)return toast('Naam aur file path zaroori hai');
+  if(cmd&&!cmd.startsWith('!'))cmd='!'+cmd;
+  emit('admin-add-trigger',{name,type:$('r-type').value,cmd,url,cost:parseInt($('r-cost').value)||0});
+  ['r-name','r-cmd','r-path'].forEach(i=>$(i).value='');$('r-cost').value=0;toast('✅ Redeem add ho gaya');
+}
+function setTimer(){emit('admin-timer-set',{hours:$('th').value||0,minutes:$('tm').value||0,seconds:$('ts').value||0});toast('✅ Timer set');}
+function grant(){const u=v('g-user'),a=parseInt($('g-amt').value);if(!u||!a)return toast('Username aur amount do');emit('admin-grant-coins',{user:u,amount:a});$('g-amt').value='';toast('✅ Done');}
+function saveRates(){emit('admin-save-coins',{coinsPerMsg:parseInt($('c-msg').value)||5,cooldownSeconds:parseInt($('c-cd').value)||30});toast('✅ Saved');}
+function saveAI(){
+  emit('admin-change-styles',{
+    ttsVoice:$('ai-voice').value, ttsPitch:parseFloat($('ai-pitch').value), ttsRate:parseFloat($('ai-rate').value), 
+    characterName:v('ai-name'), characterImage:v('ai-img'), characterPersona:v('ai-persona'),
+    groqKey:v('ai-groq'), tavilyKey:v('ai-tavily') // Keys Send to Backend
+  });
+  emit('admin-update-ai-cmd-config',{cmd:v('ai-cmd')||'!ai',cost:parseInt($('ai-cost').value)||0,tts:$('ai-tts').checked,bubble:$('ai-bubble').checked});
+  toast('✅ Saved');
+}
+function saveCmd(){
+  let c=v('cm-name').toLowerCase();const r=v('cm-reply');
+  if(!c||!r)return toast('Trigger aur reply dono do');if(!c.startsWith('!'))c='!'+c;
+  emit('admin-add-custom-cmd',{cmd:c,reply:r,cost:parseInt($('cm-cost').value)||0,bubble:$('cm-bubble').checked,tts:$('cm-tts').checked});
+  $('cm-name').value='';$('cm-reply').value='';$('cm-cost').value=0;toast('✅ Saved');
+}
+function copyUrl(){
+  const k=encodeURIComponent(adminKey),p={
+    chat:`/api/streamerbot/chat?key=${k}&user=%user%&message=%message%`,
+    superchat:`/api/alert?key=${k}&type=superchat&user=%user%&amount=%amount%&message=%message%`,
+    member:`/api/alert?key=${k}&type=member&user=%user%`,
+    sub:`/api/alert?key=${k}&type=subscriber&user=%user%`}[$('url-type').value];
+  navigator.clipboard.writeText(location.origin+p).then(()=>toast('📋 URL copy ho gaya')).catch(()=>toast('Copy fail'));
+}
+</script>
+</body>
+</html>
