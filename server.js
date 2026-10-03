@@ -15,16 +15,18 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
 
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'stream_data.json');
-const ADMIN_KEY = process.env.ADMIN_KEY || ''; // Render env var. Khali = no protection
+const ADMIN_KEY = process.env.ADMIN_KEY || ''; 
 
 // ---------- DATABASE (flat JSON) ----------
 const defaults = {
   deathCount: 0, wins: 0, losses: 0, gameTimeSeconds: 0,
   enableBubble: true, enableTTS: true,
   ttsVoice: 'female', ttsPitch: 1.0, ttsRate: 1.0,
-  aiCommand: '!ai', characterName: 'AIBot',
-  characterImage: 'https://images3.alphacoders.com/134/1344406.jpeg',
-  characterPersona: 'You are a witty, supportive, energetic live stream AI gaming co-host (Ryzen Sukuna). Reply in 1-2 punchy sentences in Hindi/Hinglish.',
+  aiCommand: '!ai', characterName: 'AI',
+  characterImage: 'https://cdn-icons-png.flaticon.com/512/847/847969.png',
+  characterPersona: 'You are a witty, supportive live stream AI co-host. Reply in 1-2 punchy sentences in Hinglish.',
+  groqKey: '', // GitHub error se bachne ke liye ise khali rakha hai, Dashboard se set karna
+  tavilyKey: '', // Ise bhi khali rakha hai
   gameCommands: { daily: '!daily', coins: '!coins', gamble: '!gamble', slots: '!slots', duel: '!duel', pay: '!pay' },
   coinSettings: { currencyName: 'Mac-Coins', coinsPerMsg: 5, cooldownSeconds: 30, aiCost: 50, dailyAmount: 50, subReward: 100, memberReward: 500, superchatPerRupee: 2 },
   automod: { blockLinks: true, capsFilter: true, bannedWords: '' },
@@ -44,11 +46,10 @@ try {
   if (fs.existsSync(DATA_FILE)) applyLoaded(JSON.parse(fs.readFileSync(DATA_FILE, 'utf8')));
 } catch (e) { console.error('File load fail', e.message); }
 
-// ---------- PERSISTENCE: Upstash Redis (Render disk ephemeral hai) + local file fallback ----------
 const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL || '';
 const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 const REDIS_KEY = 'stream_data';
-let remoteReady = !REDIS_URL; // redis load hone se pehle kabhi write nahi (warna khali data se overwrite ho jayega)
+let remoteReady = !REDIS_URL; 
 let dirty = false;
 
 async function redisCmd(cmd) {
@@ -96,6 +97,23 @@ setInterval(() => {
   if (streamData.gameTimeSeconds % 10 === 0) save();
 }, 1000);
 
+// ---------- STREAMER.BOT INTEGRATION ----------
+async function sendToStreamerBot(msg) {
+    if (!msg) return;
+    try {
+        await fetch('http://127.0.0.1:7474/DoAction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: { name: 'BotReply' }, 
+                args: { message: msg }
+            })
+        });
+    } catch (e) {
+        // Streamer.bot HTTP server is off, ignore
+    }
+}
+
 // ---------- TTS PROXY ----------
 app.get('/api/tts', async (req, res) => {
   try {
@@ -122,38 +140,8 @@ function speak(text, tts = true, bubble = true) {
     voice: S().ttsVoice, pitch: S().ttsPitch, rate: S().ttsRate });
 }
 
-// ---------- AI (context = last 4 msgs per user, 9s timeout, refund on fail) ----------
-async function askAIBasic(q, username, role) {
-  const u = username.toLowerCase();
-  const hist = streamData.userHistories[u] || [];
-  const tag = role === 'owner' ? 'Boss Rajiv Pal' : `Viewer @${username}`;
-  const messages = [
-    { role: 'system', content: S().characterPersona + ' Maximum 2 short sentences.' },
-    ...hist, { role: 'user', content: `${tag}: ${q}` }];
-  const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 9000);
-  try {
-    const r = await fetch('https://text.pollinations.ai/openai', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'openai', messages }), signal: ctl.signal });
-    if (r.ok) {
-      const j = await r.json();
-      const txt = (j.choices?.[0]?.message?.content || '').trim().slice(0, 300);
-      if (txt) {
-        streamData.userHistories[u] = [...hist, { role: 'user', content: q }, { role: 'assistant', content: txt }].slice(-4);
-        save();
-        return { ok: true, text: txt };
-      }
-    }
-  } catch (e) { /* timeout / network */ } finally { clearTimeout(t); }
-  return { ok: false, text: role === 'owner' ? 'Boss, AI abhi busy hai, thodi der baad try karo!' : `@${username}, AI abhi busy hai, coins wapas kar diye!` };
-}
-
-// ---------- AI v2: Groq/Pollinations + Tavily web search + per-viewer long-term memory ----------
-const GROQ_KEY = process.env.GROQ_API_KEY || '';
-const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-const TAVILY_KEY = process.env.TAVILY_API_KEY || '';
-const SEARCH_DAILY_CAP = parseInt(process.env.SEARCH_DAILY_CAP) || 100;
+// ---------- AI v2: Groq + Tavily ----------
+const SEARCH_DAILY_CAP = 100;
 const NEEDS_SEARCH = /\b(kaun|kab|kitn[aeiy]|latest|news|aaj|abhi|today|current|price|score|who|when|release|patch|tier list|meta|weather|rank|update|winner|champion)\b|\?/i;
 const searchCap = { day: '', n: 0 };
 const memCount = {};
@@ -162,9 +150,10 @@ async function llm(messages, { max = 150, timeout = 9000 } = {}) {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeout);
   try {
-    const url = GROQ_KEY ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://text.pollinations.ai/openai';
-    const headers = { 'Content-Type': 'application/json', ...(GROQ_KEY ? { Authorization: 'Bearer ' + GROQ_KEY } : {}) };
-    const body = { model: GROQ_KEY ? GROQ_MODEL : 'openai', messages, max_tokens: max, temperature: 0.8 };
+    const key = S().groqKey;
+    const url = key ? 'https://api.groq.com/openai/v1/chat/completions' : 'https://text.pollinations.ai/openai';
+    const headers = { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) };
+    const body = { model: key ? 'llama-3.3-70b-versatile' : 'openai', messages, max_tokens: max, temperature: 0.8 };
     const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal: ctl.signal });
     if (!r.ok) return '';
     const j = await r.json();
@@ -173,7 +162,8 @@ async function llm(messages, { max = 150, timeout = 9000 } = {}) {
 }
 
 async function webSearch(q) {
-  if (!TAVILY_KEY) return '';
+  const key = S().tavilyKey;
+  if (!key) return '';
   const d = new Date().toISOString().slice(0, 10);
   if (searchCap.day !== d) { searchCap.day = d; searchCap.n = 0; }
   if (searchCap.n >= SEARCH_DAILY_CAP) return '';
@@ -181,7 +171,7 @@ async function webSearch(q) {
   const t = setTimeout(() => ctl.abort(), 5000);
   try {
     const r = await fetch('https://api.tavily.com/search', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + TAVILY_KEY },
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
       body: JSON.stringify({ query: q, max_results: 3, include_answer: true }), signal: ctl.signal });
     if (!r.ok) return '';
     const j = await r.json();
@@ -193,10 +183,10 @@ async function webSearch(q) {
 
 async function updateMemory(u, name, q, a) {
   memCount[u] = (memCount[u] || 0) + 1;
-  if (memCount[u] % 3 !== 0) return; // har 3rd !ai pe notes update (quota bachane ke liye)
+  if (memCount[u] % 3 !== 0) return;
   const old = streamData.userMemory[u] || '';
   const out = await llm([
-    { role: 'system', content: 'Tum ek viewer ke baare me chhote notes maintain karte ho (naam, pasand, games, rank, jo bhi yaad rakhne layak ho). Max 300 characters, ek paragraph. Sirf updated notes likho, aur kuch nahi.' },
+    { role: 'system', content: 'Tum ek viewer ke baare me chhote notes maintain karte ho. Max 300 characters. Sirf updated notes likho.' },
     { role: 'user', content: `Purane notes: ${old || '(none)'}\nViewer ${name} ne kaha: ${q}\nBot ne jawab diya: ${a}` }], { max: 120 });
   if (out) { streamData.userMemory[u] = out.slice(0, 300); save(); }
 }
@@ -215,7 +205,7 @@ async function askAI(q, username, role) {
   if (!txt) return { ok: false, text: role === 'owner' ? 'Boss, AI abhi busy hai, thodi der baad try karo!' : `@${username}, AI abhi busy hai, coins wapas kar diye!` };
   streamData.userHistories[u] = [...hist, { role: 'user', content: q }, { role: 'assistant', content: txt }].slice(-4);
   save();
-  updateMemory(u, username, q, txt); // fire-and-forget, reply ko slow nahi karega
+  updateMemory(u, username, q, txt);
   return { ok: true, text: txt };
 }
 
@@ -244,11 +234,12 @@ function resolveBet(winId) {
   const total = entries.reduce((s, [, x]) => s + x.amount, 0);
   const winners = entries.filter(([, x]) => x.optionId === winId);
   const winPool = winners.reduce((s, [, x]) => s + x.amount, 0);
-  if (winPool === 0) entries.forEach(([u, x]) => addCoins(u, x.amount)); // koi jeeta nahi -> refund
+  if (winPool === 0) entries.forEach(([u, x]) => addCoins(u, x.amount)); 
   else winners.forEach(([u, x]) => addCoins(u, Math.floor((x.amount / winPool) * total)));
   b.locked = true;
   io.emit('bet-winner', { winnerName: opt.name, totalPool: total });
   speak(`Prediction khatam! Jeetne wala option: ${opt.name}`, false, true);
+  sendToStreamerBot(`🏆 Prediction khatam! Jeetne wala option: ${opt.name}`); // Chat me bhi bhejo
   pushBet();
   setTimeout(closeBet, 12000);
 }
@@ -263,19 +254,17 @@ const SYM = ['🍒', '🍋', '🔔', '💎', '7️⃣'];
 async function handleChat({ raw, username, ownerFlag }) {
   const text = (raw || '').trim();
   const u = cleanU(username);
-  if (!text || !u || u.includes('aibot') || u.includes('rajivmacai')) return null;
+  if (!text || !u || u.includes('aibot') || u.includes('rajivmacai') || u.includes('nightbot')) return null;
   const isOwner = ownerFlag || u.includes('rajiv') || u.includes('mac_s');
   const role = isOwner ? 'owner' : 'viewer';
   const cs = S().coinSettings, gc = S().gameCommands, cn = cs.currencyName, am = S().automod;
 
-  // automod (local fallback)
   if (!isOwner) {
     if (am.blockLinks && /(https?:\/\/|www\.|\.com\b|\.in\b)/i.test(text)) return null;
     const banned = (am.bannedWords || '').split(',').map(w => w.trim().toLowerCase()).filter(Boolean);
     if (banned.some(w => text.toLowerCase().split(/\W+/).includes(w))) return null;
   }
 
-  // passive earn
   const now = Date.now();
   if (!lastEarn[u] || now - lastEarn[u] >= cs.cooldownSeconds * 1000) {
     addCoins(u, cs.coinsPerMsg); lastEarn[u] = now;
@@ -285,7 +274,6 @@ async function handleChat({ raw, username, ownerFlag }) {
   const [cmd, ...args] = text.split(/\s+/);
   const c = cmd.toLowerCase();
 
-  // !bet <option> <amount>
   if (c === '!bet') {
     const b = streamData.bet;
     if (!b.isOpen) return '@' + username + ', abhi koi poll nahi chal raha.';
@@ -310,7 +298,7 @@ async function handleChat({ raw, username, ownerFlag }) {
     const r = await askAI(args.join(' ') || 'Kya haal hai?', username, role);
     if (!r.ok) { addCoins(u, cost); return r.text; }
     speak(r.text, S().enableTTS, S().enableBubble);
-    return r.text.slice(0, 195); // YouTube chat limit ~200 chars
+    return r.text.slice(0, 195);
   }
 
   if (c === gc.coins) return `@${username}, Balance: 🪙 ${bal(u)} ${cn}`;
@@ -367,7 +355,6 @@ async function handleChat({ raw, username, ownerFlag }) {
     return `⚔️ DUEL: @${win} ne @${lose} ko haraya! +🪙${d.amount}`;
   }
 
-  // media redeem (!boom etc) -> dashboard OBS ko bhejega
   const trig = S().triggers.find(t => t.type !== 'scene' && t.cmd && t.cmd.toLowerCase() === c);
   if (trig) {
     const cost = isOwner ? 0 : (trig.cost || 0);
@@ -377,7 +364,6 @@ async function handleChat({ raw, username, ownerFlag }) {
     return `🎬 @${username} ne "${trig.name}" chalaya!`;
   }
 
-  // custom commands
   const cc = S().customCommands.find(x => x.cmd.toLowerCase() === c);
   if (cc) {
     const cost = isOwner ? 0 : (cc.cost || 0);
@@ -390,19 +376,25 @@ async function handleChat({ raw, username, ownerFlag }) {
 }
 
 const keyOk = (q) => !ADMIN_KEY || q.key === ADMIN_KEY;
+
 app.all('/api/streamerbot/chat', async (req, res) => {
   try {
     lastSbPing = Date.now();
     io.emit('streamerbot-status', { online: true });
     const q = { ...req.query, ...(req.body || {}) };
     if (!keyOk(q)) return res.status(403).send('');
+    
     const out = await handleChat({ raw: q.message, username: q.user || 'Viewer', ownerFlag: q.isOwner === 'true' || q.isOwner === true });
+    
+    // Yahan par hum chat reply Streamer.bot ko directly bhej rahe hain
+    if (out) { sendToStreamerBot(out); }
+    
     res.send(out || '');
   } catch (e) { console.error(e); res.send(''); }
 });
+
 app.get('/health', (_, r) => r.send('ok'));
 
-// ---------- YOUTUBE ALERTS (Streamer.bot trigger -> yahan -> overlay) ----------
 app.all('/api/alert', (req, res) => {
   const q = { ...req.query, ...(req.body || {}) };
   if (!keyOk(q)) return res.status(403).send('bad key');
@@ -423,11 +415,9 @@ app.all('/api/alert', (req, res) => {
   res.send(reward > 0 ? '+' + reward : 'ok');
 });
 
-
 let lastSbPing = 0;
 setInterval(() => { if (lastSbPing && Date.now() - lastSbPing > 90000) { io.emit('streamerbot-status', { online: false }); lastSbPing = 0; } }, 15000);
 
-// ---------- SOCKET / ADMIN ----------
 const pushAll = () => {
   io.emit('update-counter', { count: S().deathCount, wins: S().wins, losses: S().losses });
   io.emit('update-styles', publicState());
@@ -447,53 +437,46 @@ io.on('connection', (socket) => {
   socket.emit('bet-update', betView());
   socket.emit('timer-tick', { seconds: S().gameTimeSeconds, running: timerRunning });
 
-  // stats
   socket.on('admin-win-add', () => { S().wins++; pushAll(); });
   socket.on('admin-loss-add', () => { S().losses++; pushAll(); });
   socket.on('admin-death-add', () => { S().deathCount++; pushAll(); });
   socket.on('admin-death-sub', () => { if (S().deathCount > 0) S().deathCount--; pushAll(); });
   socket.on('admin-death-reset', () => { S().deathCount = 0; S().wins = 0; S().losses = 0; pushAll(); });
 
-  // timer
   socket.on('admin-timer-start', () => { timerRunning = true; pushAll(); });
   socket.on('admin-timer-pause', () => { timerRunning = false; pushAll(); });
   socket.on('admin-timer-reset', () => { S().gameTimeSeconds = 0; timerRunning = false; pushAll(); });
   socket.on('admin-timer-set', ({ hours, minutes, seconds }) => {
     S().gameTimeSeconds = (+hours || 0) * 3600 + (+minutes || 0) * 60 + (+seconds || 0); pushAll(); });
 
-  // polls
   socket.on('admin-start-bet', ({ title, options }) => {
-    if (streamData.bet.isOpen) { Object.entries(streamData.bet.bets).forEach(([u, x]) => addCoins(u, x.amount)); } // purana poll refund
+    if (streamData.bet.isOpen) { Object.entries(streamData.bet.bets).forEach(([u, x]) => addCoins(u, x.amount)); } 
     streamData.bet = { isOpen: true, locked: false, title, options: options.map((n, i) => ({ id: i + 1, name: n })), bets: {} };
     pushBet();
   });
   socket.on('admin-lock-bet', () => { if (streamData.bet.isOpen) { streamData.bet.locked = true; pushBet(); } });
-  socket.on('admin-end-bet', () => { // cancel = sab ko refund
+  socket.on('admin-end-bet', () => { 
     Object.entries(streamData.bet.bets || {}).forEach(([u, x]) => addCoins(u, x.amount));
     closeBet(); pushAll(); });
   socket.on('admin-resolve-bet', ({ winningOptionId }) => { resolveBet(winningOptionId); pushAll(); });
 
-  // coins
   socket.on('admin-grant-coins', ({ user, amount }) => { addCoins(cleanU(user), parseInt(amount) || 0); pushAll(); });
   socket.on('admin-save-coins', ({ coinsPerMsg, cooldownSeconds }) => {
     S().coinSettings.coinsPerMsg = coinsPerMsg; S().coinSettings.cooldownSeconds = cooldownSeconds; pushAll(); });
 
-  // AI / voice / persona
   socket.on('admin-change-styles', (d) => {
-    ['ttsVoice', 'ttsPitch', 'ttsRate', 'characterName', 'characterImage', 'characterPersona'].forEach(k => { if (d[k] !== undefined) S()[k] = d[k]; });
+    ['ttsVoice', 'ttsPitch', 'ttsRate', 'characterName', 'characterImage', 'characterPersona', 'groqKey', 'tavilyKey'].forEach(k => { if (d[k] !== undefined) S()[k] = d[k]; });
     pushAll(); });
   socket.on('admin-update-ai-cmd-config', ({ cmd, cost, tts, bubble }) => {
     S().aiCommand = cmd; S().coinSettings.aiCost = cost; S().enableTTS = tts; S().enableBubble = bubble; pushAll(); });
   socket.on('admin-test-speak', () => speak('Test voice! Sab theek chal raha hai boss.', true, true));
 
-  // commands
   socket.on('admin-update-game-commands', (d) => { Object.assign(S().gameCommands, d); pushAll(); });
   socket.on('admin-add-custom-cmd', (c) => {
     S().customCommands = S().customCommands.filter(x => x.cmd.toLowerCase() !== c.cmd.toLowerCase()).concat(c); pushAll(); });
   socket.on('admin-del-custom-cmd', (cmd) => { S().customCommands = S().customCommands.filter(x => x.cmd !== cmd); pushAll(); });
   socket.on('admin-save-automod', (d) => { S().automod = d; pushAll(); });
 
-  // triggers
   socket.on('admin-add-trigger', (t) => { S().triggers.push({ id: Date.now().toString(36), ...t }); pushAll(); });
   socket.on('admin-del-trigger', (id) => { S().triggers = S().triggers.filter(t => t.id !== id); pushAll(); });
 });
